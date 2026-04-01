@@ -109,6 +109,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
 	'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
 	'sessions': { type: 'boolean', cat: 'o', description: localize('sessions', "Opens the sessions window.") },
+	'aionui': { type: 'boolean', cat: 'o', description: localize('aionui', "Opens the AionUI window.") }, // test-workbench_change
+	'openwork': { type: 'boolean', cat: 'o', description: localize('openwork', "Opens the OpenWork window.") }, // test-workbench_change
 	'wait': { type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
 	'waitMarkerFilePath': { type: 'string' },
 	'locale': { type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },

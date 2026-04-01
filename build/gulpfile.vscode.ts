@@ -39,6 +39,14 @@ import globCallback from 'glob';
 import rceditCallback from 'rcedit';
 import * as cp from 'child_process';
 
+// test-workbench_change start
+// Import AionUI build tasks
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+require('./gulpfile.aionui.js');
+// Import OpenWork build tasks
+require('./gulpfile.openwork.js');
+// test-workbench_change end
 
 const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
@@ -117,7 +125,12 @@ const vscodeResourceIncludes = [
 	'out-build/vs/editor/common/languages/highlights/*.scm',
 
 	// Tree Sitter injection queries
-	'out-build/vs/editor/common/languages/injections/*.scm'
+	'out-build/vs/editor/common/languages/injections/*.scm',
+
+	// test-workbench_change start
+	// OpenWork integration files
+	'out-build/vs/openwork/electron-main/*.js'
+	// test-workbench_change end
 ];
 
 const vscodeResources = [
@@ -459,6 +472,24 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'node_modules/vsda/**' // retain copy of `vsda` in node_modules for internal use
 			], 'node_modules.asar'));
 
+		// test-workbench_change start
+		// Copy AionUI build artifacts
+		const aionuiDist = gulp.src('out/aionui/dist/**', { base: 'out/aionui', dot: true, allowEmpty: true })
+			.pipe(rename(function (path) { path.dirname = 'out/aionui/' + path.dirname; }));
+		const aionuiResources = gulp.src('out/aionui/resources/**', { base: 'out/aionui', dot: true, allowEmpty: true })
+			.pipe(rename(function (path) { path.dirname = 'out/aionui/' + path.dirname; }));
+		const aionuiNodeModules = gulp.src('out/aionui/node_modules/**', { base: 'out/aionui', dot: true, allowEmpty: true })
+			.pipe(rename(function (path) { path.dirname = 'out/aionui/' + path.dirname; }));
+		const aionuiPackageJson = gulp.src('out/aionui/package.json', { base: 'out/aionui', dot: true, allowEmpty: true })
+			.pipe(rename(function (path) { path.dirname = 'out/aionui/' + path.dirname; }));
+
+		// Copy OpenWork build artifacts
+		const openworkDist = gulp.src('out/openwork/dist/**', { base: 'out/openwork', dot: true, allowEmpty: true })
+			.pipe(rename(function (path) { path.dirname = 'out/openwork/' + path.dirname; }));
+		const openworkResources = gulp.src('out/openwork/resources/**', { base: 'out/openwork', dot: true, allowEmpty: true })
+			.pipe(rename(function (path) { path.dirname = 'out/openwork/' + path.dirname; }));
+		// test-workbench_change end
+
 		const mergeStreams = [
 			packageJsonStream,
 			productJsonStream,
@@ -466,7 +497,13 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			api,
 			telemetry,
 			sources,
-			deps
+			deps,
+			aionuiDist, // test-workbench_change
+			aionuiResources, // test-workbench_change
+			aionuiNodeModules, // test-workbench_change
+			aionuiPackageJson, // test-workbench_change
+			openworkDist, // test-workbench_change
+			openworkResources // test-workbench_change
 		];
 		if (packageSubJsonStream) {
 			mergeStreams.push(packageSubJsonStream);
@@ -744,6 +781,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 					minified && useCdnSourceMapsForPackagingTasks ? `${sourceMappingURLBase}/core` : undefined
 				)
 			);
+			// test-workbench_change start
 			vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 				copyCodiconsTask,
 				cleanExtensionsBuildTask,
@@ -751,17 +789,24 @@ BUILD_TARGETS.forEach(buildTarget => {
 				compileExtensionMediaBuildTask,
 				writeISODate('out-build'),
 				esbuildBundleTask,
+				gulp.task('build-aionui') as task.Task, // Build AionUI
+				gulp.task('build-openwork') as task.Task, // Build OpenWork
 				vscodeTaskCI
 			));
+			// test-workbench_change end
 		} else {
+			// test-workbench_change start
 			vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 				minified ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
 				compileExtensionMediaBuildTask,
 				minified ? minifyVSCodeTask : bundleVSCodeTask,
+				gulp.task('build-aionui') as task.Task, // Build AionUI
+				gulp.task('build-openwork') as task.Task, // Build OpenWork
 				vscodeTaskCI
 			));
+			// test-workbench_change end
 		}
 		gulp.task(vscodeTask);
 

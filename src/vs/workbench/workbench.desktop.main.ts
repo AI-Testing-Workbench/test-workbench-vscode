@@ -195,6 +195,12 @@ import './contrib/policyExport/electron-browser/policyExport.contribution.js';
 // Keybindings Export
 import './contrib/keybindingsExport/electron-browser/keybindingsExport.contribution.js';
 
+// AionUI // test-workbench_change
+import './contrib/aionui/browser/aionui.contribution.js'; // test-workbench_change
+
+// OpenWork // test-workbench_change
+import './contrib/openwork/browser/openwork.contribution.js'; // test-workbench_change
+
 //#endregion
 
 

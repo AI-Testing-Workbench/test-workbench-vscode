@@ -1356,6 +1356,22 @@ export class CodeApplication extends Disposable {
 			return windowsMainService.openSessionsWindow({ context, contextWindowId: undefined });
 		}
 
+		// test-workbench_change start
+		// Handle AionUI window
+		if (args['aionui']) {
+			this.logService.trace('Opening AionUI window from openFirstWindow');
+			await windowsMainService.openAionUIWindow();
+			return []; // Return empty array since AionUI window is not a code window
+		}
+
+		// Handle OpenWork window
+		if (args['openwork']) {
+			this.logService.trace('Opening OpenWork window from openFirstWindow');
+			await windowsMainService.openOpenWorkWindow();
+			return []; // Return empty array since OpenWork window is not a code window
+		}
+		// test-workbench_change end
+
 		// Then check for windows from protocol links to open
 		if (initialProtocolUrls) {
 

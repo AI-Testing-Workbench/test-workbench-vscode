@@ -43,6 +43,9 @@ export interface IWindowsMainService {
 
 	openSessionsWindow(openConfig: IBaseOpenConfiguration): Promise<ICodeWindow[]>;
 
+	openAionUIWindow(): Promise<void>; // test-workbench_change
+	openOpenWorkWindow(): Promise<void>; // test-workbench_change
+
 	sendToFocused(channel: string, ...args: unknown[]): void;
 	sendToOpeningWindow(channel: string, ...args: unknown[]): void;
 	sendToAll(channel: string, payload?: unknown, windowIdsToIgnore?: number[]): void;

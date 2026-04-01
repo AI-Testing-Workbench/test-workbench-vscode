@@ -1,0 +1,191 @@
+[90m[main 2026-03-29T15:30:46.086Z][0m PolicyConfiguration#initialize
+[90m[main 2026-03-29T15:30:46.086Z][0m PolicyConfiguration#updatePolicyDefinitions [
+  'update.mode',
+  'update.channel',
+  'update.showReleaseNotes',
+  'update.statusBar',
+  'update.titleBar',
+  'http.useLocalProxyConfiguration',
+  'http.electronFetch',
+  'http.proxy',
+  'http.proxyStrictSSL',
+  'http.proxyKerberosServicePrincipal',
+  'http.noProxy',
+  'http.proxyAuthorization',
+  'http.proxySupport',
+  'http.systemCertificates',
+  'http.systemCertificatesNode',
+  'http.experimental.systemCertificatesV2',
+  'http.fetchAdditionalSupport',
+  'http.webSocketAdditionalSupport',
+  'http.experimental.networkInterfaceCheckInterval',
+  'telemetry.telemetryLevel',
+  'telemetry.feedback.enabled',
+  'telemetry.enableTelemetry',
+  'extensions.allowed'
+]
+[90m[main 2026-03-29T15:30:46.087Z][0m NativePolicyService#_updatePolicyDefinitions - Found 4 policy definitions
+[90m[main 2026-03-29T15:30:46.095Z][0m [File Watcher (node.js)] Request to start watching: /Users/lujs/Library/Application Support/Code - OSS/User (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>),/Users/lujs/Library/Application Support/Code - OSS/User/settings.json (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>)
+[90m[main 2026-03-29T15:30:46.105Z][0m NativePolicyService#_onDidPolicyChange - Updated policy values: {}
+[90m[main 2026-03-29T15:30:46.105Z][0m PolicyConfiguration#update [
+  'update.mode',
+  'telemetry.telemetryLevel',
+  'telemetry.feedback.enabled',
+  'extensions.allowed'
+]
+[90m[main 2026-03-29T15:30:46.105Z][0m PolicyConfiguration#updatePolicyDefinitions [ 'update.enableWindowsBackgroundUpdates' ]
+[90m[main 2026-03-29T15:30:46.105Z][0m PolicyConfiguration#update []
+[90m[main 2026-03-29T15:30:46.111Z][0m Starting VS Code
+[90m[main 2026-03-29T15:30:46.111Z][0m from: /Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app
+[90m[main 2026-03-29T15:30:46.111Z][0m args: {
+  _: [],
+  diff: false,
+  merge: false,
+  add: false,
+  remove: false,
+  goto: false,
+  'new-window': false,
+  'reuse-window': false,
+  sessions: false,
+  aionui: true,
+  wait: false,
+  help: false,
+  'list-extensions': false,
+  'show-versions': false,
+  'pre-release': false,
+  'update-extensions': false,
+  version: false,
+  verbose: true,
+  status: false,
+  'prof-startup': false,
+  'no-cached-data': false,
+  'prof-v8-extensions': false,
+  'disable-extensions': false,
+  'disable-lcd-text': false,
+  'disable-gpu': false,
+  'disable-chromium-sandbox': false,
+  sandbox: false,
+  telemetry: false,
+  debugRenderer: false,
+  'enable-smoke-test-driver': false,
+  'skip-sessions-welcome': false,
+  logExtensionHostCommunication: false,
+  'skip-release-notes': false,
+  'skip-welcome': false,
+  'disable-telemetry': false,
+  'disable-updates': false,
+  transient: false,
+  'use-inmemory-secretstorage': false,
+  'disable-workspace-trust': false,
+  'disable-crash-reporter': false,
+  'skip-add-to-recently-opened': false,
+  'open-url': false,
+  'file-write': false,
+  'file-chmod': false,
+  force: false,
+  'do-not-sync': false,
+  'do-not-include-pack-dependencies': false,
+  trace: false,
+  'trace-memory-infra': false,
+  'preserve-env': false,
+  'force-user-env': false,
+  'force-disable-user-env': false,
+  'open-devtools': false,
+  'disable-gpu-sandbox': false,
+  '__enable-file-policy': false,
+  'enable-coi': false,
+  'enable-rdp-display-tracking': false,
+  'disable-layout-restore': false,
+  'disable-experiments': false,
+  'no-proxy-server': false,
+  'no-sandbox': false,
+  nolazy: false,
+  'force-renderer-accessibility': false,
+  'ignore-certificate-errors': false,
+  'allow-insecure-localhost': false,
+  'disable-dev-shm-usage': false,
+  'profile-temp': false,
+  logsPath: '/Users/lujs/Library/Application Support/Code - OSS/logs/20260329T233046'
+}
+[90m[main 2026-03-29T15:30:46.112Z][0m Resolving machine identifier...
+[90m[main 2026-03-29T15:30:46.112Z][0m Resolving SQM identifier...
+[90m[main 2026-03-29T15:30:46.112Z][0m Resolving devDevice identifier...
+[90m[main 2026-03-29T15:30:46.112Z][0m Resolved machine identifier: d78042a4186f02454f76f3f4ee99ca0df1b89d357f0e4114aff39be5d60feb9a
+[90m[main 2026-03-29T15:30:46.112Z][0m Resolved SQM identifier: 
+[90m[main 2026-03-29T15:30:46.112Z][0m Resolved devDevice identifier: 9b923555-680d-4a03-a8ac-d16c3b9bce8f
+[90m[main 2026-03-29T15:30:46.112Z][0m Main->SharedProcess#connect
+[90m[main 2026-03-29T15:30:46.113Z][0m PolicyConfiguration#updatePolicyDefinitions [
+  'terminal.integrated.automationProfile.linux',
+  'terminal.integrated.automationProfile.osx',
+  'terminal.integrated.automationProfile.windows',
+  'terminal.integrated.profiles.windows',
+  'terminal.integrated.profiles.osx',
+  'terminal.integrated.profiles.linux',
+  'terminal.integrated.useWslProfiles',
+  'terminal.integrated.inheritEnv',
+  'terminal.integrated.persistentSessionScrollback',
+  'terminal.integrated.showLinkHover',
+  'terminal.integrated.ignoreProcessNames'
+]
+[90m[main 2026-03-29T15:30:46.113Z][0m PolicyConfiguration#updatePolicyDefinitions [
+  'terminal.integrated.defaultProfile.linux',
+  'terminal.integrated.defaultProfile.osx',
+  'terminal.integrated.defaultProfile.windows'
+]
+[90m[main 2026-03-29T15:30:46.113Z][0m PolicyConfiguration#update []
+[90m[main 2026-03-29T15:30:46.113Z][0m PolicyConfiguration#update []
+[90m[main 2026-03-29T15:30:46.115Z][0m StorageMainService: creating application storage
+[90m[main 2026-03-29T15:30:46.117Z][0m ElectronURLListener: waiting for window to be ready to handle URLs...
+[90m[main 2026-03-29T15:30:46.117Z][0m lifecycle (main): phase changed (value: 2)
+[90m[main 2026-03-29T15:30:46.117Z][0m Opening AionUI window from openFirstWindow
+[90m[main 2026-03-29T15:30:46.117Z][0m windowsManager#openAionUIWindow
+[90m[main 2026-03-29T15:30:46.117Z][0m windowsManager#openAionUIWindow - loading AionUI module
+[90m[main 2026-03-29T15:30:46.117Z][0m windowsManager#openAionUIWindow - module path file:///Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/vs/aionui/electron-main/aionuiWindowManager.js
+[91m[main 2026-03-29T15:30:46.122Z][0m windowsManager#openAionUIWindow - failed Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/vs/aionui/electron-main/aionuiWindowManager.js' imported from /Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/main.js
+    at finalizeResolution (node:internal/modules/esm/resolve:279:11)
+    at moduleResolve (node:internal/modules/esm/resolve:873:10)
+    at defaultResolve (node:internal/modules/esm/resolve:997:11)
+    at nextResolve (node:internal/modules/esm/hooks:748:28)
+    at resolve (data:text/javascript;base64,CglleHBvcnQgYXN5bmMgZnVuY3Rpb24gcmVzb2x2ZShzcGVjaWZpZXIsIGNvbnRleHQsIG5leHRSZXNvbHZlKSB7CgkJaWYgKHNwZWNpZmllciA9PT0gJ2ZzJykgewoJCQlyZXR1cm4gewoJCQkJZm9ybWF0OiAnYnVpbHRpbicsCgkJCQlzaG9ydENpcmN1aXQ6IHRydWUsCgkJCQl1cmw6ICdub2RlOm9yaWdpbmFsLWZzJwoJCQl9OwoJCX0KCgkJLy8gRGVmZXIgdG8gdGhlIG5leHQgaG9vayBpbiB0aGUgY2hhaW4sIHdoaWNoIHdvdWxkIGJlIHRoZQoJCS8vIE5vZGUuanMgZGVmYXVsdCByZXNvbHZlIGlmIHRoaXMgaXMgdGhlIGxhc3QgdXNlci1zcGVjaWZpZWQgbG9hZGVyLgoJCXJldHVybiBuZXh0UmVzb2x2ZShzcGVjaWZpZXIsIGNvbnRleHQpOwoJfQ==:13:10)
+    at nextResolve (node:internal/modules/esm/hooks:748:28)
+    at Hooks.resolve (node:internal/modules/esm/hooks:240:30)
+    at MessagePort.handleMessage (node:internal/modules/esm/worker:199:24)
+    at [nodejs.internal.kHybridDispatch] (node:internal/event_target:843:20)
+    at MessagePort.<anonymous> (node:internal/per_context/messageport:23:28) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/vs/aionui/electron-main/aionuiWindowManager.js'
+}
+[91m[main 2026-03-29T15:30:46.122Z][0m Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/vs/aionui/electron-main/aionuiWindowManager.js' imported from /Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/main.js
+    at finalizeResolution (node:internal/modules/esm/resolve:279:11)
+    at moduleResolve (node:internal/modules/esm/resolve:873:10)
+    at defaultResolve (node:internal/modules/esm/resolve:997:11)
+    at nextResolve (node:internal/modules/esm/hooks:748:28)
+    at resolve (data:text/javascript;base64,CglleHBvcnQgYXN5bmMgZnVuY3Rpb24gcmVzb2x2ZShzcGVjaWZpZXIsIGNvbnRleHQsIG5leHRSZXNvbHZlKSB7CgkJaWYgKHNwZWNpZmllciA9PT0gJ2ZzJykgewoJCQlyZXR1cm4gewoJCQkJZm9ybWF0OiAnYnVpbHRpbicsCgkJCQlzaG9ydENpcmN1aXQ6IHRydWUsCgkJCQl1cmw6ICdub2RlOm9yaWdpbmFsLWZzJwoJCQl9OwoJCX0KCgkJLy8gRGVmZXIgdG8gdGhlIG5leHQgaG9vayBpbiB0aGUgY2hhaW4sIHdoaWNoIHdvdWxkIGJlIHRoZQoJCS8vIE5vZGUuanMgZGVmYXVsdCByZXNvbHZlIGlmIHRoaXMgaXMgdGhlIGxhc3QgdXNlci1zcGVjaWZpZWQgbG9hZGVyLgoJCXJldHVybiBuZXh0UmVzb2x2ZShzcGVjaWZpZXIsIGNvbnRleHQpOwoJfQ==:13:10)
+    at nextResolve (node:internal/modules/esm/hooks:748:28)
+    at Hooks.resolve (node:internal/modules/esm/hooks:240:30)
+    at MessagePort.handleMessage (node:internal/modules/esm/worker:199:24)
+    at [nodejs.internal.kHybridDispatch] (node:internal/event_target:843:20)
+    at MessagePort.<anonymous> (node:internal/per_context/messageport:23:28)
+[90m[main 2026-03-29T15:30:46.122Z][0m Lifecycle#kill()
+[90m[main 2026-03-29T15:30:46.123Z][0m Lifecycle#onWillShutdown.fire()
+[90m[main 2026-03-29T15:30:46.123Z][0m Lifecycle#onWillShutdown - begin 'instanceLockfile'
+[90m[main 2026-03-29T15:30:46.123Z][0m storageMainService#onWillShutdown()
+[90m[main 2026-03-29T15:30:46.123Z][0m Lifecycle#onWillShutdown - begin 'applicationStorage'
+[90m[main 2026-03-29T15:30:46.123Z][0m Lifecycle#onWillShutdown - begin 'extHostStarter'
+[90m[main 2026-03-29T15:30:46.123Z][0m Lifecycle#onWillShutdown - end 'extHostStarter'
+[90m[main 2026-03-29T15:30:46.124Z][0m StorageMainService: closed application storage
+[90m[main 2026-03-29T15:30:46.124Z][0m Lifecycle#onWillShutdown - end 'applicationStorage'
+[90m[main 2026-03-29T15:30:46.125Z][0m Lifecycle#onWillShutdown - end 'instanceLockfile'
+[90m[main 2026-03-29T15:30:46.126Z][0m [File Watcher (node.js)] Request to stop watching: /Users/lujs/Library/Application Support/Code - OSS/User (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>),/Users/lujs/Library/Application Support/Code - OSS/User/settings.json (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>)
+[90m[main 2026-03-29T15:30:46.126Z][0m [File Watcher (node.js)] stopping file watcher (/Users/lujs/Library/Application Support/Code - OSS/User (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>))
+[90m[main 2026-03-29T15:30:46.126Z][0m [File Watcher (node.js)] stopping file watcher (/Users/lujs/Library/Application Support/Code - OSS/User/settings.json (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>))
+Error: Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!
+    at i.add (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:1090)
+    at i._register (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:1764)
+    at i.watch (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:503:10464)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+Error: Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!
+    at i.add (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:1090)
+    at i._register (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:1764)
+    at i.watch (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:503:10464)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)

@@ -1,0 +1,643 @@
+[90m[main 2026-03-29T15:44:49.147Z][0m PolicyConfiguration#initialize
+[90m[main 2026-03-29T15:44:49.148Z][0m PolicyConfiguration#updatePolicyDefinitions [
+  'update.mode',
+  'update.channel',
+  'update.showReleaseNotes',
+  'update.statusBar',
+  'update.titleBar',
+  'http.useLocalProxyConfiguration',
+  'http.electronFetch',
+  'http.proxy',
+  'http.proxyStrictSSL',
+  'http.proxyKerberosServicePrincipal',
+  'http.noProxy',
+  'http.proxyAuthorization',
+  'http.proxySupport',
+  'http.systemCertificates',
+  'http.systemCertificatesNode',
+  'http.experimental.systemCertificatesV2',
+  'http.fetchAdditionalSupport',
+  'http.webSocketAdditionalSupport',
+  'http.experimental.networkInterfaceCheckInterval',
+  'telemetry.telemetryLevel',
+  'telemetry.feedback.enabled',
+  'telemetry.enableTelemetry',
+  'extensions.allowed'
+]
+[90m[main 2026-03-29T15:44:49.149Z][0m NativePolicyService#_updatePolicyDefinitions - Found 4 policy definitions
+[90m[main 2026-03-29T15:44:49.163Z][0m [File Watcher (node.js)] Request to start watching: /Users/lujs/Library/Application Support/Code - OSS/User (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>),/Users/lujs/Library/Application Support/Code - OSS/User/settings.json (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>)
+[90m[main 2026-03-29T15:44:49.171Z][0m [File Watcher (node.js)] Started watching: '/Users/lujs/Library/Application Support/Code - OSS/User'
+[90m[main 2026-03-29T15:44:49.171Z][0m NativePolicyService#_onDidPolicyChange - Updated policy values: {}
+[90m[main 2026-03-29T15:44:49.171Z][0m PolicyConfiguration#update [
+  'update.mode',
+  'telemetry.telemetryLevel',
+  'telemetry.feedback.enabled',
+  'extensions.allowed'
+]
+[90m[main 2026-03-29T15:44:49.171Z][0m PolicyConfiguration#updatePolicyDefinitions [ 'update.enableWindowsBackgroundUpdates' ]
+[90m[main 2026-03-29T15:44:49.171Z][0m PolicyConfiguration#update []
+[90m[main 2026-03-29T15:44:49.174Z][0m Starting VS Code
+[90m[main 2026-03-29T15:44:49.174Z][0m from: /Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app
+[90m[main 2026-03-29T15:44:49.174Z][0m args: {
+  _: [],
+  diff: false,
+  merge: false,
+  add: false,
+  remove: false,
+  goto: false,
+  'new-window': false,
+  'reuse-window': false,
+  sessions: false,
+  aionui: true,
+  wait: false,
+  help: false,
+  'list-extensions': false,
+  'show-versions': false,
+  'pre-release': false,
+  'update-extensions': false,
+  version: false,
+  verbose: true,
+  status: false,
+  'prof-startup': false,
+  'no-cached-data': false,
+  'prof-v8-extensions': false,
+  'disable-extensions': false,
+  'disable-lcd-text': false,
+  'disable-gpu': false,
+  'disable-chromium-sandbox': false,
+  sandbox: false,
+  telemetry: false,
+  debugRenderer: false,
+  'enable-smoke-test-driver': false,
+  'skip-sessions-welcome': false,
+  logExtensionHostCommunication: false,
+  'skip-release-notes': false,
+  'skip-welcome': false,
+  'disable-telemetry': false,
+  'disable-updates': false,
+  transient: false,
+  'use-inmemory-secretstorage': false,
+  'disable-workspace-trust': false,
+  'disable-crash-reporter': false,
+  'skip-add-to-recently-opened': false,
+  'open-url': false,
+  'file-write': false,
+  'file-chmod': false,
+  force: false,
+  'do-not-sync': false,
+  'do-not-include-pack-dependencies': false,
+  trace: false,
+  'trace-memory-infra': false,
+  'preserve-env': false,
+  'force-user-env': false,
+  'force-disable-user-env': false,
+  'open-devtools': false,
+  'disable-gpu-sandbox': false,
+  '__enable-file-policy': false,
+  'enable-coi': false,
+  'enable-rdp-display-tracking': false,
+  'disable-layout-restore': false,
+  'disable-experiments': false,
+  'no-proxy-server': false,
+  'no-sandbox': false,
+  nolazy: false,
+  'force-renderer-accessibility': false,
+  'ignore-certificate-errors': false,
+  'allow-insecure-localhost': false,
+  'disable-dev-shm-usage': false,
+  'profile-temp': false,
+  logsPath: '/Users/lujs/Library/Application Support/Code - OSS/logs/20260329T234449'
+}
+[90m[main 2026-03-29T15:44:49.174Z][0m Resolving machine identifier...
+[90m[main 2026-03-29T15:44:49.175Z][0m Resolving SQM identifier...
+[90m[main 2026-03-29T15:44:49.175Z][0m Resolving devDevice identifier...
+[90m[main 2026-03-29T15:44:49.175Z][0m Resolved machine identifier: d78042a4186f02454f76f3f4ee99ca0df1b89d357f0e4114aff39be5d60feb9a
+[90m[main 2026-03-29T15:44:49.175Z][0m Resolved SQM identifier: 
+[90m[main 2026-03-29T15:44:49.175Z][0m Resolved devDevice identifier: 9b923555-680d-4a03-a8ac-d16c3b9bce8f
+[90m[main 2026-03-29T15:44:49.175Z][0m Main->SharedProcess#connect
+[90m[main 2026-03-29T15:44:49.176Z][0m PolicyConfiguration#updatePolicyDefinitions [
+  'terminal.integrated.automationProfile.linux',
+  'terminal.integrated.automationProfile.osx',
+  'terminal.integrated.automationProfile.windows',
+  'terminal.integrated.profiles.windows',
+  'terminal.integrated.profiles.osx',
+  'terminal.integrated.profiles.linux',
+  'terminal.integrated.useWslProfiles',
+  'terminal.integrated.inheritEnv',
+  'terminal.integrated.persistentSessionScrollback',
+  'terminal.integrated.showLinkHover',
+  'terminal.integrated.ignoreProcessNames'
+]
+[90m[main 2026-03-29T15:44:49.176Z][0m PolicyConfiguration#updatePolicyDefinitions [
+  'terminal.integrated.defaultProfile.linux',
+  'terminal.integrated.defaultProfile.osx',
+  'terminal.integrated.defaultProfile.windows'
+]
+[90m[main 2026-03-29T15:44:49.176Z][0m PolicyConfiguration#update []
+[90m[main 2026-03-29T15:44:49.176Z][0m PolicyConfiguration#update []
+[90m[main 2026-03-29T15:44:49.177Z][0m [File Watcher (node.js)] Started watching: '/Users/lujs/Library/Application Support/Code - OSS/User/settings.json'
+[90m[main 2026-03-29T15:44:49.178Z][0m StorageMainService: creating application storage
+[90m[main 2026-03-29T15:44:49.180Z][0m ElectronURLListener: waiting for window to be ready to handle URLs...
+[90m[main 2026-03-29T15:44:49.180Z][0m lifecycle (main): phase changed (value: 2)
+[90m[main 2026-03-29T15:44:49.180Z][0m Opening AionUI window from openFirstWindow
+[90m[main 2026-03-29T15:44:49.180Z][0m windowsManager#openAionUIWindow
+[90m[main 2026-03-29T15:44:49.180Z][0m windowsManager#openAionUIWindow - loading AionUI module
+[90m[main 2026-03-29T15:44:49.180Z][0m windowsManager#openAionUIWindow - module path file:///Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/vs/aionui/electron-main/aionuiWindowManager.js
+[90m[main 2026-03-29T15:44:49.189Z][0m AionUIWindowManager#constructor { isDevelopment: false }
+[90m[main 2026-03-29T15:44:49.190Z][0m AionUIWindowManager#openWindow
+[90m[main 2026-03-29T15:44:49.190Z][0m AionUIWindowManager#launchAionUI
+[90m[main 2026-03-29T15:44:49.190Z][0m AionUIWindowManager#launchAionUI - launching AionUI in production mode
+[90m[main 2026-03-29T15:44:49.190Z][0m AionUIWindowManager#launchAionUIInProcess {
+  aionuiDistPath: '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/aionui/dist',
+  indexPath: '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/aionui/dist/renderer/index.html',
+  preloadPath: '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/aionui/dist/preload/index.js',
+  indexExists: true,
+  preloadExists: true
+}
+[90m[main 2026-03-29T15:44:49.190Z][0m AionUIWindowManager - IPC bridge handler registered
+[90m[main 2026-03-29T15:44:49.271Z][0m AionUIWindowManager - window added to bridge adapter list
+[90m[main 2026-03-29T15:44:49.277Z][0m AionUIWindowManager - DevTools opened for debugging
+[90m[main 2026-03-29T15:44:49.277Z][0m AionUIWindowManager#launchAionUIInProcess - loading URL {
+  vscodeFileUrl: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/aionui/dist/renderer/index.html'
+}
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[93m[main 2026-03-29T15:44:49.440Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage global',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T15:44:49.440Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage system',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T15:44:49.440Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage agent.chat',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T15:44:49.440Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage agent.chat.message',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T15:44:49.440Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage agent.config',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T15:44:49.440Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage agent.env',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[90m[main 2026-03-29T15:44:49.441Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.441Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getce036f8d","data":"theme"}
+[90m[main 2026-03-29T15:44:49.441Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.441Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.441Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getf6198c54","data":"colorScheme"}
+[90m[main 2026-03-29T15:44:49.441Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.443Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.443Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getbddd950b","data":"language"}
+[90m[main 2026-03-29T15:44:49.443Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.446Z][0m AionUIWindowManager#launchAionUIInProcess - successfully loaded index.html
+[90m[main 2026-03-29T15:44:49.446Z][0m AionUIWindowManager#launchAionUIInProcess - AionUI window created
+[90m[main 2026-03-29T15:44:49.446Z][0m lifecycle (main): phase changed (value: 3)
+[90m[main 2026-03-29T15:44:49.447Z][0m resolveShellEnv(): running (macOS/Linux)
+[90m[main 2026-03-29T15:44:49.447Z][0m getUnixShellEnvironment#runAsNode undefined
+[90m[main 2026-03-29T15:44:49.447Z][0m getUnixShellEnvironment#noAttach undefined
+[90m[main 2026-03-29T15:44:49.447Z][0m getUnixShellEnvironment#env {
+  OSLogRateLimit: '64',
+  MallocNanoZone: '0',
+  USER: 'lujs',
+  COMMAND_MODE: 'unix2003',
+  __CFBundleIdentifier: 'dev.kiro.desktop',
+  PATH: '/Users/lujs/.local/share/pnpm:/Users/lujs/.antigravity/antigravity/bin:/Users/lujs/.nvm/versions/node/v22.22.1/bin:/Applications/ServBay/script/alias:/Applications/ServBay/bin:/Applications/ServBay/sbin:/Applications/ServBay/script:/Applications/ServBay/package/python/current/Python.framework/Versions/Current/bin:/Applications/ServBay/package/node/current/bin:/Applications/ServBay/package/go/current/bin:/Applications/ServBay/package/openjdk/current/bin:/Applications/ServBay/package/rust/current/bin:/Applications/ServBay/package/ruby/current/bin:/Applications/ServBay/package/dotnetsdk/current:/Applications/ServBay/package/dotnetsdk/current/tools:/Users/lujs/.dotnet/tools/Applications/ServBay/package/mono/current:/opt/homebrew/opt/openjdk@17/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/lujs/Library/Python/3.9/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/usr/local/go/bin:/Users/lujs/.local/share/pnpm:/Users/lujs/Library/pnpm:/Users/lujs/.antigravity/antigravity/bin:/Users/lujs/.nvm/versions/node/v22.22.1/bin:/Applications/ServBay/script/alias:/Applications/ServBay/bin:/Applications/ServBay/sbin:/Applications/ServBay/script:/Applications/ServBay/package/python/current/Python.framework/Versions/Current/bin:/Applications/ServBay/package/node/current/bin:/Applications/ServBay/package/go/current/bin:/Applications/ServBay/package/openjdk/current/bin:/Applications/ServBay/package/rust/current/bin:/Applications/ServBay/package/ruby/current/bin:/Applications/ServBay/package/dotnetsdk/current:/Applications/ServBay/package/dotnetsdk/current/tools:/Users/lujs/.dotnet/tools/Applications/ServBay/package/mono/current:/opt/homebrew/opt/openjdk@17/bin:/Users/lujs/Library/Python/3.9/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin',
+  LOGNAME: 'lujs',
+  SSH_AUTH_SOCK: '/private/tmp/com.apple.launchd.IXkOK3DH0p/Listeners',
+  HOME: '/Users/lujs',
+  SHELL: '/bin/zsh',
+  TMPDIR: '/var/folders/hw/30khp7_x1dn6wvr0mfkkxgzr0000gn/T/',
+  __CF_USER_TEXT_ENCODING: '0x1F5:0x19:0x34',
+  XPC_SERVICE_NAME: '0',
+  XPC_FLAGS: '0x0',
+  SHLVL: '1',
+  PWD: '/Users/lujs/test-workbench-vscode',
+  OLDPWD: '/Users/lujs/test-workbench-vscode',
+  LANG: 'C.UTF-8',
+  HOMEBREW_PREFIX: '/opt/homebrew',
+  HOMEBREW_CELLAR: '/opt/homebrew/Cellar',
+  HOMEBREW_REPOSITORY: '/opt/homebrew',
+  INFOPATH: '/opt/homebrew/share/info:/opt/homebrew/share/info:',
+  JAVA_HOME: '/opt/homebrew/Cellar/openjdk@17/17.0.16/libexec/openjdk.jdk/Contents/Home',
+  PGHOST: '/Applications/ServBay/tmp',
+  NVM_DIR: '/Users/lujs/.nvm',
+  NVM_CD_FLAGS: '-q',
+  NVM_BIN: '/Users/lujs/.nvm/versions/node/v22.22.1/bin',
+  NVM_INC: '/Users/lujs/.nvm/versions/node/v22.22.1/include/node',
+  PNPM_HOME: '/Users/lujs/Library/pnpm',
+  PROMPT_COMMAND: 'sleep 0.050',
+  VTE_VERSION: '0',
+  Q_TERM_DISABLED: '1',
+  GIT_PAGER: '',
+  GH_PAGER: '',
+  PAGER: '',
+  MANPAGER: '',
+  BAT_PAGER: '',
+  DELTA_PAGER: '',
+  SYSTEMD_PAGER: '',
+  AWS_PAGER: '',
+  TERM_PROGRAM: 'kiro',
+  TERM_PROGRAM_VERSION: '0.11.107',
+  COLORTERM: 'truecolor',
+  GIT_ASKPASS: '/Applications/Kiro.app/Contents/Resources/app/extensions/git/dist/askpass.sh',
+  VSCODE_GIT_ASKPASS_NODE: '/Applications/Kiro.app/Contents/Frameworks/Kiro Helper (Plugin).app/Contents/MacOS/Kiro Helper (Plugin)',
+  VSCODE_GIT_ASKPASS_EXTRA_ARGS: '',
+  VSCODE_GIT_ASKPASS_MAIN: '/Applications/Kiro.app/Contents/Resources/app/extensions/git/dist/askpass-main.js',
+  VSCODE_GIT_IPC_HANDLE: '/var/folders/hw/30khp7_x1dn6wvr0mfkkxgzr0000gn/T/vscode-git-c886f215a6.sock',
+  VSCODE_INJECTION: '1',
+  ZDOTDIR: '/Users/lujs',
+  USER_ZDOTDIR: '/Users/lujs',
+  TERM: 'xterm-256color',
+  VSCODE_PROFILE_INITIALIZED: '1',
+  VSCODE_PYTHON_AUTOACTIVATE_GUARD: '1',
+  _: '/Users/lujs/test-workbench-vscode/../VSCode-darwin-arm64/Code - OSS.app/Contents/MacOS/Code - OSS',
+  VSCODE_CWD: '/Users/lujs/test-workbench-vscode',
+  VSCODE_NLS_CONFIG: '{"userLocale":"zh-cn","osLocale":"zh-cn","resolvedLanguage":"en","defaultMessagesFile":"/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/nls.messages.json","locale":"zh-cn","availableLanguages":{}}',
+  VSCODE_CODE_CACHE_PATH: '/Users/lujs/Library/Application Support/Code - OSS/CachedData/9b44522305a606f22d6358bc9d66ff1cf8a10100',
+  VSCODE_IPC_HOOK: '/Users/lujs/Library/Application Support/Code - OSS/1.11-main.sock',
+  VSCODE_PID: '50670',
+  ELECTRON_RUN_AS_NODE: '1',
+  ELECTRON_NO_ATTACH_CONSOLE: '1',
+  VSCODE_RESOLVING_ENVIRONMENT: '1'
+}
+[90m[main 2026-03-29T15:44:49.447Z][0m getUnixShellEnvironment#shell /bin/zsh
+[90m[main 2026-03-29T15:44:49.447Z][0m getUnixShellEnvironment#spawn ["-i","-l","-c"] '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/MacOS/Code - OSS'  -p '"1de95fe8d2e4" + JSON.stringify(process.env) + "1de95fe8d2e4"'
+[90m[main 2026-03-29T15:44:49.468Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-app.get-zoom-factor' }
+[90m[main 2026-03-29T15:44:49.468Z][0m MinimalDataProvider - handling event: subscribe-app.get-zoom-factor {"id":"app.get-zoom-factord223db33"}
+[90m[main 2026-03-29T15:44:49.468Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T15:44:49.481Z][0m update#setState disabled
+[90m[main 2026-03-29T15:44:49.481Z][0m update#ctor - updates are disabled as there is no update URL
+[90m[main 2026-03-29T15:44:49.483Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-cron.list-jobs' }
+[90m[main 2026-03-29T15:44:49.483Z][0m MinimalDataProvider - handling event: subscribe-cron.list-jobs {"id":"cron.list-jobs0adcc843"}
+[90m[main 2026-03-29T15:44:49.483Z][0m MinimalDataProvider - cron request, returning empty
+[90m[main 2026-03-29T15:44:49.484Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-acp.get-available-agents' }
+[90m[main 2026-03-29T15:44:49.485Z][0m MinimalDataProvider - handling event: subscribe-acp.get-available-agents {"id":"acp.get-available-agents1f636bb7"}
+[90m[main 2026-03-29T15:44:49.485Z][0m MinimalDataProvider - returning mock ACP agents: {"success":true,"data":[{"backend":"claude","name":"Claude Code","isPreset":true,"cliPath":"/usr/local/bin/claude","context":"AI coding assistant","avatar":"🤖"},{"backend":"qwen","name":"Qwen Code","isPreset":true,"cliPath":"npx @qwen-code/qwen-code","context":"Qwen AI assistant","avatar":"🔮"}]}
+[93m[main 2026-03-29T15:44:49.485Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 218,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[90m[main 2026-03-29T15:44:49.485Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.485Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get4f25d53c","data":"customCss"}
+[90m[main 2026-03-29T15:44:49.485Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.486Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.486Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getfa7a1554","data":"css.activeThemeId"}
+[90m[main 2026-03-29T15:44:49.486Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.486Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.486Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get13e4854d","data":"css.themes"}
+[90m[main 2026-03-29T15:44:49.486Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.486Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.486Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.geta93b1c81","data":"customCss"}
+[90m[main 2026-03-29T15:44:49.486Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.487Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.487Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getf7f7a29a","data":"css.activeThemeId"}
+[90m[main 2026-03-29T15:44:49.487Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.487Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.487Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.gete2f72b78","data":"css.themes"}
+[90m[main 2026-03-29T15:44:49.487Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.487Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-database.get-user-conversations' }
+[90m[main 2026-03-29T15:44:49.487Z][0m MinimalDataProvider - handling event: subscribe-database.get-user-conversations {"id":"database.get-user-conversations411daca8","data":{"page":0,"pageSize":10000}}
+[90m[main 2026-03-29T15:44:49.487Z][0m MinimalDataProvider - conversation request, returning empty
+[90m[main 2026-03-29T15:44:49.489Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://start/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:44:49.490Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:44:49.490Z][0m AionUI Console [log]: {
+  message: 'Sentry SDK failed to establish connection with the Electron main process.\n' +
+    '  - Ensure you have initialized the SDK in the main process\n' +
+    "  - If your renderers use custom sessions, be sure to set 'getSessions' in the main process options\n" +
+    "  - If you are bundling your main process code and using Electron < v5, you'll need to manually configure a preload script",
+  line: 6,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[90m[main 2026-03-29T15:44:49.514Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T15:44:49.514Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:44:49.514Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.514Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getaa181009","data":"customCss"}
+[90m[main 2026-03-29T15:44:49.514Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.514Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.514Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get1c036677","data":"css.activeThemeId"}
+[90m[main 2026-03-29T15:44:49.514Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.514Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.514Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getd894d2dd","data":"css.themes"}
+[90m[main 2026-03-29T15:44:49.515Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.578Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-cron.list-jobs' }
+[90m[main 2026-03-29T15:44:49.579Z][0m MinimalDataProvider - handling event: subscribe-cron.list-jobs {"id":"cron.list-jobs4624dbda"}
+[90m[main 2026-03-29T15:44:49.579Z][0m MinimalDataProvider - cron request, returning empty
+[50670:0329/234449.775453:ERROR:CONSOLE:1] "Request Autofill.enable failed. {"code":-32601,"message":"'Autofill.enable' wasn't found"}", source: devtools://devtools/bundled/core/protocol_client/protocol_client.js (1)
+[50670:0329/234449.775519:ERROR:CONSOLE:1] "Request Autofill.setAddresses failed. {"code":-32601,"message":"'Autofill.setAddresses' wasn't found"}", source: devtools://devtools/bundled/core/protocol_client/protocol_client.js (1)
+[90m[main 2026-03-29T15:44:49.848Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-mode.get-model-config' }
+[90m[main 2026-03-29T15:44:49.848Z][0m MinimalDataProvider - handling event: subscribe-mode.get-model-config {"id":"mode.get-model-config6e38b694"}
+[90m[main 2026-03-29T15:44:49.848Z][0m MinimalDataProvider - model request, returning empty
+[90m[main 2026-03-29T15:44:49.849Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.849Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get0bcce6dc","data":"gemini.config"}
+[90m[main 2026-03-29T15:44:49.849Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.849Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-google.auth.status' }
+[90m[main 2026-03-29T15:44:49.849Z][0m MinimalDataProvider - handling event: subscribe-google.auth.status {"id":"google.auth.status2ecdac96","data":{}}
+[90m[main 2026-03-29T15:44:49.849Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T15:44:49.849Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-mode.get-model-config' }
+[90m[main 2026-03-29T15:44:49.849Z][0m MinimalDataProvider - handling event: subscribe-mode.get-model-config {"id":"mode.get-model-config86fc5d47"}
+[90m[main 2026-03-29T15:44:49.849Z][0m MinimalDataProvider - model request, returning empty
+[90m[main 2026-03-29T15:44:49.850Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-acp.get-available-agents' }
+[90m[main 2026-03-29T15:44:49.850Z][0m MinimalDataProvider - handling event: subscribe-acp.get-available-agents {"id":"acp.get-available-agents44f39fd9"}
+[90m[main 2026-03-29T15:44:49.850Z][0m MinimalDataProvider - returning mock ACP agents: {"success":true,"data":[{"backend":"claude","name":"Claude Code","isPreset":true,"cliPath":"/usr/local/bin/claude","context":"AI coding assistant","avatar":"🤖"},{"backend":"qwen","name":"Qwen Code","isPreset":true,"cliPath":"npx @qwen-code/qwen-code","context":"Qwen AI assistant","avatar":"🔮"}]}
+[90m[main 2026-03-29T15:44:49.850Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-remote-agent.list' }
+[90m[main 2026-03-29T15:44:49.850Z][0m MinimalDataProvider - handling event: subscribe-remote-agent.list {"id":"remote-agent.list324fcde0"}
+[90m[main 2026-03-29T15:44:49.850Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T15:44:49.851Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.851Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get45a19e66","data":"skillsMarket.enabled"}
+[90m[main 2026-03-29T15:44:49.851Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.851Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-webui.get-status' }
+[90m[main 2026-03-29T15:44:49.851Z][0m MinimalDataProvider - handling event: subscribe-webui.get-status {"id":"webui.get-status0fd71af0"}
+[90m[main 2026-03-29T15:44:49.851Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T15:44:49.852Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.852Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get21022cd6","data":"acp.customAgents"}
+[90m[main 2026-03-29T15:44:49.852Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.852Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-assistants' }
+[90m[main 2026-03-29T15:44:49.852Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-assistants {"id":"extensions.get-assistants3cacca24"}
+[90m[main 2026-03-29T15:44:49.852Z][0m MinimalDataProvider - returning mock assistants
+[90m[main 2026-03-29T15:44:49.852Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-acp.refresh-custom-agents' }
+[90m[main 2026-03-29T15:44:49.852Z][0m MinimalDataProvider - handling event: subscribe-acp.refresh-custom-agents {"id":"acp.refresh-custom-agentsee20dde7"}
+[90m[main 2026-03-29T15:44:49.852Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T15:44:49.853Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.853Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getce3b9439","data":"acp.cachedModels"}
+[90m[main 2026-03-29T15:44:49.853Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.853Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.853Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get3ca74c39","data":"acp.config"}
+[90m[main 2026-03-29T15:44:49.853Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:49.853Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:44:49.853Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get1362a7c3","data":"gemini.config"}
+[90m[main 2026-03-29T15:44:49.853Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T15:44:50.601Z][0m getUnixShellEnvironment#raw 1de95fe8d2e4{"OSLogRateLimit":"64","MallocNanoZone":"0","USER":"lujs","COMMAND_MODE":"unix2003","__CFBundleIdentifier":"dev.kiro.desktop","PATH":"/Users/lujs/.local/share/pnpm:/Users/lujs/.antigravity/antigravity/bin:/Users/lujs/.nvm/versions/node/v22.22.1/bin:/Applications/ServBay/script/alias:/Applications/ServBay/bin:/Applications/ServBay/sbin:/Applications/ServBay/script:/Applications/ServBay/package/python/current/Python.framework/Versions/Current/bin:/Applications/ServBay/package/node/current/bin:/Applications/ServBay/package/go/current/bin:/Applications/ServBay/package/openjdk/current/bin:/Applications/ServBay/package/rust/current/bin:/Applications/ServBay/package/ruby/current/bin:/Applications/ServBay/package/dotnetsdk/current:/Applications/ServBay/package/dotnetsdk/current/tools:/Users/lujs/.dotnet/tools/Applications/ServBay/package/mono/current:/opt/homebrew/opt/openjdk@17/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/lujs/Library/Python/3.9/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/usr/local/go/bin:/Users/lujs/.local/share/pnpm:/Users/lujs/.antigravity/antigravity/bin:/Users/lujs/.nvm/versions/node/v22.22.1/bin:/Applications/ServBay/script/alias:/Applications/ServBay/bin:/Applications/ServBay/sbin:/Applications/ServBay/script:/Applications/ServBay/package/python/current/Python.framework/Versions/Current/bin:/Applications/ServBay/package/node/current/bin:/Applications/ServBay/package/go/current/bin:/Applications/ServBay/package/openjdk/current/bin:/Applications/ServBay/package/rust/current/bin:/Applications/ServBay/package/ruby/current/bin:/Applications/ServBay/package/dotnetsdk/current:/Applications/ServBay/package/dotnetsdk/current/tools:/Users/lujs/.dotnet/tools/Applications/ServBay/package/mono/current:/opt/homebrew/opt/openjdk@17/bin:/Users/lujs/Library/Python/3.9/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/Users/lujs/Library/pnpm","LOGNAME":"lujs","SSH_AUTH_SOCK":"/private/tmp/com.apple.launchd.IXkOK3DH0p/Listeners","HOME":"/Users/lujs","SHELL":"/bin/zsh","TMPDIR":"/var/folders/hw/30khp7_x1dn6wvr0mfkkxgzr0000gn/T/","__CF_USER_TEXT_ENCODING":"0x1F5:0x19:0x34","XPC_SERVICE_NAME":"0","XPC_FLAGS":"0x0","SHLVL":"1","PWD":"/Users/lujs/test-workbench-vscode","OLDPWD":"/Users/lujs/test-workbench-vscode","LANG":"C.UTF-8","HOMEBREW_PREFIX":"/opt/homebrew","HOMEBREW_CELLAR":"/opt/homebrew/Cellar","HOMEBREW_REPOSITORY":"/opt/homebrew","INFOPATH":"/opt/homebrew/share/info:/opt/homebrew/share/info:/opt/homebrew/share/info:","JAVA_HOME":"/opt/homebrew/Cellar/openjdk@17/17.0.16/libexec/openjdk.jdk/Contents/Home","PGHOST":"/Applications/ServBay/tmp","NVM_DIR":"/Users/lujs/.nvm","NVM_CD_FLAGS":"-q","NVM_BIN":"/Users/lujs/.nvm/versions/node/v22.22.1/bin","NVM_INC":"/Users/lujs/.nvm/versions/node/v22.22.1/include/node","PNPM_HOME":"/Users/lujs/Library/pnpm","PROMPT_COMMAND":"sleep 0.050","VTE_VERSION":"0","Q_TERM_DISABLED":"1","GIT_PAGER":"","GH_PAGER":"","PAGER":"","MANPAGER":"","BAT_PAGER":"","DELTA_PAGER":"","SYSTEMD_PAGER":"","AWS_PAGER":"","TERM_PROGRAM":"kiro","TERM_PROGRAM_VERSION":"0.11.107","COLORTERM":"truecolor","GIT_ASKPASS":"/Applications/Kiro.app/Contents/Resources/app/extensions/git/dist/askpass.sh","VSCODE_GIT_ASKPASS_NODE":"/Applications/Kiro.app/Contents/Frameworks/Kiro Helper (Plugin).app/Contents/MacOS/Kiro Helper (Plugin)","VSCODE_GIT_ASKPASS_EXTRA_ARGS":"","VSCODE_GIT_ASKPASS_MAIN":"/Applications/Kiro.app/Contents/Resources/app/extensions/git/dist/askpass-main.js","VSCODE_GIT_IPC_HANDLE":"/var/folders/hw/30khp7_x1dn6wvr0mfkkxgzr0000gn/T/vscode-git-c886f215a6.sock","VSCODE_INJECTION":"1","ZDOTDIR":"/Users/lujs","USER_ZDOTDIR":"/Users/lujs","TERM":"xterm-256color","VSCODE_PROFILE_INITIALIZED":"1","VSCODE_PYTHON_AUTOACTIVATE_GUARD":"1","VSCODE_CWD":"/Users/lujs/test-workbench-vscode","VSCODE_NLS_CONFIG":"{\"userLocale\":\"zh-cn\",\"osLocale\":\"zh-cn\",\"resolvedLanguage\":\"en\",\"defaultMessagesFile\":\"/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/nls.messages.json\",\"locale\":\"zh-cn\",\"availableLanguages\":{}}","VSCODE_CODE_CACHE_PATH":"/Users/lujs/Library/Application Support/Code - OSS/CachedData/9b44522305a606f22d6358bc9d66ff1cf8a10100","VSCODE_IPC_HOOK":"/Users/lujs/Library/Application Support/Code - OSS/1.11-main.sock","VSCODE_PID":"50670","ELECTRON_RUN_AS_NODE":"1","ELECTRON_NO_ATTACH_CONSOLE":"1","VSCODE_RESOLVING_ENVIRONMENT":"1","_":"/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/MacOS/Code - OSS"}1de95fe8d2e4
+
+[90m[main 2026-03-29T15:44:50.601Z][0m getUnixShellEnvironment#result {
+  OSLogRateLimit: '64',
+  MallocNanoZone: '0',
+  USER: 'lujs',
+  COMMAND_MODE: 'unix2003',
+  __CFBundleIdentifier: 'dev.kiro.desktop',
+  PATH: '/Users/lujs/.local/share/pnpm:/Users/lujs/.antigravity/antigravity/bin:/Users/lujs/.nvm/versions/node/v22.22.1/bin:/Applications/ServBay/script/alias:/Applications/ServBay/bin:/Applications/ServBay/sbin:/Applications/ServBay/script:/Applications/ServBay/package/python/current/Python.framework/Versions/Current/bin:/Applications/ServBay/package/node/current/bin:/Applications/ServBay/package/go/current/bin:/Applications/ServBay/package/openjdk/current/bin:/Applications/ServBay/package/rust/current/bin:/Applications/ServBay/package/ruby/current/bin:/Applications/ServBay/package/dotnetsdk/current:/Applications/ServBay/package/dotnetsdk/current/tools:/Users/lujs/.dotnet/tools/Applications/ServBay/package/mono/current:/opt/homebrew/opt/openjdk@17/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/lujs/Library/Python/3.9/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/usr/local/go/bin:/Users/lujs/.local/share/pnpm:/Users/lujs/.antigravity/antigravity/bin:/Users/lujs/.nvm/versions/node/v22.22.1/bin:/Applications/ServBay/script/alias:/Applications/ServBay/bin:/Applications/ServBay/sbin:/Applications/ServBay/script:/Applications/ServBay/package/python/current/Python.framework/Versions/Current/bin:/Applications/ServBay/package/node/current/bin:/Applications/ServBay/package/go/current/bin:/Applications/ServBay/package/openjdk/current/bin:/Applications/ServBay/package/rust/current/bin:/Applications/ServBay/package/ruby/current/bin:/Applications/ServBay/package/dotnetsdk/current:/Applications/ServBay/package/dotnetsdk/current/tools:/Users/lujs/.dotnet/tools/Applications/ServBay/package/mono/current:/opt/homebrew/opt/openjdk@17/bin:/Users/lujs/Library/Python/3.9/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/Users/lujs/Library/pnpm',
+  LOGNAME: 'lujs',
+  SSH_AUTH_SOCK: '/private/tmp/com.apple.launchd.IXkOK3DH0p/Listeners',
+  HOME: '/Users/lujs',
+  SHELL: '/bin/zsh',
+  TMPDIR: '/var/folders/hw/30khp7_x1dn6wvr0mfkkxgzr0000gn/T/',
+  __CF_USER_TEXT_ENCODING: '0x1F5:0x19:0x34',
+  XPC_SERVICE_NAME: '0',
+  XPC_FLAGS: '0x0',
+  SHLVL: '1',
+  PWD: '/Users/lujs/test-workbench-vscode',
+  OLDPWD: '/Users/lujs/test-workbench-vscode',
+  LANG: 'C.UTF-8',
+  HOMEBREW_PREFIX: '/opt/homebrew',
+  HOMEBREW_CELLAR: '/opt/homebrew/Cellar',
+  HOMEBREW_REPOSITORY: '/opt/homebrew',
+  INFOPATH: '/opt/homebrew/share/info:/opt/homebrew/share/info:/opt/homebrew/share/info:',
+  JAVA_HOME: '/opt/homebrew/Cellar/openjdk@17/17.0.16/libexec/openjdk.jdk/Contents/Home',
+  PGHOST: '/Applications/ServBay/tmp',
+  NVM_DIR: '/Users/lujs/.nvm',
+  NVM_CD_FLAGS: '-q',
+  NVM_BIN: '/Users/lujs/.nvm/versions/node/v22.22.1/bin',
+  NVM_INC: '/Users/lujs/.nvm/versions/node/v22.22.1/include/node',
+  PNPM_HOME: '/Users/lujs/Library/pnpm',
+  PROMPT_COMMAND: 'sleep 0.050',
+  VTE_VERSION: '0',
+  Q_TERM_DISABLED: '1',
+  GIT_PAGER: '',
+  GH_PAGER: '',
+  PAGER: '',
+  MANPAGER: '',
+  BAT_PAGER: '',
+  DELTA_PAGER: '',
+  SYSTEMD_PAGER: '',
+  AWS_PAGER: '',
+  TERM_PROGRAM: 'kiro',
+  TERM_PROGRAM_VERSION: '0.11.107',
+  COLORTERM: 'truecolor',
+  GIT_ASKPASS: '/Applications/Kiro.app/Contents/Resources/app/extensions/git/dist/askpass.sh',
+  VSCODE_GIT_ASKPASS_NODE: '/Applications/Kiro.app/Contents/Frameworks/Kiro Helper (Plugin).app/Contents/MacOS/Kiro Helper (Plugin)',
+  VSCODE_GIT_ASKPASS_EXTRA_ARGS: '',
+  VSCODE_GIT_ASKPASS_MAIN: '/Applications/Kiro.app/Contents/Resources/app/extensions/git/dist/askpass-main.js',
+  VSCODE_GIT_IPC_HANDLE: '/var/folders/hw/30khp7_x1dn6wvr0mfkkxgzr0000gn/T/vscode-git-c886f215a6.sock',
+  VSCODE_INJECTION: '1',
+  ZDOTDIR: '/Users/lujs',
+  USER_ZDOTDIR: '/Users/lujs',
+  TERM: 'xterm-256color',
+  VSCODE_PROFILE_INITIALIZED: '1',
+  VSCODE_PYTHON_AUTOACTIVATE_GUARD: '1',
+  VSCODE_CWD: '/Users/lujs/test-workbench-vscode',
+  VSCODE_NLS_CONFIG: '{"userLocale":"zh-cn","osLocale":"zh-cn","resolvedLanguage":"en","defaultMessagesFile":"/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/nls.messages.json","locale":"zh-cn","availableLanguages":{}}',
+  VSCODE_CODE_CACHE_PATH: '/Users/lujs/Library/Application Support/Code - OSS/CachedData/9b44522305a606f22d6358bc9d66ff1cf8a10100',
+  VSCODE_IPC_HOOK: '/Users/lujs/Library/Application Support/Code - OSS/1.11-main.sock',
+  VSCODE_PID: '50670',
+  _: '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/MacOS/Code - OSS'
+}
+[90m[main 2026-03-29T15:44:51.949Z][0m lifecycle (main): phase changed (value: 4)
+[90m[main 2026-03-29T15:45:20.585Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:45:22.100Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:45:22.683Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:45:23.267Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:45:23.983Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:45:26.300Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:45:26.850Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:45:30.038Z][0m Lifecycle#app.on(window-all-closed)
+[90m[main 2026-03-29T15:48:18.860Z][0m app#activate
+[90m[main 2026-03-29T15:48:18.860Z][0m windowsManager#open
+[90m[main 2026-03-29T15:48:18.860Z][0m windowsManager#open pathsToOpen [ [Object: null prototype] {} ]
+[90m[main 2026-03-29T15:48:18.861Z][0m windowsManager#doOpenEmpty {
+  restore: false,
+  remoteAuthority: undefined,
+  filesToOpen: undefined,
+  forceNewWindow: true
+}
+[90m[main 2026-03-29T15:48:18.862Z][0m IPC Object URL: Registered new channel vscode:af83d314-f92f-4780-9873-1c87c4e33cb4.
+[90m[main 2026-03-29T15:48:18.862Z][0m window#validateWindowState: validating window state on 1 display(s) {
+  width: 1200,
+  height: 800,
+  mode: 1,
+  x: 40,
+  y: 0,
+  hasDefaultState: true
+}
+[90m[main 2026-03-29T15:48:18.863Z][0m window#validateWindowState: single monitor working area { x: 0, y: 30, width: 1280, height: 721 }
+[90m[main 2026-03-29T15:48:18.863Z][0m window#ctor: using window state {
+  width: 1200,
+  height: 721,
+  mode: 1,
+  x: 40,
+  y: 30,
+  hasDefaultState: true
+}
+[90m[main 2026-03-29T15:48:18.890Z][0m window#load: attempt to load window (id: 2)
+[90m[main 2026-03-29T15:48:18.892Z][0m windowsManager#open used window count 1 (workspacesToOpen: 0, foldersToOpen: 0, emptyToRestore: 0, maybeOpenEmptyWindow: true)
+[90m[main 2026-03-29T15:48:18.975Z][0m resolveShellEnv(): running (macOS/Linux)
+[90m[main 2026-03-29T15:48:19.439Z][0m StorageMainService: creating workspace storage (1774799298952)
+[90m[main 2026-03-29T15:48:19.440Z][0m NativePolicyService#_updatePolicyDefinitions - Found 13 policy definitions
+[90m[main 2026-03-29T15:48:19.446Z][0m NativePolicyService#_onDidPolicyChange - Updated policy values: {}
+[90m[main 2026-03-29T15:48:19.446Z][0m PolicyConfiguration#onDidChangePolicies []
+[90m[main 2026-03-29T15:48:19.446Z][0m PolicyConfiguration#update []
+[90m[main 2026-03-29T15:48:19.447Z][0m NativePolicyService#_updatePolicyDefinitions - Found 15 policy definitions
+[90m[main 2026-03-29T15:48:19.448Z][0m NativePolicyService#_onDidPolicyChange - Updated policy values: {}
+[90m[main 2026-03-29T15:48:19.449Z][0m PolicyConfiguration#onDidChangePolicies []
+[90m[main 2026-03-29T15:48:19.449Z][0m PolicyConfiguration#update []
+[90m[main 2026-03-29T15:48:19.540Z][0m window#load: window reported ready (id: 2)
+[90m[main 2026-03-29T15:48:19.540Z][0m ElectronURLListener#flush(): flushing URLs
+[90m[main 2026-03-29T15:48:19.542Z][0m [SharedProcess] onWindowConnection for: vscode:createSharedProcessChannelConnectionResult
+[90m[main 2026-03-29T15:48:19.543Z][0m [UtilityProcess type: shared-process, pid: <none>]: creating new...
+[90m[main 2026-03-29T15:48:19.543Z][0m [UtilityProcess type: shared-process, pid: <none>]: payload sent via postMessage()
+[90m[main 2026-03-29T15:48:19.544Z][0m [UtilityProcessWorker]: createWorker(window: 2, moduleId: vs/platform/files/node/watcher/watcherMain)
+[90m[main 2026-03-29T15:48:19.544Z][0m [UtilityProcess id: 2, type: fileWatcher, pid: <none>]: creating new...
+[90m[main 2026-03-29T15:48:19.545Z][0m [UtilityProcess type: shared-process, pid: 52024]: successfully created
+[90m[main 2026-03-29T15:48:19.545Z][0m [UtilityProcess id: 2, type: fileWatcher, pid: 52025]: successfully created
+[90m[main 2026-03-29T15:48:19.557Z][0m menubarService#updateMenubar 2
+[90m[main 2026-03-29T15:48:19.583Z][0m [UtilityProcess id: 1, type: extensionHost, pid: <none>]: creating new...
+[90m[main 2026-03-29T15:48:19.584Z][0m [UtilityProcess id: 1, type: extensionHost, pid: 52026]: successfully created
+[90m[main 2026-03-29T15:48:19.670Z][0m resolveShellEnv(): running (macOS/Linux)
+[90m[main 2026-03-29T15:48:19.688Z][0m Terminal profile not validated fish [ 'fish' ]
+[90m[main 2026-03-29T15:48:19.688Z][0m Terminal profile not validated pwsh [ 'pwsh' ]
+[90m[main 2026-03-29T15:48:19.689Z][0m Terminal profile not validated tmux [ 'tmux' ]
+[90m[main 2026-03-29T15:48:19.764Z][0m [SharedProcess] IPC ready
+[90m[main 2026-03-29T15:48:19.765Z][0m Main->SharedProcess#connect: connection established
+[90m[main 2026-03-29T15:48:19.775Z][0m [File Watcher (node.js)] Request to start watching: /Users/lujs/Library/Application Support/Code - OSS/User (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>),/Users/lujs/Library/Application Support/Code - OSS/User/settings.json (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>)
+[90m[main 2026-03-29T15:48:19.775Z][0m [File Watcher (node.js)] Started watching: '/Users/lujs/Library/Application Support/Code - OSS/User'
+[90m[main 2026-03-29T15:48:19.775Z][0m [File Watcher (node.js)] Started watching: '/Users/lujs/Library/Application Support/Code - OSS/User/settings.json'
+[90m[main 2026-03-29T15:48:19.780Z][0m [SharedProcess] Overall ready
+[90m[main 2026-03-29T15:48:19.793Z][0m [File Watcher (node.js)] Request to start watching: /Users/lujs/.vscode-oss/extensions (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>),/Users/lujs/.vscode-oss/extensions/extensions.json (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>)
+[90m[main 2026-03-29T15:48:19.800Z][0m [File Watcher (node.js)] Started watching: '/Users/lujs/.vscode-oss/extensions'
+[90m[main 2026-03-29T15:48:19.802Z][0m [File Watcher (node.js)] Started watching: '/Users/lujs/.vscode-oss/extensions/extensions.json'
+[90m[main 2026-03-29T15:48:19.989Z][0m [UtilityProcess type: ptyHost, pid: <none>]: creating new...
+[90m[main 2026-03-29T15:48:19.990Z][0m PtyHostService#_startPtyHost 
+    at wc._startPtyHost (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:536:3933)
+    at wc._ensurePtyHost (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:536:3311)
+    at file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:536:2970
+    at Ta.value (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:5776)
+    at S._deliver (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:406:3043)
+    at S.fire (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:406:3361)
+    at hc._onWindowConnection (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:528:120809)
+    at file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:528:119127
+    at IpcMainImpl.t (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:412:13213)
+    at IpcMainImpl.emit (node:events:519:28)
+    at Session.<anonymous> (node:electron/js2c/browser_init:2:112437)
+    at Session.emit (node:events:519:28)
+[90m[main 2026-03-29T15:48:19.991Z][0m [UtilityProcess type: ptyHost, pid: 52027]: successfully created
+[90m[main 2026-03-29T15:48:20.086Z][0m [EncryptionMainService] Checking if encryption is available...
+[90m[main 2026-03-29T15:48:20.097Z][0m [EncryptionMainService] Encryption is available:  true
+[90m[main 2026-03-29T15:48:20.156Z][0m [File Watcher (node.js)] Request to start watching: /Users/lujs/Library/Application Support/Code - OSS/User/mcp.json (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>)
+[90m[main 2026-03-29T15:48:20.156Z][0m [File Watcher (node.js)] ignoring a path for watching who's stat info failed to resolve: /Users/lujs/Library/Application Support/Code - OSS/User/mcp.json (error: Error: ENOENT: no such file or directory, stat '/Users/lujs/Library/Application Support/Code - OSS/User/mcp.json')
+[90m[main 2026-03-29T15:48:20.156Z][0m [File Watcher (node.js)] starting fs.watchFile() on /Users/lujs/Library/Application Support/Code - OSS/User/mcp.json (correlationId: undefined)
+[90m[main 2026-03-29T15:48:20.319Z][0m Setting background throttling for window 2 to 'true'
+[90m[main 2026-03-29T15:48:20.588Z][0m menubarService#updateMenubar 2
+[90m[main 2026-03-29T15:48:20.962Z][0m [File Watcher (node.js)] Request to stop watching: /Users/lujs/Library/Application Support/Code - OSS/User/mcp.json (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>)
+[90m[main 2026-03-29T15:48:20.962Z][0m [File Watcher (node.js)] stopping file watcher (/Users/lujs/Library/Application Support/Code - OSS/User/mcp.json (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>))
+[90m[main 2026-03-29T15:48:21.309Z][0m menubarService#updateMenubar 2
+[90m[main 2026-03-29T15:48:21.671Z][0m resolveShellEnv(): running (macOS/Linux)
+[90m[main 2026-03-29T15:48:21.678Z][0m Terminal profile not validated fish [ 'fish' ]
+[90m[main 2026-03-29T15:48:21.679Z][0m Terminal profile not validated tmux [ 'tmux' ]
+[90m[main 2026-03-29T15:48:21.679Z][0m Terminal profile not validated pwsh [ 'pwsh' ]
+[90m[main 2026-03-29T15:48:21.937Z][0m menubarService#updateMenubar 2
+[90m[main 2026-03-29T15:48:22.320Z][0m menubarService#updateMenubar 2
+[90m[main 2026-03-29T15:48:22.370Z][0m Lifecycle#app.on(before-quit)
+[90m[main 2026-03-29T15:48:22.370Z][0m Lifecycle#onBeforeShutdown.fire()
+[90m[main 2026-03-29T15:48:22.371Z][0m [WindowsStateHandler] onBeforeShutdown {
+  lastActiveWindow: {
+    workspaceIdentifier: undefined,
+    folder: undefined,
+    backupPath: '/Users/lujs/Library/Application Support/Code - OSS/Backups/1774799298952',
+    remoteAuthority: undefined,
+    uiState: [Object: null prototype] {
+      mode: 1,
+      x: 40,
+      y: 30,
+      width: 1200,
+      height: 721,
+      zoomLevel: undefined
+    }
+  },
+  lastPluginDevelopmentHostWindow: undefined,
+  openedWindows: []
+}
+[90m[main 2026-03-29T15:48:22.371Z][0m Lifecycle#window.on('close') - window ID 2
+[90m[main 2026-03-29T15:48:22.371Z][0m Lifecycle#unload() - window ID 2
+[90m[main 2026-03-29T15:48:22.390Z][0m [UtilityProcess id: 1, type: extensionHost, pid: 52026]: received exit event with code 0
+[90m[main 2026-03-29T15:48:22.390Z][0m Extension host with pid 52026 exited with code: 0, signal: unknown.
+[90m[main 2026-03-29T15:48:22.459Z][0m Lifecycle#onBeforeCloseWindow.fire() - window ID 2
+[90m[main 2026-03-29T15:48:22.467Z][0m IPC Object URL: Removed channel vscode:af83d314-f92f-4780-9873-1c87c4e33cb4.
+[90m[main 2026-03-29T15:48:22.468Z][0m Lifecycle#window.on('closed') - window ID 2
+[90m[main 2026-03-29T15:48:22.468Z][0m Lifecycle#onWillShutdown.fire()
+[90m[main 2026-03-29T15:48:22.468Z][0m Lifecycle#onWillShutdown - begin 'instanceLockfile'
+[90m[main 2026-03-29T15:48:22.469Z][0m storageMainService#onWillShutdown()
+[90m[main 2026-03-29T15:48:22.469Z][0m Lifecycle#onWillShutdown - begin 'applicationStorage'
+[90m[main 2026-03-29T15:48:22.469Z][0m Lifecycle#onWillShutdown - begin 'workspaceStorage'
+[90m[main 2026-03-29T15:48:22.469Z][0m Lifecycle#onWillShutdown - begin 'extHostStarter'
+[90m[main 2026-03-29T15:48:22.469Z][0m [UtilityProcess id: 2, type: fileWatcher, pid: 52025]: attempting to kill the process...
+[90m[main 2026-03-29T15:48:22.471Z][0m [UtilityProcess id: 2, type: fileWatcher, pid: 52025]: successfully killed the process
+[90m[main 2026-03-29T15:48:22.471Z][0m Lifecycle#onWillShutdown - end 'extHostStarter'
+[90m[main 2026-03-29T15:48:22.471Z][0m Lifecycle#app.on(window-all-closed)
+[90m[main 2026-03-29T15:48:22.471Z][0m Lifecycle#app.on(will-quit) - begin
+[90m[main 2026-03-29T15:48:22.476Z][0m Lifecycle#onWillShutdown - end 'instanceLockfile'
+[90m[main 2026-03-29T15:48:22.476Z][0m [UtilityProcess id: 2, type: fileWatcher, pid: 52025]: received exit event with code 0
+[90m[main 2026-03-29T15:48:22.476Z][0m [UtilityProcessWorker]: terminated normally with code 0, signal: unknown
+[90m[main 2026-03-29T15:48:22.478Z][0m [File Watcher (node.js)] Request to stop watching: /Users/lujs/Library/Application Support/Code - OSS/User (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>),/Users/lujs/Library/Application Support/Code - OSS/User/settings.json (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>)
+[90m[main 2026-03-29T15:48:22.478Z][0m [File Watcher (node.js)] stopping file watcher (/Users/lujs/Library/Application Support/Code - OSS/User (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>))
+[90m[main 2026-03-29T15:48:22.480Z][0m [File Watcher (node.js)] stopping file watcher (/Users/lujs/Library/Application Support/Code - OSS/User/settings.json (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>))
+[90m[main 2026-03-29T15:48:22.489Z][0m StorageMainService: closed workspace storage (1774799298952)
+[90m[main 2026-03-29T15:48:22.490Z][0m Lifecycle#onWillShutdown - end 'workspaceStorage'
+[90m[main 2026-03-29T15:48:22.492Z][0m StorageMainService: closed application storage
+[90m[main 2026-03-29T15:48:22.492Z][0m Lifecycle#onWillShutdown - end 'applicationStorage'
+[90m[main 2026-03-29T15:48:22.494Z][0m Lifecycle#app.on(will-quit) - after fireOnWillShutdown
+[90m[main 2026-03-29T15:48:22.494Z][0m Lifecycle#app.on(will-quit) - calling app.quit()
+[90m[main 2026-03-29T15:48:22.498Z][0m [UtilityProcess type: ptyHost, pid: 52027]: received exit event with code 0

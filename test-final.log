@@ -1,0 +1,12 @@
+[91m[main 2026-03-29T16:53:09.968Z][0m windowsManager#openAionUIWindow - failed SyntaxError: Identifier 'protocol' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:347:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:162:19)
+[91m[main 2026-03-29T16:53:09.969Z][0m SyntaxError: Identifier 'protocol' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:347:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:162:19)

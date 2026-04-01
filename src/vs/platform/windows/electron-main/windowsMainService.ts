@@ -59,6 +59,7 @@ import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryW
 import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+// import { AionUIWindowManager } from '../../aionui/electron-main/aionuiWindowManager.js'; // test-workbench_change - temporarily commented
 
 //#region Helper Interfaces
 
@@ -213,6 +214,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private readonly windowsStateHandler: WindowsStateHandler;
 
+	// test-workbench_change start
+	// private _aionuiWindowManager: AionUIWindowManager | undefined;
+	// test-workbench_change end
+
 	constructor(
 		private readonly machineId: string,
 		private readonly sqmId: string,
@@ -316,6 +321,82 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			noRecentEntry: true,
 		});
 	}
+
+	// test-workbench_change start
+	private _aionuiWindowManager: any | undefined;
+
+	async openAionUIWindow(): Promise<void> {
+		this.logService.trace('windowsManager#openAionUIWindow');
+
+		try {
+			// Dynamically import AionUI module to avoid compilation issues
+			if (!this._aionuiWindowManager) {
+				this.logService.trace('windowsManager#openAionUIWindow - loading AionUI module');
+
+				// Use indirect eval to prevent TypeScript from transforming dynamic import
+				// This ensures the import() stays as-is in the compiled output
+				// Use file:// URL with absolute path to avoid relative path resolution issues
+				const modulePath = join(this.environmentMainService.appRoot, 'out', 'vs', 'aionui', 'electron-main', 'aionuiWindowManager.js');
+				const moduleUrl = `file://${modulePath}`;
+
+				this.logService.trace('windowsManager#openAionUIWindow - module path', moduleUrl);
+
+				const dynamicImport = new Function('specifier', 'return import(specifier)');
+				const aionuiModule = await dynamicImport(moduleUrl);
+				const AionUIWindowManager = aionuiModule.AionUIWindowManager;
+
+				// Create instance with dependency injection
+				this._aionuiWindowManager = new AionUIWindowManager(
+					this.environmentMainService,
+					this.logService
+				);
+			}
+
+			// Open window
+			await this._aionuiWindowManager.openWindow();
+		} catch (error) {
+			this.logService.error('windowsManager#openAionUIWindow - failed', error);
+			throw error;
+		}
+	}
+
+	private _openworkWindowManager: any | undefined;
+
+	async openOpenWorkWindow(): Promise<void> {
+		this.logService.trace('windowsManager#openOpenWorkWindow');
+
+		try {
+			// Dynamically import OpenWork module to avoid compilation issues
+			if (!this._openworkWindowManager) {
+				this.logService.trace('windowsManager#openOpenWorkWindow - loading OpenWork module');
+
+				// Use indirect eval to prevent TypeScript from transforming dynamic import
+				const modulePath = join(this.environmentMainService.appRoot, 'out', 'vs', 'openwork', 'electron-main', 'openworkWindowManager.js');
+				// Convert file path to proper file:// URL with proper encoding
+				const { pathToFileURL } = await import('url');
+				const moduleUrl = pathToFileURL(modulePath).href;
+
+				this.logService.trace('windowsManager#openOpenWorkWindow - module path', moduleUrl);
+
+				const dynamicImport = new Function('specifier', 'return import(specifier)');
+				const openworkModule = await dynamicImport(moduleUrl);
+				const OpenWorkWindowManager = openworkModule.OpenWorkWindowManager;
+
+				// Create instance with dependency injection
+				this._openworkWindowManager = new OpenWorkWindowManager(
+					this.environmentMainService,
+					this.logService
+				);
+			}
+
+			// Open window
+			await this._openworkWindowManager.openWindow();
+		} catch (error) {
+			this.logService.error('windowsManager#openOpenWorkWindow - failed', error);
+			throw error;
+		}
+	}
+	// test-workbench_change end
 
 	async open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#open');

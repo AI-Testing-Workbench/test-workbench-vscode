@@ -55,6 +55,8 @@ export interface NativeParsedArgs {
 	'new-window'?: boolean;
 	'reuse-window'?: boolean;
 	'sessions'?: boolean;
+	'aionui'?: boolean; // test-workbench_change
+	'openwork'?: boolean; // test-workbench_change
 	locale?: string;
 	'user-data-dir'?: string;
 	'prof-startup'?: boolean;

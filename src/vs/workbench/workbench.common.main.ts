@@ -189,6 +189,9 @@ registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, Instantia
 // Default Account
 import './services/accounts/browser/defaultAccount.js';
 
+// Mode Switch // test-workbench_change
+import './contrib/modeSwitch/browser/modeSwitch.contribution.js'; // test-workbench_change
+
 // Telemetry
 import './contrib/telemetry/browser/telemetry.contribution.js';
 

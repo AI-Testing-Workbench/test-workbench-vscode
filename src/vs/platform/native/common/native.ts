@@ -130,6 +130,8 @@ export interface ICommonNativeHostService {
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
 	openSessionsWindow(): Promise<void>;
+	openAionUIWindow(): Promise<void>; // test-workbench_change
+	openOpenWorkWindow(): Promise<void>; // test-workbench_change
 
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;

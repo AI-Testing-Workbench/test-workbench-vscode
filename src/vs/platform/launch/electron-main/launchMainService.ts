@@ -65,6 +65,22 @@ export class LaunchMainService implements ILaunchMainService {
 			app.focus({ steal: true });
 		}
 
+		// test-workbench_change start
+		// AionUI window - check this first before any other conditions
+		if (args['aionui']) {
+			this.logService.trace('Opening AionUI window from start() method');
+			await this.windowsMainService.openAionUIWindow();
+			return; // Return early
+		}
+
+		// OpenWork window - check this first before any other conditions
+		if (args['openwork']) {
+			this.logService.trace('Opening OpenWork window from start() method');
+			await this.windowsMainService.openOpenWorkWindow();
+			return; // Return early
+		}
+		// test-workbench_change end
+
 		// Check early for open-url which is handled in URL service
 		const urlsToOpen = this.parseOpenUrl(args);
 		if (urlsToOpen.length) {
@@ -139,6 +155,22 @@ export class LaunchMainService implements ILaunchMainService {
 			forceProfile: args.profile,
 			forceTempProfile: args['profile-temp']
 		};
+
+		// test-workbench_change start
+		// AionUI window - check this first before any other conditions
+		if (args['aionui']) {
+			this.logService.trace('Opening AionUI window from command line');
+			await this.windowsMainService.openAionUIWindow();
+			return; // Return early, no need to track windows
+		}
+
+		// OpenWork window - check this first before any other conditions
+		if (args['openwork']) {
+			this.logService.trace('Opening OpenWork window from command line');
+			await this.windowsMainService.openOpenWorkWindow();
+			return; // Return early, no need to track windows
+		}
+		// test-workbench_change end
 
 		// Special case extension development
 		if (args.extensionDevelopmentPath) {

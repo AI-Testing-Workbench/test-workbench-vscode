@@ -1,0 +1,22 @@
+[91m[main 2026-03-29T16:58:36.178Z][0m windowsManager#openAionUIWindow - failed SyntaxError: Identifier 'protocol' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:347:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:162:19)
+[91m[main 2026-03-29T16:58:36.180Z][0m SyntaxError: Identifier 'protocol' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:347:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:162:19)
+Error: Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!
+    at i.add (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:1090)
+    at i._register (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:1764)
+    at i.watch (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:503:10464)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+Error: Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!
+    at i.add (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:1090)
+    at i._register (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:1764)
+    at i.watch (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:503:10464)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)

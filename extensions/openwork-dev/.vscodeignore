@@ -1,0 +1,4 @@
+# test-workbench_change - new file
+# This directory contains OpenWork source code and should not be packaged as a VS Code extension
+# OpenWork is integrated into VS Code through the openwork window manager, not as an extension
+**

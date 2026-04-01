@@ -1,0 +1,912 @@
+[90m[main 2026-03-29T16:15:13.669Z][0m AionUIWindowManager#launchAionUI - launching AionUI in production mode
+[90m[main 2026-03-29T16:15:13.670Z][0m AionUIWindowManager#launchAionUIInProcess {
+  aionuiDistPath: '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/aionui/dist',
+  indexPath: '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/aionui/dist/renderer/index.html',
+  preloadPath: '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/aionui/dist/preload/index.js',
+  indexExists: true,
+  preloadExists: true
+}
+[90m[main 2026-03-29T16:15:13.671Z][0m AionUIWindowManager - IPC bridge handler registered
+[90m[main 2026-03-29T16:15:13.758Z][0m AionUIWindowManager - window added to bridge adapter list
+[90m[main 2026-03-29T16:15:13.765Z][0m AionUIWindowManager - DevTools opened for debugging
+[90m[main 2026-03-29T16:15:13.765Z][0m AionUIWindowManager#launchAionUIInProcess - loading URL {
+  vscodeFileUrl: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/aionui/dist/renderer/index.html'
+}
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[93m[main 2026-03-29T16:15:13.922Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage global',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T16:15:13.922Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage system',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T16:15:13.922Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage agent.chat',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T16:15:13.922Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage agent.chat.message',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T16:15:13.922Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage agent.config',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T16:15:13.922Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage agent.env',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[90m[main 2026-03-29T16:15:13.922Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get9afc0fff","data":"theme"}
+[90m[main 2026-03-29T16:15:13.922Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:13.923Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get5531665d","data":"colorScheme"}
+[90m[main 2026-03-29T16:15:13.923Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:13.924Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get61353b5d","data":"language"}
+[90m[main 2026-03-29T16:15:13.924Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:13.926Z][0m AionUIWindowManager#launchAionUIInProcess - successfully loaded index.html
+[90m[main 2026-03-29T16:15:13.926Z][0m AionUIWindowManager#launchAionUIInProcess - AionUI window created
+[90m[main 2026-03-29T16:15:13.941Z][0m MinimalDataProvider - handling event: subscribe-app.get-zoom-factor {"id":"app.get-zoom-factore46a37a0"}
+[90m[main 2026-03-29T16:15:13.941Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:15:13.954Z][0m update#setState disabled
+[90m[main 2026-03-29T16:15:13.954Z][0m update#ctor - updates are disabled as there is no update URL
+[90m[main 2026-03-29T16:15:13.962Z][0m MinimalDataProvider - handling event: subscribe-cron.list-jobs {"id":"cron.list-jobsd6036a43"}
+[90m[main 2026-03-29T16:15:13.962Z][0m MinimalDataProvider - cron request, returning empty
+[90m[main 2026-03-29T16:15:13.962Z][0m MinimalDataProvider - handling event: subscribe-acp.get-available-agents {"id":"acp.get-available-agentsd52708e1"}
+[90m[main 2026-03-29T16:15:13.962Z][0m MinimalDataProvider - returning mock ACP agents: {"success":true,"data":[{"backend":"claude","name":"Claude Code","isPreset":false,"cliPath":"/usr/local/bin/claude","context":"AI coding assistant","avatar":"🤖"},{"backend":"qwen","name":"Qwen Code","isPreset":false,"cliPath":"npx @qwen-code/qwen-code","context":"Qwen AI assistant","avatar":"🔮"}]}
+[90m[main 2026-03-29T16:15:13.962Z][0m MinimalDataProvider - agent count: 2
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - agent backends: claude, qwen
+[93m[main 2026-03-29T16:15:13.963Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 218,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.geta7669203","data":"customCss"}
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get223bf2a0","data":"css.activeThemeId"}
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getcf9d3895","data":"css.themes"}
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get5a21256f","data":"customCss"}
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get8ab5fc3e","data":"css.activeThemeId"}
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.gete9cf3272","data":"css.themes"}
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - handling event: subscribe-database.get-user-conversations {"id":"database.get-user-conversationsf73a0328","data":{"page":0,"pageSize":10000}}
+[90m[main 2026-03-29T16:15:13.963Z][0m MinimalDataProvider - conversation request, returning empty
+[93m[main 2026-03-29T16:15:13.970Z][0m AionUI Console [warn]: { message: '=== AionUI Debug Test ===', line: 3, sourceId: '' }
+[93m[main 2026-03-29T16:15:13.970Z][0m AionUI Console [warn]: { message: '1. electronAPI exists: true', line: 4, sourceId: '' }
+[93m[main 2026-03-29T16:15:13.970Z][0m AionUI Console [warn]: {
+  message: '2. Current path: /Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/index.html',
+  line: 5,
+  sourceId: ''
+}
+[93m[main 2026-03-29T16:15:13.971Z][0m AionUI Console [warn]: { message: '3. Current hash: #/guid', line: 6, sourceId: '' }
+[93m[main 2026-03-29T16:15:13.971Z][0m AionUI Console [warn]: { message: '4. Testing IPC...', line: 9, sourceId: '' }
+[90m[main 2026-03-29T16:15:13.971Z][0m MinimalDataProvider - handling event: subscribe-acp.get-available-agents {"id":"debug-test-1774800913969"}
+[90m[main 2026-03-29T16:15:13.971Z][0m MinimalDataProvider - returning mock ACP agents: {"success":true,"data":[{"backend":"claude","name":"Claude Code","isPreset":false,"cliPath":"/usr/local/bin/claude","context":"AI coding assistant","avatar":"🤖"},{"backend":"qwen","name":"Qwen Code","isPreset":false,"cliPath":"npx @qwen-code/qwen-code","context":"Qwen AI assistant","avatar":"🔮"}]}
+[90m[main 2026-03-29T16:15:13.971Z][0m MinimalDataProvider - agent count: 2
+[90m[main 2026-03-29T16:15:13.971Z][0m MinimalDataProvider - agent backends: claude, qwen
+[93m[main 2026-03-29T16:15:13.975Z][0m AionUI Console [warn]: { message: '5. ✅ IPC Result: [object Object]', line: 12, sourceId: '' }
+[93m[main 2026-03-29T16:15:13.975Z][0m AionUI Console [warn]: { message: '6. Success: true', line: 13, sourceId: '' }
+[93m[main 2026-03-29T16:15:13.975Z][0m AionUI Console [warn]: { message: '7. Agent count: 2', line: 14, sourceId: '' }
+[93m[main 2026-03-29T16:15:13.975Z][0m AionUI Console [warn]: {
+  message: '   Agent 0: {"backend":"claude","name":"Claude Code","isPreset":false,"cliPath":"/usr/local/bin/claude","context":"AI coding assistant","avatar":"🤖"}',
+  line: 17,
+  sourceId: ''
+}
+[93m[main 2026-03-29T16:15:13.975Z][0m AionUI Console [warn]: {
+  message: '   - isGeminiWithCli: false , passesFilter: true',
+  line: 21,
+  sourceId: ''
+}
+[93m[main 2026-03-29T16:15:13.975Z][0m AionUI Console [warn]: {
+  message: '   Agent 1: {"backend":"qwen","name":"Qwen Code","isPreset":false,"cliPath":"npx @qwen-code/qwen-code","context":"Qwen AI assistant","avatar":"🔮"}',
+  line: 17,
+  sourceId: ''
+}
+[93m[main 2026-03-29T16:15:13.975Z][0m AionUI Console [warn]: {
+  message: '   - isGeminiWithCli: false , passesFilter: true',
+  line: 21,
+  sourceId: ''
+}
+[90m[main 2026-03-29T16:15:13.984Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://start/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:15:13.985Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:15:13.985Z][0m AionUI Console [log]: {
+  message: 'Sentry SDK failed to establish connection with the Electron main process.\n' +
+    '  - Ensure you have initialized the SDK in the main process\n' +
+    "  - If your renderers use custom sessions, be sure to set 'getSessions' in the main process options\n" +
+    "  - If you are bundling your main process code and using Electron < v5, you'll need to manually configure a preload script",
+  line: 6,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[90m[main 2026-03-29T16:15:13.995Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:15:13.995Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:15:13.995Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get96166308","data":"customCss"}
+[90m[main 2026-03-29T16:15:13.995Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:13.995Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get12e2882a","data":"css.activeThemeId"}
+[90m[main 2026-03-29T16:15:13.995Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:13.995Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get738c53ee","data":"css.themes"}
+[90m[main 2026-03-29T16:15:13.995Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:14.078Z][0m MinimalDataProvider - handling event: subscribe-cron.list-jobs {"id":"cron.list-jobs23cec1d4"}
+[90m[main 2026-03-29T16:15:14.078Z][0m MinimalDataProvider - cron request, returning empty
+[69288:0330/001514.289287:ERROR:CONSOLE:1] "Request Autofill.enable failed. {"code":-32601,"message":"'Autofill.enable' wasn't found"}", source: devtools://devtools/bundled/core/protocol_client/protocol_client.js (1)
+[69288:0330/001514.289356:ERROR:CONSOLE:1] "Request Autofill.setAddresses failed. {"code":-32601,"message":"'Autofill.setAddresses' wasn't found"}", source: devtools://devtools/bundled/core/protocol_client/protocol_client.js (1)
+[90m[main 2026-03-29T16:15:14.381Z][0m MinimalDataProvider - handling event: subscribe-mode.get-model-config {"id":"mode.get-model-config84c8971f"}
+[90m[main 2026-03-29T16:15:14.382Z][0m MinimalDataProvider - model request, returning empty
+[90m[main 2026-03-29T16:15:14.382Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get17dff8e1","data":"gemini.config"}
+[90m[main 2026-03-29T16:15:14.382Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:14.382Z][0m MinimalDataProvider - handling event: subscribe-google.auth.status {"id":"google.auth.status12b97d03","data":{}}
+[90m[main 2026-03-29T16:15:14.382Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:15:14.383Z][0m MinimalDataProvider - handling event: subscribe-mode.get-model-config {"id":"mode.get-model-config29a6ac59"}
+[90m[main 2026-03-29T16:15:14.383Z][0m MinimalDataProvider - model request, returning empty
+[90m[main 2026-03-29T16:15:14.383Z][0m MinimalDataProvider - handling event: subscribe-acp.get-available-agents {"id":"acp.get-available-agents449a1eff"}
+[90m[main 2026-03-29T16:15:14.383Z][0m MinimalDataProvider - returning mock ACP agents: {"success":true,"data":[{"backend":"claude","name":"Claude Code","isPreset":false,"cliPath":"/usr/local/bin/claude","context":"AI coding assistant","avatar":"🤖"},{"backend":"qwen","name":"Qwen Code","isPreset":false,"cliPath":"npx @qwen-code/qwen-code","context":"Qwen AI assistant","avatar":"🔮"}]}
+[90m[main 2026-03-29T16:15:14.383Z][0m MinimalDataProvider - agent count: 2
+[90m[main 2026-03-29T16:15:14.383Z][0m MinimalDataProvider - agent backends: claude, qwen
+[90m[main 2026-03-29T16:15:14.384Z][0m MinimalDataProvider - handling event: subscribe-remote-agent.list {"id":"remote-agent.list3dad74a1"}
+[90m[main 2026-03-29T16:15:14.384Z][0m MinimalDataProvider - returning empty remote agents list
+[90m[main 2026-03-29T16:15:14.384Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get5f14e84c","data":"skillsMarket.enabled"}
+[90m[main 2026-03-29T16:15:14.384Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:14.385Z][0m MinimalDataProvider - handling event: subscribe-webui.get-status {"id":"webui.get-statusfc99173c"}
+[90m[main 2026-03-29T16:15:14.385Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:15:14.385Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.geta41faa0f","data":"acp.customAgents"}
+[90m[main 2026-03-29T16:15:14.385Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:14.385Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-assistants {"id":"extensions.get-assistants7fd40c4e"}
+[90m[main 2026-03-29T16:15:14.385Z][0m MinimalDataProvider - returning mock assistants
+[90m[main 2026-03-29T16:15:14.386Z][0m MinimalDataProvider - handling event: subscribe-acp.refresh-custom-agents {"id":"acp.refresh-custom-agents787afd47"}
+[90m[main 2026-03-29T16:15:14.386Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:15:14.386Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get5227f6ab","data":"acp.cachedModels"}
+[90m[main 2026-03-29T16:15:14.386Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:14.386Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getaea9a709","data":"acp.config"}
+[90m[main 2026-03-29T16:15:14.387Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:14.387Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get79fbd50a","data":"gemini.config"}
+[90m[main 2026-03-29T16:15:14.387Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:15:16.972Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:15:16.972Z][0m AionUI Console [warn]: {
+  message: '8. Checking UI elements...',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:15:16.973Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:15:16.973Z][0m AionUI Console [warn]: {
+  message: '   Agent pills (data-agent-pill): 0',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:15:16.973Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:15:16.973Z][0m AionUI Console [warn]: {
+  message: '   Agent elements (class*=agent): 1',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:15:16.973Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:15:16.973Z][0m AionUI Console [warn]: {
+  message: '   Card elements: 1',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:15:16.973Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:15:16.974Z][0m AionUI Console [warn]: {
+  message: '   Button elements: 7',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:15:16.974Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:15:16.974Z][0m AionUI Console [warn]: {
+  message: '9. Agent pills details:',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:15:16.974Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:15:16.974Z][0m AionUI Console [warn]: {
+  message: '10. Checking for React root...',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:15:16.974Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:15:16.974Z][0m AionUI Console [warn]: {
+  message: '   React root found: true',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:15:16.974Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:15:16.974Z][0m AionUI Console [warn]: {
+  message: '11. Page title: AionUi',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:16:42.864Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:16:44.346Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:16:45.395Z][0m MinimalDataProvider - handling event: subscribe-enable-skills-market {"id":"enable-skills-market5e488d12"}
+[90m[main 2026-03-29T16:16:45.395Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:16:45.397Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:16:46.462Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:16:47.879Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:16:49.390Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:16:49.912Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:16:51.429Z][0m MinimalDataProvider - handling event: subscribe-open-external {"id":"open-externalf1b241ac","data":"https://github.com/iOfficeAI/AionUi/discussions/1325"}
+[90m[main 2026-03-29T16:16:51.429Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:16:51.429Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[69354:0330/001653.865567:ERROR:gpu/command_buffer/service/shared_image/shared_image_manager.cc:501] SharedImageManager::ProduceOverlay: Trying to Produce a Overlay representation from a non-existent mailbox.
+[69354:0330/001653.866717:ERROR:components/viz/service/display_embedder/skia_output_device_buffer_queue.cc:262] Invalid mailbox.
+[69354:0330/001653.866729:ERROR:gpu/command_buffer/service/shared_image/shared_image_manager.cc:501] SharedImageManager::ProduceOverlay: Trying to Produce a Overlay representation from a non-existent mailbox.
+[69354:0330/001653.866737:ERROR:components/viz/service/display_embedder/skia_output_device_buffer_queue.cc:262] Invalid mailbox.
+[69354:0330/001653.866743:ERROR:gpu/command_buffer/service/shared_image/shared_image_manager.cc:501] SharedImageManager::ProduceOverlay: Trying to Produce a Overlay representation from a non-existent mailbox.
+[69354:0330/001653.866748:ERROR:components/viz/service/display_embedder/skia_output_device_buffer_queue.cc:262] Invalid mailbox.
+[69354:0330/001653.866753:ERROR:gpu/command_buffer/service/shared_image/shared_image_manager.cc:501] SharedImageManager::ProduceOverlay: Trying to Produce a Overlay representation from a non-existent mailbox.
+[69354:0330/001653.866757:ERROR:components/viz/service/display_embedder/skia_output_device_buffer_queue.cc:262] Invalid mailbox.
+[90m[main 2026-03-29T16:16:56.903Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:16:57.645Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:16:58.761Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:16:58.763Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:16:58.794Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-ext-i18n-for-locale {"id":"extensions.get-ext-i18n-for-localef6d71043","data":{"locale":"en-US"}}
+[90m[main 2026-03-29T16:16:58.794Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:16:58.794Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-settings-tabs {"id":"extensions.get-settings-tabsc4064833"}
+[90m[main 2026-03-29T16:16:58.795Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:16:58.795Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-settings-tabs {"id":"extensions.get-settings-tabs19bc9656"}
+[90m[main 2026-03-29T16:16:58.795Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:16:58.795Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-ext-i18n-for-locale {"id":"extensions.get-ext-i18n-for-localefef72846","data":{"locale":"en-US"}}
+[90m[main 2026-03-29T16:16:58.795Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:16:58.795Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:16:58.795Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:16:58.795Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get26a00583","data":"customCss"}
+[90m[main 2026-03-29T16:16:58.795Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:16:58.796Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.gete3e36877","data":"css.activeThemeId"}
+[90m[main 2026-03-29T16:16:58.796Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:16:58.796Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get8030188a","data":"css.themes"}
+[90m[main 2026-03-29T16:16:58.796Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:01.445Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:02.139Z][0m MinimalDataProvider - handling event: subscribe-mode.get-model-list {"id":"mode.get-model-list85e4df48","data":{"base_url":"https://generativelanguage.googleapis.com","try_fix":true,"platform":"gemini"}}
+[90m[main 2026-03-29T16:17:02.139Z][0m MinimalDataProvider - model request, returning empty
+[90m[main 2026-03-29T16:17:02.146Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:03.887Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:08.578Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:08.583Z][0m MinimalDataProvider - handling event: subscribe-mode.get-model-list {"id":"mode.get-model-list5bd1e757","data":{"base_url":"https://coding.dashscope.aliyuncs.com/v1","try_fix":true,"platform":"custom"}}
+[90m[main 2026-03-29T16:17:08.583Z][0m MinimalDataProvider - model request, returning empty
+[90m[main 2026-03-29T16:17:09.445Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:10.178Z][0m MinimalDataProvider - handling event: subscribe-mode.get-model-list {"id":"mode.get-model-listd69ce3f1","data":{"base_url":"https://coding.dashscope.aliyuncs.com/v1","try_fix":true,"platform":"custom"}}
+[90m[main 2026-03-29T16:17:10.178Z][0m MinimalDataProvider - model request, returning empty
+[90m[main 2026-03-29T16:17:10.328Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:13.211Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:14.128Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:14.132Z][0m MinimalDataProvider - handling event: subscribe-mode.get-model-list {"id":"mode.get-model-list7398f6ce","data":{"base_url":"https://api.minimaxi.com/v1","try_fix":true,"platform":"custom"}}
+[90m[main 2026-03-29T16:17:14.132Z][0m MinimalDataProvider - model request, returning empty
+[90m[main 2026-03-29T16:17:15.461Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:16.928Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+2026-03-30 00:17:18.808 Code - OSS[69288:1821194] error messaging the mach port for IMKCFRunLoopWakeUpReliable
+[90m[main 2026-03-29T16:17:19.567Z][0m MinimalDataProvider - handling event: subscribe-mode.get-model-list {"id":"mode.get-model-list7f35459d","data":{"base_url":"https://api.minimaxi.com/v1","api_key":"sss","try_fix":true,"platform":"custom"}}
+[90m[main 2026-03-29T16:17:19.567Z][0m MinimalDataProvider - model request, returning empty
+[90m[main 2026-03-29T16:17:20.011Z][0m MinimalDataProvider - handling event: subscribe-mode.get-model-list {"id":"mode.get-model-listf1b52ffa","data":{"base_url":"https://api.minimaxi.com/v1","api_key":"sss","try_fix":true,"platform":"custom"}}
+[90m[main 2026-03-29T16:17:20.011Z][0m MinimalDataProvider - model request, returning empty
+[90m[main 2026-03-29T16:17:20.127Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:20.213Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:21.411Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:21.927Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:23.244Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:23.246Z][0m MinimalDataProvider - handling event: subscribe-mode.save-model-config {"id":"mode.save-model-config6009bfdd","data":[{"id":"c7360635","platform":"custom","name":"MiniMax","baseUrl":"https://api.minimaxi.com/v1","apiKey":"sss","model":["dddd"]}]}
+[90m[main 2026-03-29T16:17:23.246Z][0m MinimalDataProvider - model request, returning empty
+[90m[main 2026-03-29T16:17:25.667Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:28.162Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:29.827Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:30.412Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:33.094Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:33.095Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:33.106Z][0m MinimalDataProvider - handling event: subscribe-cron.list-jobs {"id":"cron.list-jobs420188e3"}
+[90m[main 2026-03-29T16:17:33.106Z][0m MinimalDataProvider - cron request, returning empty
+[90m[main 2026-03-29T16:17:33.106Z][0m MinimalDataProvider - handling event: subscribe-cron.list-jobs {"id":"cron.list-jobsac1878ff"}
+[90m[main 2026-03-29T16:17:33.106Z][0m MinimalDataProvider - cron request, returning empty
+[90m[main 2026-03-29T16:17:33.106Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get94b0c4f5","data":"skillsMarket.enabled"}
+[90m[main 2026-03-29T16:17:33.106Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:33.106Z][0m MinimalDataProvider - handling event: subscribe-webui.get-status {"id":"webui.get-status16790770"}
+[90m[main 2026-03-29T16:17:33.106Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:17:33.106Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get30ad0a74","data":"acp.customAgents"}
+[90m[main 2026-03-29T16:17:33.107Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:33.107Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-assistants {"id":"extensions.get-assistants270bb603"}
+[90m[main 2026-03-29T16:17:33.107Z][0m MinimalDataProvider - returning mock assistants
+[90m[main 2026-03-29T16:17:33.107Z][0m MinimalDataProvider - handling event: subscribe-acp.refresh-custom-agents {"id":"acp.refresh-custom-agents2293966a"}
+[90m[main 2026-03-29T16:17:33.107Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:17:33.107Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get4afab29e","data":"acp.cachedModels"}
+[90m[main 2026-03-29T16:17:33.107Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:33.107Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get81e583d3","data":"acp.config"}
+[90m[main 2026-03-29T16:17:33.107Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:33.107Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get5fd91f29","data":"gemini.config"}
+[90m[main 2026-03-29T16:17:33.107Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:33.107Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:17:33.112Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:33.112Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getd369741a","data":"customCss"}
+[90m[main 2026-03-29T16:17:33.112Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:33.112Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get8e9b1804","data":"css.activeThemeId"}
+[90m[main 2026-03-29T16:17:33.113Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:33.113Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get69d46268","data":"css.themes"}
+[90m[main 2026-03-29T16:17:33.113Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:34.527Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:35.463Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:37.362Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:38.593Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:38.594Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getcb64469a","data":"gemini.config"}
+[90m[main 2026-03-29T16:17:38.594Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:39.528Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:40.393Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:40.393Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get5a2a64fd","data":"gemini.config"}
+[90m[main 2026-03-29T16:17:40.393Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:41.260Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:42.376Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:45.060Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:46.876Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:48.276Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:48.277Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:48.295Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-ext-i18n-for-locale {"id":"extensions.get-ext-i18n-for-localecc37eb95","data":{"locale":"en-US"}}
+[90m[main 2026-03-29T16:17:48.295Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:17:48.295Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-settings-tabs {"id":"extensions.get-settings-tabsac1d5b92"}
+[90m[main 2026-03-29T16:17:48.295Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:17:48.295Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-settings-tabs {"id":"extensions.get-settings-tabs95597dea"}
+[90m[main 2026-03-29T16:17:48.295Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:17:48.295Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-ext-i18n-for-locale {"id":"extensions.get-ext-i18n-for-locale4582dcf9","data":{"locale":"en-US"}}
+[90m[main 2026-03-29T16:17:48.295Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:17:48.295Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:17:48.295Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:48.296Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getbfa752de","data":"customCss"}
+[90m[main 2026-03-29T16:17:48.296Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:48.296Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getcda9626f","data":"css.activeThemeId"}
+[90m[main 2026-03-29T16:17:48.296Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:48.296Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get45dc4e6f","data":"css.themes"}
+[90m[main 2026-03-29T16:17:48.296Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:56.260Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:57.426Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:57.427Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:57.435Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getd869f2c8","data":"gemini.config"}
+[90m[main 2026-03-29T16:17:57.435Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:57.435Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-settings-tabs {"id":"extensions.get-settings-tabs095c1035"}
+[90m[main 2026-03-29T16:17:57.435Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:17:57.435Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-ext-i18n-for-locale {"id":"extensions.get-ext-i18n-for-localece17423e","data":{"locale":"en-US"}}
+[90m[main 2026-03-29T16:17:57.435Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:17:57.435Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:17:57.435Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:57.435Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getd90a3e3c","data":"customCss"}
+[90m[main 2026-03-29T16:17:57.435Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:57.436Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get937a9908","data":"css.activeThemeId"}
+[90m[main 2026-03-29T16:17:57.436Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:57.436Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get5d7e7a2e","data":"css.themes"}
+[90m[main 2026-03-29T16:17:57.436Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:59.326Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:59.326Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:59.336Z][0m MinimalDataProvider - handling event: subscribe-acp.get-available-agents {"id":"acp.get-available-agentsdb70e1a1"}
+[90m[main 2026-03-29T16:17:59.336Z][0m MinimalDataProvider - returning mock ACP agents: {"success":true,"data":[{"backend":"claude","name":"Claude Code","isPreset":false,"cliPath":"/usr/local/bin/claude","context":"AI coding assistant","avatar":"🤖"},{"backend":"qwen","name":"Qwen Code","isPreset":false,"cliPath":"npx @qwen-code/qwen-code","context":"Qwen AI assistant","avatar":"🔮"}]}
+[90m[main 2026-03-29T16:17:59.336Z][0m MinimalDataProvider - agent count: 2
+[90m[main 2026-03-29T16:17:59.336Z][0m MinimalDataProvider - agent backends: claude, qwen
+[90m[main 2026-03-29T16:17:59.337Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-settings-tabs {"id":"extensions.get-settings-tabsc9e3ea88"}
+[90m[main 2026-03-29T16:17:59.337Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:17:59.337Z][0m MinimalDataProvider - handling event: subscribe-extensions.get-ext-i18n-for-locale {"id":"extensions.get-ext-i18n-for-locale0a43f831","data":{"locale":"en-US"}}
+[90m[main 2026-03-29T16:17:59.337Z][0m MinimalDataProvider - unknown event, returning success
+[90m[main 2026-03-29T16:17:59.337Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T16:17:59.337Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:17:59.337Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getca06b013","data":"customCss"}
+[90m[main 2026-03-29T16:17:59.338Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:59.338Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get0add4b95","data":"css.activeThemeId"}
+[90m[main 2026-03-29T16:17:59.338Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:17:59.338Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getc24a6805","data":"css.themes"}
+[90m[main 2026-03-29T16:17:59.338Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:18:00.626Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:18:00.631Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:18:00.639Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getc79af343","data":"customCss"}
+[90m[main 2026-03-29T16:18:00.639Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:18:00.639Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get25f86287","data":"css.activeThemeId"}
+[90m[main 2026-03-29T16:18:00.639Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:18:00.639Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get9b5c16f2","data":"css.themes"}
+[90m[main 2026-03-29T16:18:00.639Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:18:01.359Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:18:02.159Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:18:02.161Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T16:18:02.166Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get85d9b102","data":"customCss"}
+[90m[main 2026-03-29T16:18:02.166Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:18:02.166Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.get5a575188","data":"css.activeThemeId"}
+[90m[main 2026-03-29T16:18:02.166Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:18:02.166Z][0m MinimalDataProvider - handling event: subscribe-agent.config.storage.get {"id":"agent.config.storage.getcc4d4a5e","data":"css.themes"}
+[90m[main 2026-03-29T16:18:02.166Z][0m MinimalDataProvider - storage get: { key: undefined }
+[90m[main 2026-03-29T16:18:10.509Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[69288:0330/002017.635098:ERROR:content/browser/network_service_instance_impl.cc:613] Network service crashed, restarting service.
+[69288:0330/002017.655016:ERROR:content/browser/gpu/gpu_process_host.cc:999] GPU process exited unexpectedly: exit_code=15
+[0330/002022.984752:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002023.040898:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002024.051417:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002025.059401:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002026.061484:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002027.061408:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002028.050703:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002029.060796:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002030.064874:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002031.065863:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002032.062485:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002033.069412:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002034.072768:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002035.080548:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002036.086990:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002037.087185:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002038.090028:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002039.095662:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002040.109074:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002041.111459:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002042.119100:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002043.110905:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002044.120650:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002045.129741:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002046.137100:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002047.138592:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002048.145380:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002049.145169:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002050.150588:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002051.160333:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002052.167052:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002053.169512:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002054.172718:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002055.167206:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002056.181501:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002057.186215:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002058.174002:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002059.179461:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002100.188672:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002101.192456:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002102.197026:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002103.195254:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002104.193277:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002105.194871:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002106.202469:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002107.203561:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002108.204405:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002109.210605:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002110.229769:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002111.216115:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002112.234886:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002113.238617:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002114.244538:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002115.249570:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002116.247123:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002117.258674:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002118.266337:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002119.270023:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002120.274707:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002121.279529:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002122.269133:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002123.274907:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002124.280033:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002125.281415:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002126.288176:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002127.306032:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002128.307158:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002129.298111:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002130.318577:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002131.321390:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002132.327339:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002133.329006:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002134.330572:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002135.321050:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002136.339010:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002137.345551:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002138.353286:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002139.339790:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002140.342945:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002141.345395:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002142.351947:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002143.352271:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002144.366474:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002145.372884:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002146.374444:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002147.379328:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002148.387043:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002149.376259:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002150.406078:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002151.398618:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002152.401263:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002153.407571:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002154.406493:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002155.411902:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002156.420755:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002157.413478:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002158.409075:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002159.413968:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002200.413744:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002201.439007:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002202.445234:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002203.448922:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002204.454848:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002205.461767:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002206.465851:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002207.464148:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002208.471246:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002209.475335:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002210.481485:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002211.477364:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002212.493201:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002213.498148:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002214.503064:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002215.505542:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002216.514217:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002217.519991:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002218.524887:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002219.529426:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002220.536016:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002221.540348:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002222.545236:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002223.550440:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002224.544215:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002225.557493:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002226.563870:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002227.569109:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002228.567239:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002229.569058:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002230.570499:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002231.576694:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002232.582579:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002233.582332:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+[0330/002234.592096:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+Error: Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!
+    at i.add (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:1090)
+    at u (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:6525)
+    at Object.o [as map] (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:5911)
+    at _h.listen (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:528:29938)
+    at Ed.onEventListen (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:408:298)
+    at Ed.onRawMessage (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:407:13897)
+    at Ta.value (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:407:13030)
+    at S._deliver (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:406:3043)
+    at S._deliverQueue (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:406:3132)
+    at S.fire (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:406:3466)
+    at Ta.value (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:5937)
+    at S._deliver (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:406:3043)
+    at S.fire (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:406:3361)
+    at Ta.value (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:6127)
+    at S._deliver (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:406:3043)
+    at S.fire (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:406:3361)
+    at Y (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:9486)
+    at IpcMainImpl.t (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:412:13213)
+    at IpcMainImpl.emit (node:events:519:28)
+    at Session.<anonymous> (node:electron/js2c/browser_init:2:112437)
+    at Session.emit (node:events:519:28)
+Error: Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!
+    at i.add (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:1090)
+    at jl._register (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:1764)
+    at jl.createUtilityProcess (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:505:42608)
+    at file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:505:42383
+Error: Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!
+    at i.add (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:1090)
+    at jl._register (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:1764)
+    at jl.createUtilityProcess (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:505:43324)
+    at file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:505:42383
+[0330/002235.583665:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)
+Error: Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!
+    at i.add (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:1090)
+    at u (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:6525)
+    at Object.o [as map] (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:5911)
+    at _h.listen (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:528:29938)
+    at Ed.onEventListen (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:408:298)
+    at Ed.onRawMessage (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:407:13897)
+    at Ta.value (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:407:13030)
+    at S._deliver (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:406:3043)
+    at S._deliverQueue (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:406:3132)
+    at S.fire (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:406:3466)
+    at MessagePortMain.Y (file:///Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/main.js:404:9695)
+    at MessagePortMain.emit (node:events:519:28)
+    at MessagePortMain._internalPort.emit (node:electron/js2c/browser_init:2:117074)
+[0330/002236.634298:FATAL:third_party/crashpad/crashpad/handler/mac/exception_handler_server.cc:76] Check failed: kr == KERN_SUCCESS. mach_port_request_notification: (os/kern) invalid capability (20)

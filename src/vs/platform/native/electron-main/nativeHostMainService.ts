@@ -311,6 +311,16 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		});
 	}
 
+	// test-workbench_change start
+	async openAionUIWindow(windowId: number | undefined): Promise<void> {
+		await this.windowsMainService.openAionUIWindow();
+	}
+
+	async openOpenWorkWindow(windowId: number | undefined): Promise<void> {
+		await this.windowsMainService.openOpenWorkWindow();
+	}
+	// test-workbench_change end
+
 	async isFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		return window?.isFullScreen ?? false;

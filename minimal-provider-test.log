@@ -1,0 +1,727 @@
+[90m[main 2026-03-29T15:25:16.275Z][0m PolicyConfiguration#initialize
+[90m[main 2026-03-29T15:25:16.277Z][0m PolicyConfiguration#updatePolicyDefinitions [
+  'update.mode',
+  'update.channel',
+  'update.showReleaseNotes',
+  'update.statusBar',
+  'update.titleBar',
+  'http.useLocalProxyConfiguration',
+  'http.electronFetch',
+  'http.proxy',
+  'http.proxyStrictSSL',
+  'http.proxyKerberosServicePrincipal',
+  'http.noProxy',
+  'http.proxyAuthorization',
+  'http.proxySupport',
+  'http.systemCertificates',
+  'http.systemCertificatesNode',
+  'http.experimental.systemCertificatesV2',
+  'http.fetchAdditionalSupport',
+  'http.webSocketAdditionalSupport',
+  'http.experimental.networkInterfaceCheckInterval',
+  'telemetry.telemetryLevel',
+  'telemetry.feedback.enabled',
+  'telemetry.enableTelemetry',
+  'extensions.allowed'
+]
+[90m[main 2026-03-29T15:25:16.278Z][0m NativePolicyService#_updatePolicyDefinitions - Found 4 policy definitions
+[90m[main 2026-03-29T15:25:16.296Z][0m [File Watcher (node.js)] Request to start watching: /Users/lujs/Library/Application Support/Code - OSS/User (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>),/Users/lujs/Library/Application Support/Code - OSS/User/settings.json (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>)
+[90m[main 2026-03-29T15:25:16.298Z][0m NativePolicyService#_onDidPolicyChange - Updated policy values: {}
+[90m[main 2026-03-29T15:25:16.298Z][0m PolicyConfiguration#update [
+  'update.mode',
+  'telemetry.telemetryLevel',
+  'telemetry.feedback.enabled',
+  'extensions.allowed'
+]
+[90m[main 2026-03-29T15:25:16.298Z][0m PolicyConfiguration#updatePolicyDefinitions [ 'update.enableWindowsBackgroundUpdates' ]
+[90m[main 2026-03-29T15:25:16.298Z][0m PolicyConfiguration#update []
+[90m[main 2026-03-29T15:25:16.302Z][0m Starting VS Code
+[90m[main 2026-03-29T15:25:16.302Z][0m from: /Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app
+[90m[main 2026-03-29T15:25:16.302Z][0m args: {
+  _: [],
+  diff: false,
+  merge: false,
+  add: false,
+  remove: false,
+  goto: false,
+  'new-window': false,
+  'reuse-window': false,
+  sessions: false,
+  aionui: true,
+  wait: false,
+  help: false,
+  'list-extensions': false,
+  'show-versions': false,
+  'pre-release': false,
+  'update-extensions': false,
+  version: false,
+  verbose: true,
+  status: false,
+  'prof-startup': false,
+  'no-cached-data': false,
+  'prof-v8-extensions': false,
+  'disable-extensions': false,
+  'disable-lcd-text': false,
+  'disable-gpu': false,
+  'disable-chromium-sandbox': false,
+  sandbox: false,
+  telemetry: false,
+  debugRenderer: false,
+  'enable-smoke-test-driver': false,
+  'skip-sessions-welcome': false,
+  logExtensionHostCommunication: false,
+  'skip-release-notes': false,
+  'skip-welcome': false,
+  'disable-telemetry': false,
+  'disable-updates': false,
+  transient: false,
+  'use-inmemory-secretstorage': false,
+  'disable-workspace-trust': false,
+  'disable-crash-reporter': false,
+  'skip-add-to-recently-opened': false,
+  'open-url': false,
+  'file-write': false,
+  'file-chmod': false,
+  force: false,
+  'do-not-sync': false,
+  'do-not-include-pack-dependencies': false,
+  trace: false,
+  'trace-memory-infra': false,
+  'preserve-env': false,
+  'force-user-env': false,
+  'force-disable-user-env': false,
+  'open-devtools': false,
+  'disable-gpu-sandbox': false,
+  '__enable-file-policy': false,
+  'enable-coi': false,
+  'enable-rdp-display-tracking': false,
+  'disable-layout-restore': false,
+  'disable-experiments': false,
+  'no-proxy-server': false,
+  'no-sandbox': false,
+  nolazy: false,
+  'force-renderer-accessibility': false,
+  'ignore-certificate-errors': false,
+  'allow-insecure-localhost': false,
+  'disable-dev-shm-usage': false,
+  'profile-temp': false,
+  logsPath: '/Users/lujs/Library/Application Support/Code - OSS/logs/20260329T232516'
+}
+[90m[main 2026-03-29T15:25:16.302Z][0m Resolving machine identifier...
+[90m[main 2026-03-29T15:25:16.302Z][0m Resolving SQM identifier...
+[90m[main 2026-03-29T15:25:16.302Z][0m Resolving devDevice identifier...
+[90m[main 2026-03-29T15:25:16.302Z][0m Resolved machine identifier: d78042a4186f02454f76f3f4ee99ca0df1b89d357f0e4114aff39be5d60feb9a
+[90m[main 2026-03-29T15:25:16.302Z][0m Resolved SQM identifier: 
+[90m[main 2026-03-29T15:25:16.302Z][0m Resolved devDevice identifier: 9b923555-680d-4a03-a8ac-d16c3b9bce8f
+[90m[main 2026-03-29T15:25:16.302Z][0m Main->SharedProcess#connect
+[90m[main 2026-03-29T15:25:16.304Z][0m PolicyConfiguration#updatePolicyDefinitions [
+  'terminal.integrated.automationProfile.linux',
+  'terminal.integrated.automationProfile.osx',
+  'terminal.integrated.automationProfile.windows',
+  'terminal.integrated.profiles.windows',
+  'terminal.integrated.profiles.osx',
+  'terminal.integrated.profiles.linux',
+  'terminal.integrated.useWslProfiles',
+  'terminal.integrated.inheritEnv',
+  'terminal.integrated.persistentSessionScrollback',
+  'terminal.integrated.showLinkHover',
+  'terminal.integrated.ignoreProcessNames'
+]
+[90m[main 2026-03-29T15:25:16.304Z][0m PolicyConfiguration#updatePolicyDefinitions [
+  'terminal.integrated.defaultProfile.linux',
+  'terminal.integrated.defaultProfile.osx',
+  'terminal.integrated.defaultProfile.windows'
+]
+[90m[main 2026-03-29T15:25:16.305Z][0m PolicyConfiguration#update []
+[90m[main 2026-03-29T15:25:16.305Z][0m PolicyConfiguration#update []
+[90m[main 2026-03-29T15:25:16.308Z][0m StorageMainService: creating application storage
+[90m[main 2026-03-29T15:25:16.310Z][0m ElectronURLListener: waiting for window to be ready to handle URLs...
+[90m[main 2026-03-29T15:25:16.311Z][0m lifecycle (main): phase changed (value: 2)
+[90m[main 2026-03-29T15:25:16.311Z][0m Opening AionUI window from openFirstWindow
+[90m[main 2026-03-29T15:25:16.311Z][0m windowsManager#openAionUIWindow
+[90m[main 2026-03-29T15:25:16.311Z][0m windowsManager#openAionUIWindow - loading AionUI module
+[90m[main 2026-03-29T15:25:16.311Z][0m windowsManager#openAionUIWindow - module path file:///Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/vs/aionui/electron-main/aionuiWindowManager.js
+[90m[main 2026-03-29T15:25:16.325Z][0m [File Watcher (node.js)] Started watching: '/Users/lujs/Library/Application Support/Code - OSS/User'
+[90m[main 2026-03-29T15:25:16.325Z][0m AionUIWindowManager#constructor { isDevelopment: false }
+[90m[main 2026-03-29T15:25:16.325Z][0m AionUIWindowManager#openWindow
+[90m[main 2026-03-29T15:25:16.325Z][0m AionUIWindowManager#launchAionUI
+[90m[main 2026-03-29T15:25:16.325Z][0m AionUIWindowManager#launchAionUI - launching AionUI in production mode
+[90m[main 2026-03-29T15:25:16.325Z][0m [File Watcher (node.js)] Started watching: '/Users/lujs/Library/Application Support/Code - OSS/User/settings.json'
+[90m[main 2026-03-29T15:25:16.326Z][0m AionUIWindowManager#launchAionUIInProcess {
+  aionuiDistPath: '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/aionui/dist',
+  indexPath: '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/aionui/dist/renderer/index.html',
+  preloadPath: '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/aionui/dist/preload/index.js',
+  indexExists: true,
+  preloadExists: true
+}
+[90m[main 2026-03-29T15:25:16.326Z][0m AionUIWindowManager - IPC bridge handler registered
+[90m[main 2026-03-29T15:25:16.422Z][0m AionUIWindowManager - window added to bridge adapter list
+[90m[main 2026-03-29T15:25:16.442Z][0m AionUIWindowManager - DevTools opened for debugging
+[90m[main 2026-03-29T15:25:16.442Z][0m AionUIWindowManager#launchAionUIInProcess - loading URL {
+  vscodeFileUrl: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/aionui/dist/renderer/index.html'
+}
+(electron) 'console-message' arguments are deprecated and will be removed. Please use Event<WebContentsConsoleMessageEventParams> object instead.
+[93m[main 2026-03-29T15:25:16.752Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage global',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T15:25:16.752Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage system',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T15:25:16.752Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage agent.chat',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T15:25:16.752Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage agent.chat.message',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T15:25:16.754Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage agent.config',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[93m[main 2026-03-29T15:25:16.754Z][0m AionUI Console [warn]: {
+  message: 'build.buildStorage agent.env',
+  line: 13,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[90m[main 2026-03-29T15:25:16.754Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:16.754Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:16.754Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:16.754Z][0m AionUIWindowManager#launchAionUIInProcess - successfully loaded index.html
+[90m[main 2026-03-29T15:25:16.754Z][0m AionUIWindowManager#launchAionUIInProcess - AionUI window created
+[90m[main 2026-03-29T15:25:16.755Z][0m lifecycle (main): phase changed (value: 3)
+[90m[main 2026-03-29T15:25:16.755Z][0m resolveShellEnv(): running (macOS/Linux)
+[90m[main 2026-03-29T15:25:16.755Z][0m getUnixShellEnvironment#runAsNode undefined
+[90m[main 2026-03-29T15:25:16.755Z][0m getUnixShellEnvironment#noAttach undefined
+[90m[main 2026-03-29T15:25:16.755Z][0m getUnixShellEnvironment#env {
+  NVM_INC: '/Users/lujs/.nvm/versions/node/v22.22.1/include/node',
+  TERM_PROGRAM: 'kiro',
+  NVM_CD_FLAGS: '-q',
+  TERM: 'xterm-256color',
+  VTE_VERSION: '0',
+  SHELL: '/bin/zsh',
+  HOMEBREW_REPOSITORY: '/opt/homebrew',
+  TMPDIR: '/var/folders/hw/30khp7_x1dn6wvr0mfkkxgzr0000gn/T/',
+  VSCODE_PYTHON_AUTOACTIVATE_GUARD: '1',
+  TERM_PROGRAM_VERSION: '0.11.107',
+  ZDOTDIR: '/Users/lujs',
+  MallocNanoZone: '0',
+  AWS_PAGER: '',
+  PNPM_HOME: '/Users/lujs/Library/pnpm',
+  NVM_DIR: '/Users/lujs/.nvm',
+  USER: 'lujs',
+  COMMAND_MODE: 'unix2003',
+  SSH_AUTH_SOCK: '/private/tmp/com.apple.launchd.IXkOK3DH0p/Listeners',
+  VSCODE_PROFILE_INITIALIZED: '1',
+  __CF_USER_TEXT_ENCODING: '0x1F5:0x19:0x34',
+  SYSTEMD_PAGER: '',
+  PAGER: '',
+  PATH: '/Users/lujs/.local/share/pnpm:/Users/lujs/.antigravity/antigravity/bin:/Users/lujs/.nvm/versions/node/v22.22.1/bin:/Applications/ServBay/script/alias:/Applications/ServBay/bin:/Applications/ServBay/sbin:/Applications/ServBay/script:/Applications/ServBay/package/python/current/Python.framework/Versions/Current/bin:/Applications/ServBay/package/node/current/bin:/Applications/ServBay/package/go/current/bin:/Applications/ServBay/package/openjdk/current/bin:/Applications/ServBay/package/rust/current/bin:/Applications/ServBay/package/ruby/current/bin:/Applications/ServBay/package/dotnetsdk/current:/Applications/ServBay/package/dotnetsdk/current/tools:/Users/lujs/.dotnet/tools/Applications/ServBay/package/mono/current:/opt/homebrew/opt/openjdk@17/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/lujs/Library/Python/3.9/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/usr/local/go/bin:/Users/lujs/.local/share/pnpm:/Users/lujs/Library/pnpm:/Users/lujs/.antigravity/antigravity/bin:/Users/lujs/.nvm/versions/node/v22.22.1/bin:/Applications/ServBay/script/alias:/Applications/ServBay/bin:/Applications/ServBay/sbin:/Applications/ServBay/script:/Applications/ServBay/package/python/current/Python.framework/Versions/Current/bin:/Applications/ServBay/package/node/current/bin:/Applications/ServBay/package/go/current/bin:/Applications/ServBay/package/openjdk/current/bin:/Applications/ServBay/package/rust/current/bin:/Applications/ServBay/package/ruby/current/bin:/Applications/ServBay/package/dotnetsdk/current:/Applications/ServBay/package/dotnetsdk/current/tools:/Users/lujs/.dotnet/tools/Applications/ServBay/package/mono/current:/opt/homebrew/opt/openjdk@17/bin:/Users/lujs/Library/Python/3.9/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin',
+  USER_ZDOTDIR: '/Users/lujs',
+  __CFBundleIdentifier: 'dev.kiro.desktop',
+  Q_TERM_DISABLED: '1',
+  PWD: '/Users/lujs/test-workbench-vscode',
+  DELTA_PAGER: '',
+  JAVA_HOME: '/opt/homebrew/Cellar/openjdk@17/17.0.16/libexec/openjdk.jdk/Contents/Home',
+  LANG: 'C.UTF-8',
+  PGHOST: '/Applications/ServBay/tmp',
+  VSCODE_GIT_ASKPASS_EXTRA_ARGS: '',
+  XPC_FLAGS: '0x0',
+  XPC_SERVICE_NAME: '0',
+  VSCODE_INJECTION: '1',
+  MANPAGER: '',
+  SHLVL: '2',
+  HOME: '/Users/lujs',
+  VSCODE_GIT_ASKPASS_MAIN: '/Applications/Kiro.app/Contents/Resources/app/extensions/git/dist/askpass-main.js',
+  HOMEBREW_PREFIX: '/opt/homebrew',
+  GH_PAGER: '',
+  LOGNAME: 'lujs',
+  VSCODE_GIT_IPC_HANDLE: '/var/folders/hw/30khp7_x1dn6wvr0mfkkxgzr0000gn/T/vscode-git-c886f215a6.sock',
+  NVM_BIN: '/Users/lujs/.nvm/versions/node/v22.22.1/bin',
+  PROMPT_COMMAND: 'sleep 0.050',
+  VSCODE_GIT_ASKPASS_NODE: '/Applications/Kiro.app/Contents/Frameworks/Kiro Helper (Plugin).app/Contents/MacOS/Kiro Helper (Plugin)',
+  GIT_ASKPASS: '/Applications/Kiro.app/Contents/Resources/app/extensions/git/dist/askpass.sh',
+  INFOPATH: '/opt/homebrew/share/info:/opt/homebrew/share/info:',
+  HOMEBREW_CELLAR: '/opt/homebrew/Cellar',
+  OSLogRateLimit: '64',
+  GIT_PAGER: '',
+  BAT_PAGER: '',
+  COLORTERM: 'truecolor',
+  _: '../VSCode-darwin-arm64/Code - OSS.app/Contents/MacOS/Code - OSS',
+  VSCODE_CWD: '/Users/lujs/test-workbench-vscode',
+  VSCODE_NLS_CONFIG: '{"userLocale":"zh-cn","osLocale":"zh-cn","resolvedLanguage":"en","defaultMessagesFile":"/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/nls.messages.json","locale":"zh-cn","availableLanguages":{}}',
+  VSCODE_CODE_CACHE_PATH: '/Users/lujs/Library/Application Support/Code - OSS/CachedData/9b44522305a606f22d6358bc9d66ff1cf8a10100',
+  VSCODE_IPC_HOOK: '/Users/lujs/Library/Application Support/Code - OSS/1.11-main.sock',
+  VSCODE_PID: '36265',
+  ELECTRON_RUN_AS_NODE: '1',
+  ELECTRON_NO_ATTACH_CONSOLE: '1',
+  VSCODE_RESOLVING_ENVIRONMENT: '1'
+}
+[90m[main 2026-03-29T15:25:16.756Z][0m getUnixShellEnvironment#shell /bin/zsh
+[90m[main 2026-03-29T15:25:16.757Z][0m getUnixShellEnvironment#spawn ["-i","-l","-c"] '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/MacOS/Code - OSS'  -p '"0609176e2cf8" + JSON.stringify(process.env) + "0609176e2cf8"'
+[90m[main 2026-03-29T15:25:16.774Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-app.get-zoom-factor' }
+[90m[main 2026-03-29T15:25:16.793Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-cron.list-jobs' }
+[90m[main 2026-03-29T15:25:16.795Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-acp.get-available-agents' }
+[93m[main 2026-03-29T15:25:16.796Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 218,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[90m[main 2026-03-29T15:25:16.796Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:16.796Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:16.796Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:16.797Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:16.797Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:16.797Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:16.797Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-database.get-user-conversations' }
+[90m[main 2026-03-29T15:25:16.817Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://start/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:25:16.817Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:25:16.817Z][0m AionUI Console [log]: {
+  message: 'Sentry SDK failed to establish connection with the Electron main process.\n' +
+    '  - Ensure you have initialized the SDK in the main process\n' +
+    "  - If your renderers use custom sessions, be sure to set 'getSessions' in the main process options\n" +
+    "  - If you are bundling your main process code and using Electron < v5, you'll need to manually configure a preload script",
+  line: 6,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-C6g-HcBt.js'
+}
+[90m[main 2026-03-29T15:25:16.833Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T15:25:16.833Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:25:16.833Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:16.833Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:16.833Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:16.866Z][0m update#setState disabled
+[90m[main 2026-03-29T15:25:16.866Z][0m update#ctor - updates are disabled as there is no update URL
+[90m[main 2026-03-29T15:25:16.928Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-cron.list-jobs' }
+[36265:0329/232517.192220:ERROR:CONSOLE:1] "Request Autofill.enable failed. {"code":-32601,"message":"'Autofill.enable' wasn't found"}", source: devtools://devtools/bundled/core/protocol_client/protocol_client.js (1)
+[36265:0329/232517.192259:ERROR:CONSOLE:1] "Request Autofill.setAddresses failed. {"code":-32601,"message":"'Autofill.setAddresses' wasn't found"}", source: devtools://devtools/bundled/core/protocol_client/protocol_client.js (1)
+[90m[main 2026-03-29T15:25:17.230Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-mode.get-model-config' }
+[90m[main 2026-03-29T15:25:17.231Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:17.231Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-google.auth.status' }
+[90m[main 2026-03-29T15:25:17.231Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-mode.get-model-config' }
+[90m[main 2026-03-29T15:25:17.232Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-acp.get-available-agents' }
+[90m[main 2026-03-29T15:25:17.232Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-remote-agent.list' }
+[90m[main 2026-03-29T15:25:17.233Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:17.233Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-webui.get-status' }
+[90m[main 2026-03-29T15:25:17.234Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:17.234Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-assistants' }
+[90m[main 2026-03-29T15:25:17.235Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-acp.refresh-custom-agents' }
+[90m[main 2026-03-29T15:25:17.235Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:17.235Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:17.236Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:25:18.105Z][0m getUnixShellEnvironment#raw 0609176e2cf8{"NVM_INC":"/Users/lujs/.nvm/versions/node/v22.22.1/include/node","TERM_PROGRAM":"kiro","NVM_CD_FLAGS":"-q","TERM":"xterm-256color","VTE_VERSION":"0","SHELL":"/bin/zsh","HOMEBREW_REPOSITORY":"/opt/homebrew","TMPDIR":"/var/folders/hw/30khp7_x1dn6wvr0mfkkxgzr0000gn/T/","VSCODE_PYTHON_AUTOACTIVATE_GUARD":"1","TERM_PROGRAM_VERSION":"0.11.107","ZDOTDIR":"/Users/lujs","MallocNanoZone":"0","AWS_PAGER":"","PNPM_HOME":"/Users/lujs/Library/pnpm","NVM_DIR":"/Users/lujs/.nvm","USER":"lujs","COMMAND_MODE":"unix2003","SSH_AUTH_SOCK":"/private/tmp/com.apple.launchd.IXkOK3DH0p/Listeners","VSCODE_PROFILE_INITIALIZED":"1","__CF_USER_TEXT_ENCODING":"0x1F5:0x19:0x34","SYSTEMD_PAGER":"","PAGER":"","PATH":"/Users/lujs/.local/share/pnpm:/Users/lujs/.antigravity/antigravity/bin:/Users/lujs/.nvm/versions/node/v22.22.1/bin:/Applications/ServBay/script/alias:/Applications/ServBay/bin:/Applications/ServBay/sbin:/Applications/ServBay/script:/Applications/ServBay/package/python/current/Python.framework/Versions/Current/bin:/Applications/ServBay/package/node/current/bin:/Applications/ServBay/package/go/current/bin:/Applications/ServBay/package/openjdk/current/bin:/Applications/ServBay/package/rust/current/bin:/Applications/ServBay/package/ruby/current/bin:/Applications/ServBay/package/dotnetsdk/current:/Applications/ServBay/package/dotnetsdk/current/tools:/Users/lujs/.dotnet/tools/Applications/ServBay/package/mono/current:/opt/homebrew/opt/openjdk@17/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/lujs/Library/Python/3.9/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/usr/local/go/bin:/Users/lujs/.local/share/pnpm:/Users/lujs/.antigravity/antigravity/bin:/Users/lujs/.nvm/versions/node/v22.22.1/bin:/Applications/ServBay/script/alias:/Applications/ServBay/bin:/Applications/ServBay/sbin:/Applications/ServBay/script:/Applications/ServBay/package/python/current/Python.framework/Versions/Current/bin:/Applications/ServBay/package/node/current/bin:/Applications/ServBay/package/go/current/bin:/Applications/ServBay/package/openjdk/current/bin:/Applications/ServBay/package/rust/current/bin:/Applications/ServBay/package/ruby/current/bin:/Applications/ServBay/package/dotnetsdk/current:/Applications/ServBay/package/dotnetsdk/current/tools:/Users/lujs/.dotnet/tools/Applications/ServBay/package/mono/current:/opt/homebrew/opt/openjdk@17/bin:/Users/lujs/Library/Python/3.9/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/Users/lujs/Library/pnpm","USER_ZDOTDIR":"/Users/lujs","__CFBundleIdentifier":"dev.kiro.desktop","Q_TERM_DISABLED":"1","PWD":"/Users/lujs/test-workbench-vscode","DELTA_PAGER":"","JAVA_HOME":"/opt/homebrew/Cellar/openjdk@17/17.0.16/libexec/openjdk.jdk/Contents/Home","LANG":"C.UTF-8","PGHOST":"/Applications/ServBay/tmp","VSCODE_GIT_ASKPASS_EXTRA_ARGS":"","XPC_FLAGS":"0x0","XPC_SERVICE_NAME":"0","VSCODE_INJECTION":"1","MANPAGER":"","SHLVL":"2","HOME":"/Users/lujs","VSCODE_GIT_ASKPASS_MAIN":"/Applications/Kiro.app/Contents/Resources/app/extensions/git/dist/askpass-main.js","HOMEBREW_PREFIX":"/opt/homebrew","GH_PAGER":"","LOGNAME":"lujs","VSCODE_GIT_IPC_HANDLE":"/var/folders/hw/30khp7_x1dn6wvr0mfkkxgzr0000gn/T/vscode-git-c886f215a6.sock","NVM_BIN":"/Users/lujs/.nvm/versions/node/v22.22.1/bin","PROMPT_COMMAND":"sleep 0.050","VSCODE_GIT_ASKPASS_NODE":"/Applications/Kiro.app/Contents/Frameworks/Kiro Helper (Plugin).app/Contents/MacOS/Kiro Helper (Plugin)","GIT_ASKPASS":"/Applications/Kiro.app/Contents/Resources/app/extensions/git/dist/askpass.sh","INFOPATH":"/opt/homebrew/share/info:/opt/homebrew/share/info:/opt/homebrew/share/info:","HOMEBREW_CELLAR":"/opt/homebrew/Cellar","OSLogRateLimit":"64","GIT_PAGER":"","BAT_PAGER":"","COLORTERM":"truecolor","VSCODE_CWD":"/Users/lujs/test-workbench-vscode","VSCODE_NLS_CONFIG":"{\"userLocale\":\"zh-cn\",\"osLocale\":\"zh-cn\",\"resolvedLanguage\":\"en\",\"defaultMessagesFile\":\"/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/nls.messages.json\",\"locale\":\"zh-cn\",\"availableLanguages\":{}}","VSCODE_CODE_CACHE_PATH":"/Users/lujs/Library/Application Support/Code - OSS/CachedData/9b44522305a606f22d6358bc9d66ff1cf8a10100","VSCODE_IPC_HOOK":"/Users/lujs/Library/Application Support/Code - OSS/1.11-main.sock","VSCODE_PID":"36265","ELECTRON_RUN_AS_NODE":"1","ELECTRON_NO_ATTACH_CONSOLE":"1","VSCODE_RESOLVING_ENVIRONMENT":"1","OLDPWD":"/Users/lujs/test-workbench-vscode","_":"/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/MacOS/Code - OSS"}0609176e2cf8
+
+[90m[main 2026-03-29T15:25:18.106Z][0m getUnixShellEnvironment#result {
+  NVM_INC: '/Users/lujs/.nvm/versions/node/v22.22.1/include/node',
+  TERM_PROGRAM: 'kiro',
+  NVM_CD_FLAGS: '-q',
+  TERM: 'xterm-256color',
+  VTE_VERSION: '0',
+  SHELL: '/bin/zsh',
+  HOMEBREW_REPOSITORY: '/opt/homebrew',
+  TMPDIR: '/var/folders/hw/30khp7_x1dn6wvr0mfkkxgzr0000gn/T/',
+  VSCODE_PYTHON_AUTOACTIVATE_GUARD: '1',
+  TERM_PROGRAM_VERSION: '0.11.107',
+  ZDOTDIR: '/Users/lujs',
+  MallocNanoZone: '0',
+  AWS_PAGER: '',
+  PNPM_HOME: '/Users/lujs/Library/pnpm',
+  NVM_DIR: '/Users/lujs/.nvm',
+  USER: 'lujs',
+  COMMAND_MODE: 'unix2003',
+  SSH_AUTH_SOCK: '/private/tmp/com.apple.launchd.IXkOK3DH0p/Listeners',
+  VSCODE_PROFILE_INITIALIZED: '1',
+  __CF_USER_TEXT_ENCODING: '0x1F5:0x19:0x34',
+  SYSTEMD_PAGER: '',
+  PAGER: '',
+  PATH: '/Users/lujs/.local/share/pnpm:/Users/lujs/.antigravity/antigravity/bin:/Users/lujs/.nvm/versions/node/v22.22.1/bin:/Applications/ServBay/script/alias:/Applications/ServBay/bin:/Applications/ServBay/sbin:/Applications/ServBay/script:/Applications/ServBay/package/python/current/Python.framework/Versions/Current/bin:/Applications/ServBay/package/node/current/bin:/Applications/ServBay/package/go/current/bin:/Applications/ServBay/package/openjdk/current/bin:/Applications/ServBay/package/rust/current/bin:/Applications/ServBay/package/ruby/current/bin:/Applications/ServBay/package/dotnetsdk/current:/Applications/ServBay/package/dotnetsdk/current/tools:/Users/lujs/.dotnet/tools/Applications/ServBay/package/mono/current:/opt/homebrew/opt/openjdk@17/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/lujs/Library/Python/3.9/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/usr/local/go/bin:/Users/lujs/.local/share/pnpm:/Users/lujs/.antigravity/antigravity/bin:/Users/lujs/.nvm/versions/node/v22.22.1/bin:/Applications/ServBay/script/alias:/Applications/ServBay/bin:/Applications/ServBay/sbin:/Applications/ServBay/script:/Applications/ServBay/package/python/current/Python.framework/Versions/Current/bin:/Applications/ServBay/package/node/current/bin:/Applications/ServBay/package/go/current/bin:/Applications/ServBay/package/openjdk/current/bin:/Applications/ServBay/package/rust/current/bin:/Applications/ServBay/package/ruby/current/bin:/Applications/ServBay/package/dotnetsdk/current:/Applications/ServBay/package/dotnetsdk/current/tools:/Users/lujs/.dotnet/tools/Applications/ServBay/package/mono/current:/opt/homebrew/opt/openjdk@17/bin:/Users/lujs/Library/Python/3.9/bin:/Library/Frameworks/Python.framework/Versions/3.12/bin:/Users/lujs/Library/pnpm',
+  USER_ZDOTDIR: '/Users/lujs',
+  __CFBundleIdentifier: 'dev.kiro.desktop',
+  Q_TERM_DISABLED: '1',
+  PWD: '/Users/lujs/test-workbench-vscode',
+  DELTA_PAGER: '',
+  JAVA_HOME: '/opt/homebrew/Cellar/openjdk@17/17.0.16/libexec/openjdk.jdk/Contents/Home',
+  LANG: 'C.UTF-8',
+  PGHOST: '/Applications/ServBay/tmp',
+  VSCODE_GIT_ASKPASS_EXTRA_ARGS: '',
+  XPC_FLAGS: '0x0',
+  XPC_SERVICE_NAME: '0',
+  VSCODE_INJECTION: '1',
+  MANPAGER: '',
+  SHLVL: '2',
+  HOME: '/Users/lujs',
+  VSCODE_GIT_ASKPASS_MAIN: '/Applications/Kiro.app/Contents/Resources/app/extensions/git/dist/askpass-main.js',
+  HOMEBREW_PREFIX: '/opt/homebrew',
+  GH_PAGER: '',
+  LOGNAME: 'lujs',
+  VSCODE_GIT_IPC_HANDLE: '/var/folders/hw/30khp7_x1dn6wvr0mfkkxgzr0000gn/T/vscode-git-c886f215a6.sock',
+  NVM_BIN: '/Users/lujs/.nvm/versions/node/v22.22.1/bin',
+  PROMPT_COMMAND: 'sleep 0.050',
+  VSCODE_GIT_ASKPASS_NODE: '/Applications/Kiro.app/Contents/Frameworks/Kiro Helper (Plugin).app/Contents/MacOS/Kiro Helper (Plugin)',
+  GIT_ASKPASS: '/Applications/Kiro.app/Contents/Resources/app/extensions/git/dist/askpass.sh',
+  INFOPATH: '/opt/homebrew/share/info:/opt/homebrew/share/info:/opt/homebrew/share/info:',
+  HOMEBREW_CELLAR: '/opt/homebrew/Cellar',
+  OSLogRateLimit: '64',
+  GIT_PAGER: '',
+  BAT_PAGER: '',
+  COLORTERM: 'truecolor',
+  VSCODE_CWD: '/Users/lujs/test-workbench-vscode',
+  VSCODE_NLS_CONFIG: '{"userLocale":"zh-cn","osLocale":"zh-cn","resolvedLanguage":"en","defaultMessagesFile":"/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/Resources/app/out/nls.messages.json","locale":"zh-cn","availableLanguages":{}}',
+  VSCODE_CODE_CACHE_PATH: '/Users/lujs/Library/Application Support/Code - OSS/CachedData/9b44522305a606f22d6358bc9d66ff1cf8a10100',
+  VSCODE_IPC_HOOK: '/Users/lujs/Library/Application Support/Code - OSS/1.11-main.sock',
+  VSCODE_PID: '36265',
+  OLDPWD: '/Users/lujs/test-workbench-vscode',
+  _: '/Users/lujs/VSCode-darwin-arm64/Code - OSS.app/Contents/MacOS/Code - OSS'
+}
+[90m[main 2026-03-29T15:25:19.263Z][0m lifecycle (main): phase changed (value: 4)
+[90m[main 2026-03-29T15:26:05.333Z][0m app#activate
+[36270:0329/232627.449294:ERROR:gpu/command_buffer/service/shared_image/shared_image_manager.cc:501] SharedImageManager::ProduceOverlay: Trying to Produce a Overlay representation from a non-existent mailbox.
+[36270:0329/232627.449800:ERROR:components/viz/service/display_embedder/skia_output_device_buffer_queue.cc:262] Invalid mailbox.
+[36270:0329/232627.449807:ERROR:gpu/command_buffer/service/shared_image/shared_image_manager.cc:501] SharedImageManager::ProduceOverlay: Trying to Produce a Overlay representation from a non-existent mailbox.
+[36270:0329/232627.449812:ERROR:components/viz/service/display_embedder/skia_output_device_buffer_queue.cc:262] Invalid mailbox.
+[36270:0329/232627.449816:ERROR:gpu/command_buffer/service/shared_image/shared_image_manager.cc:501] SharedImageManager::ProduceOverlay: Trying to Produce a Overlay representation from a non-existent mailbox.
+[36270:0329/232627.449820:ERROR:components/viz/service/display_embedder/skia_output_device_buffer_queue.cc:262] Invalid mailbox.
+[36270:0329/232627.449824:ERROR:gpu/command_buffer/service/shared_image/shared_image_manager.cc:501] SharedImageManager::ProduceOverlay: Trying to Produce a Overlay representation from a non-existent mailbox.
+[36270:0329/232627.449827:ERROR:components/viz/service/display_embedder/skia_output_device_buffer_queue.cc:262] Invalid mailbox.
+[90m[main 2026-03-29T15:26:29.044Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:29.889Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:31.096Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:31.097Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:32.017Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:32.830Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:32.830Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:33.796Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:35.096Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:36.313Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:36.314Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-show-open' }
+[90m[main 2026-03-29T15:26:39.046Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-open-external' }
+[90m[main 2026-03-29T15:26:39.046Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:40.782Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:40.783Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:40.835Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-ext-i18n-for-locale' }
+[90m[main 2026-03-29T15:26:40.835Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-settings-tabs' }
+[90m[main 2026-03-29T15:26:40.836Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:40.836Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:40.836Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-settings-tabs' }
+[90m[main 2026-03-29T15:26:40.836Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-ext-i18n-for-locale' }
+[90m[main 2026-03-29T15:26:40.836Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T15:26:40.836Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:40.837Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:40.837Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:40.837Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:43.004Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:43.305Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-mode.get-model-config' }
+[90m[main 2026-03-29T15:26:43.306Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-channel.get-plugin-status' }
+[90m[main 2026-03-29T15:26:43.307Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-webui.get-status' }
+[90m[main 2026-03-29T15:26:44.641Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-channel.get-pending-pairings' }
+[90m[main 2026-03-29T15:26:44.641Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-channel.get-authorized-users' }
+[90m[main 2026-03-29T15:26:44.641Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-acp.get-available-agents' }
+[90m[main 2026-03-29T15:26:44.642Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:44.644Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:46.039Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:47.539Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:49.889Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:49.890Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:49.901Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-acp.get-available-agents' }
+[90m[main 2026-03-29T15:26:49.904Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-settings-tabs' }
+[90m[main 2026-03-29T15:26:49.904Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-ext-i18n-for-locale' }
+[90m[main 2026-03-29T15:26:49.905Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T15:26:49.905Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:49.905Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:49.905Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:49.905Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:51.120Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:51.121Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:51.142Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-settings-tabs' }
+[90m[main 2026-03-29T15:26:51.143Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-ext-i18n-for-locale' }
+[90m[main 2026-03-29T15:26:51.143Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T15:26:51.143Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:51.144Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:51.144Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:51.144Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:52.303Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:53.085Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:53.086Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:53.102Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:53.103Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:53.103Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-settings-tabs' }
+[90m[main 2026-03-29T15:26:53.103Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-ext-i18n-for-locale' }
+[90m[main 2026-03-29T15:26:53.103Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T15:26:53.103Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:53.103Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:53.103Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:53.103Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:53.816Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:53.817Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:53.839Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-app.get-cdp-status' }
+[90m[main 2026-03-29T15:26:53.839Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-system.info' }
+[90m[main 2026-03-29T15:26:53.846Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-system-settings:get-close-to-tray' }
+[90m[main 2026-03-29T15:26:53.846Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-system-settings:get-notification-enabled' }
+[90m[main 2026-03-29T15:26:53.846Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-system-settings:get-cron-notification-enabled' }
+[90m[main 2026-03-29T15:26:53.846Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:53.846Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-settings-tabs' }
+[90m[main 2026-03-29T15:26:53.846Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-ext-i18n-for-locale' }
+[90m[main 2026-03-29T15:26:53.846Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T15:26:53.846Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:53.847Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:53.847Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:53.847Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:55.513Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:55.514Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:55.523Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T15:26:55.523Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:26:55.523Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:55.523Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:26:55.523Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:27:05.404Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:27:06.219Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:27:06.220Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:27:06.229Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:27:06.229Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-settings-tabs' }
+[90m[main 2026-03-29T15:27:06.229Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-extensions.get-ext-i18n-for-locale' }
+[90m[main 2026-03-29T15:27:06.229Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[93m[main 2026-03-29T15:27:06.229Z][0m AionUI Console [warn]: {
+  message: '[useNotificationClick] Registering notification click handler',
+  line: 17,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:27:06.229Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:27:06.229Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:27:06.229Z][0m AionUIWindowManager - bridge event received: { name: 'subscribe-agent.config.storage.get' }
+[90m[main 2026-03-29T15:27:07.806Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:27:08.717Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:27:09.399Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:27:10.116Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:27:10.568Z][0m AionUI Console [log]: {
+  message: 'Fetch API cannot load sentry-ipc://scope/sentry_key. URL scheme "sentry-ipc" is not supported.',
+  line: 18,
+  sourceId: 'vscode-file://vscode-app/Users/lujs/VSCode-darwin-arm64/Code%20-%20OSS.app/Contents/Resources/app/out/aionui/dist/renderer/assets/index-DQXhCJEQ.js'
+}
+[90m[main 2026-03-29T15:27:30.969Z][0m Lifecycle#app.on(before-quit)
+[90m[main 2026-03-29T15:27:30.970Z][0m Lifecycle#onBeforeShutdown.fire()
+[90m[main 2026-03-29T15:27:30.970Z][0m [WindowsStateHandler] onBeforeShutdown {
+  lastActiveWindow: undefined,
+  lastPluginDevelopmentHostWindow: undefined,
+  openedWindows: []
+}
+[90m[main 2026-03-29T15:27:30.970Z][0m Lifecycle#onWillShutdown.fire()
+[90m[main 2026-03-29T15:27:30.970Z][0m Lifecycle#onWillShutdown - begin 'instanceLockfile'
+[90m[main 2026-03-29T15:27:30.971Z][0m storageMainService#onWillShutdown()
+[90m[main 2026-03-29T15:27:30.971Z][0m Lifecycle#onWillShutdown - begin 'applicationStorage'
+[90m[main 2026-03-29T15:27:30.971Z][0m Lifecycle#onWillShutdown - begin 'extHostStarter'
+[90m[main 2026-03-29T15:27:30.971Z][0m Lifecycle#onWillShutdown - end 'extHostStarter'
+[90m[main 2026-03-29T15:27:30.971Z][0m Lifecycle#onWillShutdown - end 'instanceLockfile'
+[90m[main 2026-03-29T15:27:30.973Z][0m Lifecycle#app.on(will-quit) - begin
+[90m[main 2026-03-29T15:27:30.984Z][0m [File Watcher (node.js)] Request to stop watching: /Users/lujs/Library/Application Support/Code - OSS/User (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>),/Users/lujs/Library/Application Support/Code - OSS/User/settings.json (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>)
+[90m[main 2026-03-29T15:27:30.985Z][0m [File Watcher (node.js)] stopping file watcher (/Users/lujs/Library/Application Support/Code - OSS/User (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>))
+[90m[main 2026-03-29T15:27:30.985Z][0m [File Watcher (node.js)] stopping file watcher (/Users/lujs/Library/Application Support/Code - OSS/User/settings.json (excludes: <none>, includes: <all>, filter: <none>, correlationId: <none>))
+[90m[main 2026-03-29T15:27:30.987Z][0m StorageMainService: closed application storage
+[90m[main 2026-03-29T15:27:30.987Z][0m Lifecycle#onWillShutdown - end 'applicationStorage'
+[90m[main 2026-03-29T15:27:30.989Z][0m Lifecycle#app.on(will-quit) - after fireOnWillShutdown
+[90m[main 2026-03-29T15:27:30.989Z][0m Lifecycle#app.on(will-quit) - calling app.quit()

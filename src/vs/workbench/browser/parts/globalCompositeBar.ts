@@ -5,7 +5,7 @@
 
 import { localize } from '../../../nls.js';
 import { ActionBar, ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../common/activity.js';
+import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID, AIONUI_ACTIVITY_ID } from '../../common/activity.js'; // test-workbench_change
 import { IActivityService } from '../../services/activity/common/activity.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, Disposable } from '../../../base/common/lifecycle.js';
@@ -48,12 +48,21 @@ import { ICommandService } from '../../../platform/commands/common/commands.js';
 export class GlobalCompositeBar extends Disposable {
 
 	private static readonly ACCOUNTS_ACTION_INDEX = 0;
+	// test-workbench_change start
+	private static readonly AIONUI_ACTION_INDEX = 1;
+	// test-workbench_change end
 	static readonly ACCOUNTS_ICON = registerIcon('accounts-view-bar-icon', Codicon.account, localize('accountsViewBarIcon', "Accounts icon in the view bar."));
+	// test-workbench_change start
+	static readonly AIONUI_ICON = registerIcon('aionui-view-bar-icon', Codicon.sparkle, localize('aionuiViewBarIcon', "AionUI icon in the view bar."));
+	// test-workbench_change end
 
 	readonly element: HTMLElement;
 
 	private readonly globalActivityAction = this._register(new Action(GLOBAL_ACTIVITY_ID));
 	private readonly accountAction = this._register(new Action(ACCOUNTS_ACTIVITY_ID));
+	// test-workbench_change start
+	private readonly aionuiAction = this._register(new Action(AIONUI_ACTIVITY_ID));
+	// test-workbench_change end
 	private readonly globalActivityActionBar: ActionBar;
 
 	constructor(
@@ -95,6 +104,12 @@ export class GlobalCompositeBar extends Disposable {
 						});
 				}
 
+				// test-workbench_change start
+				if (action.id === AIONUI_ACTIVITY_ID) {
+					return this.instantiationService.createInstance(AionUIActivityActionViewItem, { ...options, colors: this.colors, hoverOptions: this.activityHoverOptions });
+				}
+				// test-workbench_change end
+
 				throw new Error(`No view item for action '${action.id}'`);
 			},
 			orientation: ActionsOrientation.VERTICAL,
@@ -105,6 +120,10 @@ export class GlobalCompositeBar extends Disposable {
 		if (this.accountsVisibilityPreference) {
 			this.globalActivityActionBar.push(this.accountAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
 		}
+
+		// test-workbench_change start
+		this.globalActivityActionBar.push(this.aionuiAction, { index: GlobalCompositeBar.AIONUI_ACTION_INDEX });
+		// test-workbench_change end
 
 		this.globalActivityActionBar.push(this.globalActivityAction);
 
@@ -136,10 +155,14 @@ export class GlobalCompositeBar extends Disposable {
 	}
 
 	private toggleAccountsActivity() {
-		if (this.globalActivityActionBar.length() === 2 && this.accountsVisibilityPreference) {
+		// test-workbench_change: Updated logic to account for AionUI button
+		// Expected button count: Accounts (optional) + AionUI + Manage
+		const expectedWithAccounts = 3; // Accounts + AionUI + Manage
+
+		if (this.globalActivityActionBar.length() === expectedWithAccounts && this.accountsVisibilityPreference) {
 			return;
 		}
-		if (this.globalActivityActionBar.length() === 2) {
+		if (this.globalActivityActionBar.length() === expectedWithAccounts) {
 			this.globalActivityActionBar.pull(GlobalCompositeBar.ACCOUNTS_ACTION_INDEX);
 		} else {
 			this.globalActivityActionBar.push(this.accountAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
@@ -748,3 +771,79 @@ export function isAccountsActionVisible(storageService: IStorageService): boolea
 function setAccountsActionVisible(storageService: IStorageService, visible: boolean) {
 	storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, visible, StorageScope.PROFILE, StorageTarget.USER);
 }
+
+// test-workbench_change start
+export class AionUIActivityActionViewItem extends CompositeBarActionViewItem {
+
+	constructor(
+		options: ICompositeBarActionViewItemOptions,
+		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService
+	) {
+		const action = instantiationService.createInstance(CompositeBarAction, {
+			id: AIONUI_ACTIVITY_ID,
+			name: localize('aionui', "AionUI"),
+			classNames: ThemeIcon.asClassNameArray(GlobalCompositeBar.AIONUI_ICON)
+		});
+		super(action, { draggable: false, icon: true, ...options }, () => true, themeService, hoverService, configurationService, keybindingService);
+		this._register(action);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+
+		this._register(addDisposableListener(this.container, EventType.MOUSE_DOWN, async (e: MouseEvent) => {
+			EventHelper.stop(e, true);
+			const isLeftClick = e?.button !== 2;
+			if (isLeftClick) {
+				await this.commandService.executeCommand('workbench.action.openAionUIWindow');
+			}
+		}));
+
+		this._register(addDisposableListener(this.container, EventType.KEY_UP, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				EventHelper.stop(e, true);
+				this.commandService.executeCommand('workbench.action.openAionUIWindow');
+			}
+		}));
+
+		this._register(addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
+			EventHelper.stop(e, true);
+			this.commandService.executeCommand('workbench.action.openAionUIWindow');
+		}));
+	}
+
+	protected override computeTitle(): string {
+		return localize('openAionUI', "Open AionUI");
+	}
+}
+
+export class SimpleAionUIActivityActionViewItem extends AionUIActivityActionViewItem {
+
+	constructor(
+		hoverOptions: IActivityHoverOptions,
+		options: IBaseActionViewItemOptions,
+		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ICommandService commandService: ICommandService
+	) {
+		super({
+			...options,
+			colors: theme => ({
+				badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
+				badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
+			}),
+			hoverOptions,
+			compact: true,
+		}, themeService, hoverService, configurationService, keybindingService, instantiationService, commandService);
+	}
+}
+// test-workbench_change end

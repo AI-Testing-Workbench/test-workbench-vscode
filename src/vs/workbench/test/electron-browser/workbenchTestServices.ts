@@ -105,6 +105,9 @@ export class TestNativeHostService implements INativeHostService {
 
 	async openSessionsWindow(): Promise<void> { }
 
+	async openAionUIWindow(): Promise<void> { } // test-workbench_change
+	async openOpenWorkWindow(): Promise<void> { } // test-workbench_change
+
 	async toggleFullScreen(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }
 	async isFullScreen(): Promise<boolean> { return true; }

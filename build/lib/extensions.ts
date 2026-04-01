@@ -308,6 +308,7 @@ const excludedExtensions = [
 	'vscode-test-resolver',
 	'ms-vscode.node-debug',
 	'ms-vscode.node-debug2',
+	'aionui-main', // test-workbench_change - standalone Electron app, not a VS Code extension
 ];
 
 const marketplaceWebExtensionsExclude = new Set([
