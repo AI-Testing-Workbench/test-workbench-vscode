@@ -425,7 +425,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update -y
-          sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev libsecret-1-dev libxshmfence-dev
+          sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev libsecret-1-dev libxshmfence-dev dpkg-dev fakeroot rpm
 
       - name: Prepare node_modules cache key
         run: |
@@ -491,13 +491,16 @@ jobs:
       - name: Compile
         run: npm run gulp compile
 
+      - name: Compile build scripts
+        run: npm run gulp compile-build
+
       - name: Build Linux x64
         run: |
-          npm run gulp "vscode-linux-x64"
+          npm run gulp "vscode-linux-x64-min"
 
       - name: Build Linux arm64
         run: |
-          npm run gulp "vscode-linux-arm64"
+          npm run gulp "vscode-linux-arm64-min"
 
       - name: Create Linux x64 archive
         run: |
@@ -506,6 +509,42 @@ jobs:
       - name: Create Linux arm64 archive
         run: |
           tar -czf .build/VSCode-linux-arm64.tar.gz -C .. VSCode-linux-arm64
+
+      # test-workbench_change start - Debian package build
+      - name: Prepare Debian package (x64)
+        run: npm run gulp vscode-linux-x64-prepare-deb
+
+      - name: Build Debian package (x64)
+        run: npm run gulp vscode-linux-x64-build-deb
+
+      - name: Prepare Debian package (arm64)
+        run: npm run gulp vscode-linux-arm64-prepare-deb
+
+      - name: Build Debian package (arm64)
+        run: npm run gulp vscode-linux-arm64-build-deb
+
+      - name: Find Debian packages
+        id: find-deb
+        run: |
+          DEB_X64=$(find .build/linux/deb/amd64/deb -name "*.deb" | head -n 1)
+          DEB_ARM64=$(find .build/linux/deb/arm64/deb -name "*.deb" | head -n 1)
+          echo "deb_x64=$DEB_X64" >> $GITHUB_OUTPUT
+          echo "deb_arm64=$DEB_ARM64" >> $GITHUB_OUTPUT
+          echo "Found x64 deb: $DEB_X64"
+          echo "Found arm64 deb: $DEB_ARM64"
+
+      - name: Display Debian package info (x64)
+        if: steps.find-deb.outputs.deb_x64 != ''
+        run: |
+          echo "=== x64 Debian Package Info ==="
+          dpkg-deb -I ${{ steps.find-deb.outputs.deb_x64 }}
+
+      - name: Display Debian package info (arm64)
+        if: steps.find-deb.outputs.deb_arm64 != ''
+        run: |
+          echo "=== arm64 Debian Package Info ==="
+          dpkg-deb -I ${{ steps.find-deb.outputs.deb_arm64 }}
+      # test-workbench_change end
 
       - name: Upload x64 Artifact
         uses: actions/upload-artifact@v4
@@ -518,3 +557,19 @@ jobs:
         with:
           name: vscode-linux-arm64
           path: .build/VSCode-linux-arm64.tar.gz
+
+      # test-workbench_change start - Upload Debian packages
+      - name: Upload x64 Debian package
+        if: steps.find-deb.outputs.deb_x64 != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-linux-x64-deb
+          path: ${{ steps.find-deb.outputs.deb_x64 }}
+
+      - name: Upload arm64 Debian package
+        if: steps.find-deb.outputs.deb_arm64 != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-linux-arm64-deb
+          path: ${{ steps.find-deb.outputs.deb_arm64 }}
+      # test-workbench_change end

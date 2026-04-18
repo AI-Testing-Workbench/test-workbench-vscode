@@ -13,7 +13,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
-import { Disposable, } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
@@ -172,10 +172,10 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
 					await this.openGettingStarted(true);
-				// test-workbench_change start
+					// test-workbench_change start
 				} else if (startupEditorSetting.value === 'tscodeWelcomePage') {
 					await this.openTscodeWelcome();
-				// test-workbench_change end
+					// test-workbench_change end
 				} else if (startupEditorSetting.value === 'terminal') {
 					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
 				}
@@ -284,7 +284,6 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	}
 
 	private tryShowOnboarding(): void {
-		return; // test-workbench_change - disable initialization wizard
 		if (this.environmentService.skipWelcome) {
 			return; // skip welcome flag is set
 		}
@@ -300,9 +299,9 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		if (this.storageService.getBoolean(ONBOARDING_STORAGE_KEY, StorageScope.APPLICATION)) {
 			return; // onboarding already completed
 		}
-
+		// test-workbench_change
 		// Show the onboarding overlay on top of the welcome page
-		this.onboardingService.show();
+		// this.onboardingService.show();
 
 		// Mark onboarding as completed when dismissed
 		this._register(this.onboardingService.onDidDismiss(() => {
