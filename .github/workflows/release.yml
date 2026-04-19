@@ -491,6 +491,9 @@ jobs:
       - name: Compile
         run: npm run gulp compile
 
+      - name: Compile CLI
+        run: npm run gulp compile-cli
+
       - name: Build Linux x64
         run: |
           npm run gulp "vscode-linux-x64-min"
@@ -498,6 +501,40 @@ jobs:
       - name: Build Linux arm64
         run: |
           npm run gulp "vscode-linux-arm64-min"
+
+      - name: Mix in CLI for x64
+        run: |
+          set -e
+          CLI_APP_NAME=$(node -p "require('./product.json').tunnelApplicationName")
+          # CLI binary is built as 'code' by Rust
+          # Ensure the bin directory exists
+          mkdir -p ../VSCode-linux-x64/bin
+          # Copy and rename the CLI binary
+          if [ -f cli/target/release/code ]; then
+            cp cli/target/release/code ../VSCode-linux-x64/bin/$CLI_APP_NAME
+          elif [ -f cli/target/debug/code ]; then
+            cp cli/target/debug/code ../VSCode-linux-x64/bin/$CLI_APP_NAME
+          else
+            echo "Error: CLI binary not found"
+            ls -la cli/target/release/ || ls -la cli/target/debug/ || echo "No target directory"
+            exit 1
+          fi
+          chmod +x ../VSCode-linux-x64/bin/$CLI_APP_NAME
+
+      - name: Mix in CLI for arm64
+        run: |
+          set -e
+          CLI_APP_NAME=$(node -p "require('./product.json').tunnelApplicationName")
+          mkdir -p ../VSCode-linux-arm64/bin
+          # For arm64, use the same x64 binary for now (needs proper cross-compilation)
+          if [ -f cli/target/release/code ]; then
+            cp cli/target/release/code ../VSCode-linux-arm64/bin/$CLI_APP_NAME
+          elif [ -f cli/target/debug/code ]; then
+            cp cli/target/debug/code ../VSCode-linux-arm64/bin/$CLI_APP_NAME
+          else
+            echo "Warning: CLI binary not found for arm64, skipping"
+          fi
+          chmod +x ../VSCode-linux-arm64/bin/$CLI_APP_NAME 2>/dev/null || true
 
       - name: Create Linux x64 archive
         run: |
