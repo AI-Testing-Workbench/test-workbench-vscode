@@ -19,7 +19,7 @@ configurationRegistry.registerConfiguration({
 		'update.mode': {
 			type: 'string',
 			enum: ['none', 'manual', 'start', 'default'],
-			default: 'default',
+			default: 'start', // test-workbench_change - Changed to manual check for testing convenience
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
 			tags: ['usesOnlineServices'],
@@ -65,7 +65,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'update.enableWindowsBackgroundUpdates': {
 			type: 'boolean',
-			default: true,
+			default: true, // test-workbench_change - Keep background updates enabled
 			scope: ConfigurationScope.APPLICATION,
 			title: localize('enableWindowsBackgroundUpdatesTitle', "Enable Background Updates"),
 			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code versions in the background."),
