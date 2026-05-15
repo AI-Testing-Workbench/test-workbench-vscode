@@ -645,6 +645,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	readonly onDidChangePanelPosition: Event<string> = Event.None;
 	readonly onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
 	readonly onDidChangePartVisibility: Event<IPartVisibilityChangeEvent> = Event.None;
+	readonly onDidChangeConciseMode: Event<boolean> = Event.None;
 	onDidLayoutMainContainer = Event.None;
 	onDidLayoutActiveContainer = Event.None;
 	onDidLayoutContainer = Event.None;
@@ -701,6 +702,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isWindowMaximized(targetWindow: Window) { return false; }
 	updateWindowMaximizedState(targetWindow: Window, maximized: boolean): void { }
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined { return undefined; }
+	toggleConciseMode(): void { }
+	isConciseModeActive(): boolean { return false; }
 	focus() { }
 }
 
