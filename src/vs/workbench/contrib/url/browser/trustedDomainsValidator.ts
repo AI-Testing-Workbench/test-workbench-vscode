@@ -83,7 +83,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 				type: Severity.Info,
 				message: localize(
 					'openExternalLinkAt',
-					'Do you want {0} to open the external website?',
+					'Do you want to open the external website?',
 					this._productService.nameShort
 				),
 				detail: typeof originalResource === 'string' ? originalResource : formattedLink,
