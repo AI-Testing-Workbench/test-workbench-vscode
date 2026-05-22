@@ -9,6 +9,12 @@ node_modules/
 extensions/**/dist/
 /out*/
 /extensions/**/out/
+/extensions/cweijan.vscode-office*
+/extensions/ms-ceintl.vscode-language-pack-zh-hans*
+/extensions/pkief.material-icon-theme*
+/extensions/pkief.material-product-icons*
+/extensions/testagent
+/extensions/test-tech*
 build/node_modules
 build/darwin/.dmgbuild
 coverage/
