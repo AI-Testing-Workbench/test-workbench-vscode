@@ -291,6 +291,19 @@ async function main() {
 			continue;
 		}
 
+		// Skip excluded extension directories (check if dir starts with any of the excluded prefixes)
+		const excludedPrefixes = [
+			'extensions/testagent',
+			'extensions/cweijan.vscode-office',
+			'extensions/ms-ceintl.vscode-language-pack-zh-hans',
+			'extensions/pkief.material-icon-theme',
+			'extensions/pkief.material-product-icons',
+			'extensions/test-tech'
+		];
+		if (excludedPrefixes.some(prefix => dir.startsWith(prefix))) {
+			continue;
+		}
+
 		const taskDir = dir;
 		parallelTasks.push(() => {
 			const env = { ...process.env };

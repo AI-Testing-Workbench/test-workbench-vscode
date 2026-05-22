@@ -126,8 +126,13 @@ export function typeCheckExtensionStream(extensionPath: string, forWeb: boolean)
 function fromLocalNormal(extensionPath: string): Stream {
 	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
 	const result = es.through();
+	const extensionName = path.basename(extensionPath);
 
-	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Npm })
+	// Extensions excluded from npm install need PackageManager.None to skip dependency checking
+	const isExcludedNpm = excludedNpmExtensions.some(prefix => extensionName.startsWith(prefix));
+	const packageManager = isExcludedNpm ? vsce.PackageManager.None : vsce.PackageManager.Npm; // test-workbench_change
+
+	vsce.listFiles({ cwd: extensionPath, packageManager })
 		.then(fileNames => {
 			const files = fileNames
 				.map(fileName => path.join(extensionPath, fileName))
@@ -320,6 +325,16 @@ const excludedExtensions = [
 	'ms-vscode.node-debug',
 	'ms-vscode.node-debug2',
 ];
+
+// Extensions that are excluded from npm install (no dependencies installed)
+const excludedNpmExtensions = [
+	'cweijan.vscode-office',
+	'ms-ceintl.vscode-language-pack-zh-hans',
+	'pkief.material-icon-theme',
+	'pkief.material-product-icons',
+	'testagent',
+	'test-tech'
+]; // test-workbench_change
 
 const marketplaceWebExtensionsExclude = new Set([
 	'ms-vscode.node-debug',
