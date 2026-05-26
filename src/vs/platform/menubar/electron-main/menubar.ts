@@ -490,7 +490,7 @@ export class Menubar extends Disposable {
 		}
 
 		// test-workbench_change start: In concise mode, only show File and Run menus
-		if (this.conciseMode && menuId !== 'File' && menuId !== 'Run') {
+		if (this.conciseMode && menuId !== 'File' && menuId !== 'Run' && menuId !== 'Help') {
 			return false;
 		}
 		// test-workbench_change end

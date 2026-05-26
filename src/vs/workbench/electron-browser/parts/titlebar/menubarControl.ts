@@ -97,7 +97,7 @@ export class NativeMenubarControl extends MenubarControl {
 		menubarData.keybindings = this.getAdditionalKeybindings();
 		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
 			// test-workbench_change start: In concise mode, only show File and Run menus
-			if (this.layoutService.isConciseModeActive() && topLevelMenuName !== 'File' && topLevelMenuName !== 'Run') {
+			if (this.layoutService.isConciseModeActive() && topLevelMenuName !== 'File' && topLevelMenuName !== 'Run' && topLevelMenuName !== 'Help') {
 				continue;
 			}
 			// test-workbench_change end

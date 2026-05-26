@@ -682,7 +682,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 		for (const title of Object.keys(this.topLevelTitles)) {
 			// test-workbench_change start: In concise mode, only show File and Run menus
-			if (this.layoutService.isConciseModeActive() && title !== 'File' && title !== 'Run') {
+			if (this.layoutService.isConciseModeActive() && title !== 'File' && title !== 'Run' && title !== 'Help') {
 				if (!firstTime && this.menubar) {
 					this.menubar.removeMenu(mnemonicMenuLabel(this.topLevelTitles[title]));
 				}
