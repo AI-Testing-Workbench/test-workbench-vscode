@@ -186,6 +186,10 @@ async function onReady() {
 	perf.mark('code/mainAppReady');
 
 	try {
+		// test-workbench_change start: Pre-generate languagepacks.json so Chinese locale works on first launch
+		await ensureLanguagePacksJson(userDataPath);
+		// test-workbench_change end
+
 		const [, nlsConfig] = await Promise.all([
 			mkdirpIgnoreError(codeCachePath),
 			resolveNlsConfiguration()
@@ -521,6 +525,72 @@ function checkAndSetDefaultLocale(argvConfig: IArgvConfig, argvConfigPath: strin
 	} catch (error) {
 		console.error(`[Default Locale] Failed to set default locale: ${error}`);
 		// Don't crash the application, just log the error
+	}
+}
+
+/**
+ * Pre-generates languagepacks.json by scanning the built-in extensions directory
+ * for the Chinese language pack extension. This ensures that on the first launch,
+ * resolveNlsConfiguration() can find the language pack instead of falling back to English.
+ */
+async function ensureLanguagePacksJson(userDataPath: string): Promise<void> {
+	const locale = getUserDefinedLocale(argvConfig);
+	if (!locale || locale === 'en') {
+		return;
+	}
+
+	try {
+		const extensionsDir = path.resolve(import.meta.dirname, '..', 'extensions');
+		if (!fs.existsSync(extensionsDir)) {
+			return;
+		}
+
+		const entries = fs.readdirSync(extensionsDir);
+		const languagePackExt = entries.find(e => e.startsWith('ms-ceintl.vscode-language-pack'));
+		if (!languagePackExt) {
+			return;
+		}
+
+		const packageJsonPath = path.join(extensionsDir, languagePackExt, 'package.json');
+		if (!fs.existsSync(packageJsonPath)) {
+			return;
+		}
+
+		const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+		const localizations = packageJson?.contributes?.localizations;
+		if (!Array.isArray(localizations) || localizations.length === 0) {
+			return;
+		}
+
+		const languagePacks: Record<string, unknown> = {};
+		for (const loc of localizations) {
+			if (!loc.languageId || !Array.isArray(loc.translations)) {
+				continue;
+			}
+			const extPath = path.join(extensionsDir, languagePackExt);
+			const translations: Record<string, string> = {};
+			for (const t of loc.translations) {
+				if (t.id && t.path) {
+					translations[t.id] = path.join(extPath, t.path);
+				}
+			}
+			const pack = {
+				hash: '',
+				extensions: [{ extensionIdentifier: { id: languagePackExt }, version: packageJson.version || '' }],
+				translations,
+				label: loc.localizedLanguageName ?? loc.languageName
+			};
+			languagePacks[loc.languageId] = pack;
+		}
+
+		if (Object.keys(languagePacks).length > 0) {
+			const languagePacksPath = path.join(userDataPath, 'languagepacks.json');
+			await fs.promises.mkdir(path.dirname(languagePacksPath), { recursive: true });
+			await fs.promises.writeFile(languagePacksPath, JSON.stringify(languagePacks), 'utf8');
+			console.log(`[Default Locale] Pre-generated languagepacks.json for ${Object.keys(languagePacks).join(', ')}`);
+		}
+	} catch (error) {
+		console.error(`[Default Locale] Failed to pre-generate languagepacks.json: ${error}`);
 	}
 }
 // test-workbench_change end
