@@ -152,7 +152,7 @@ function isMajorMinorUpdate(before: IVersion, after: IVersion): boolean {
 
 export class ProductContribution implements IWorkbenchContribution {
 
-	private static readonly KEY = 'releaseNotes/lastVersion';
+	private static readonly KEY = 'releaseNotes/tscodeLastVersion';   // test-workbench_change change from 'update/lastKnownVersion' to 'releaseNotes/lastVersion' for tscode version update
 
 	constructor(
 		@IStorageService storageService: IStorageService,
