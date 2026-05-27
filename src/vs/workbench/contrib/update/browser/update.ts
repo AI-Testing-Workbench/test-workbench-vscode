@@ -179,7 +179,7 @@ export class ProductContribution implements IWorkbenchContribution {
 			const releaseNotesUrl = productService.releaseNotesUrl;
 
 			// was there a major/minor update? if so, open release notes
-			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
+			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && currentVersion && (!lastVersion || isMajorMinorUpdate(lastVersion, currentVersion))) {
 				showReleaseNotesInEditor(instantiationService, productService.gitVersion ?? productService.version, false)  // test-workbench_change
 					.then(undefined, () => {
 						notificationService.prompt(
