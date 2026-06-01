@@ -11,6 +11,8 @@ import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
 import { isLinux, isMacintosh, isWindows } from '../../base/common/platform.js';
 import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, ShowContentTracingAction, StopTracing, StartTracing } from './actions/developerActions.js';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction, CloseOtherWindowsAction } from './actions/windowActions.js';
+import { OpenAionUIApplicationAction } from './actions/aionUIActions.js';
+import { Codicon } from '../../base/common/codicons.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { CommandsRegistry } from '../../platform/commands/common/commands.js';
@@ -117,10 +119,26 @@ import product from '../../platform/product/common/product.js';
 	registerAction2(ShowContentTracingAction);
 	registerAction2(StopTracing);
 	registerAction2(StartTracing);
+
+	// Actions: AionUI
+	// test-workbench_change
+	registerAction2(OpenAionUIApplicationAction);
 })();
 
 // Menu
 (function registerMenu(): void {
+
+	// AionUI TitleBar action - first icon in the layout controls area
+	// test-workbench_change
+	MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
+		command: {
+			id: 'workbench.action.openAionUI',
+			title: 'Open AionUI',
+			icon: Codicon.rocket
+		},
+		group: '0_aion',
+		order: 0
+	});
 
 	// Quit
 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
