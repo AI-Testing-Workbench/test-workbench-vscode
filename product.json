@@ -294,11 +294,14 @@
 		}
 	],
 	"builtInExtensionsEnabledWithAutoUpdates": [
-		"GitHub.copilot-chat"
+		"test-tech.skillhub",
+		"test-tech.testagent",
+		"cweijan.vscode-office"
 	],
 	"tsCodeAuthMockEnabled": false,
 	"defaultColorTheme": "Light 2026",
-	"gitVersion": "v1.0.3",
+	"defaultIconTheme": "office-material-icon-theme",
+	"gitVersion": "1.0.0",
 	"commit": "12934b91e86ec2d0537879d544ee923f6a8e1b75",
 	"date": "2026-05-08T15:23:12+08:00",
 	"extensionsGallery": {
@@ -308,5 +311,12 @@
 		"controlUrl": "",
 		"nlsBaseUrl": "",
 		"publisherUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/publisher"
-	}
+	},
+	"releaseNotesUrl": "https://tscode-gateway.paasuat.cmbchina.cn/release-notes",
+	"extensionsAutoInstallUrl": "https://tscode-gateway.paasuat.cmbchina.cn/auto-install-extensions",
+	"extensionsAutoInstall": [
+		"test-tech.test-task-manager",
+		"ms-python.python",
+		"ms-python.debugpy"
+	]
 }
