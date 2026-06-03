@@ -208,6 +208,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private updateStateContextKey: IContextKey<string>;
 	private majorMinorUpdateAvailableContextKey: IContextKey<boolean>;
+	private promptedUpdateVersion: string | undefined; // test-workbench_change
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -264,6 +265,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 					const nextVersion = tryParseVersion(productVersion);
 					this.majorMinorUpdateAvailableContextKey.set(Boolean(currentVersion && nextVersion && isMajorMinorUpdate(currentVersion, nextVersion)));
 				}
+				this.promptToRestartForUpdate(state);
 				break;
 			}
 		}
@@ -292,6 +294,33 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private onUpdateNotAvailable(): void {
 		this.dialogService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
 	}
+
+	// test-workbench_change start
+	private async promptToRestartForUpdate(state: Extract<UpdateState, { type: StateType.Ready }>): Promise<void> {
+		const updateVersion = this.productService.gitVersion ?? state.update.productVersion ?? state.update.version;
+		if (this.promptedUpdateVersion === updateVersion || !await this.hostService.hadLastFocus()) {
+			return;
+		}
+
+		this.promptedUpdateVersion = updateVersion;
+		const result = await this.dialogService.confirm({
+			type: 'info',
+			// allow-any-unicode-next-line
+			title: nls.localize('updateAvailableTitle', "发现新版本"),
+			// allow-any-unicode-next-line
+			message: nls.localize('updateAvailableMessage', "提示：{0} 有新版本", this.productService.nameLong),
+			// allow-any-unicode-next-line
+			detail: nls.localize('updateAvailableDetail', "重启安装版本 {0}", updateVersion),
+			// allow-any-unicode-next-line
+			primaryButton: nls.localize({ key: 'restartToUpdateButton', comment: ['&& denotes a mnemonic'] }, "&&重启并更新"),
+			cancelButton: nls.localize('later', "Later")
+		});
+
+		if (result.confirmed && this.updateService.state.type === StateType.Ready) {
+			await this.updateService.quitAndInstall();
+		}
+	}
+	// test-workbench_change end
 
 	private registerGlobalActivityActions(): void {
 		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(true));
