@@ -43,12 +43,12 @@ import { IV8Profile } from '../../profiling/common/profiling.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { CancellationError } from '../../../base/common/errors.js';
-import { zip } from '../../../base/node/zip.js';
+import { zip, extract } from '../../../base/node/zip.js'; // test-workbench_change
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js'; // test-workbench_change
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -1293,6 +1293,39 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async createZipFile(windowId: number | undefined, zipPath: URI, files: { path: string; contents: string }[]): Promise<void> {
 		await zip(zipPath.fsPath, files);
 	}
+
+	// test-workbench_change start
+	async extractZipFile(windowId: number | undefined, zipPath: string, targetPath: string, sourcePath?: string): Promise<void> {
+		await extract(zipPath, targetPath, { sourcePath }, CancellationToken.None);
+	}
+
+	async launchExternalApp(windowId: number | undefined, exePath: string): Promise<void> {
+		const { spawn } = await import('child_process');
+		spawn(exePath, [], { detached: true, stdio: 'ignore' }).unref();
+	}
+
+	async downloadFile(windowId: number | undefined, url: string, destPath: string): Promise<void> {
+		const { pipeline } = await import('stream/promises');
+		const { createWriteStream, promises: fsPromises } = await import('fs');
+		const { default: https } = await import('https');
+		const { default: http } = await import('http');
+
+		await fsPromises.mkdir(dirname(destPath), { recursive: true });
+
+		const client = url.startsWith('https') ? https : http;
+		await new Promise<void>((resolve, reject) => {
+			client.get(url, (res) => {
+				if (res.statusCode !== 200) {
+					reject(new Error(`Download failed with status ${res.statusCode}: ${url}`));
+					res.resume();
+					return;
+				}
+				const fileStream = createWriteStream(destPath);
+				pipeline(res, fileStream).then(resolve, reject);
+			}).on('error', reject);
+		});
+	}
+	// test-workbench_change end
 
 	//#endregion
 

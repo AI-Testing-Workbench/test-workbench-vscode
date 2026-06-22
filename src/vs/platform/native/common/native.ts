@@ -269,6 +269,32 @@ export interface ICommonNativeHostService {
 	 */
 	createZipFile(zipPath: URI, files: { path: string; contents: string }[]): Promise<void>;
 
+	// test-workbench_change start
+	/**
+	 * Extracts a single file from a zip archive to a target directory.
+	 *
+	 * @param zipPath The path to the zip file.
+	 * @param targetPath The directory to extract into.
+	 * @param sourcePath Optional path prefix within the zip to filter entries.
+	 */
+	extractZipFile(zipPath: string, targetPath: string, sourcePath?: string): Promise<void>;
+
+	/**
+	 * Launches an external executable by its file system path using the OS shell.
+	 *
+	 * @param exePath Absolute path to the executable.
+	 */
+	launchExternalApp(exePath: string): Promise<void>;
+
+	/**
+	 * Downloads a file from the given URL and saves it to the specified local path.
+	 *
+	 * @param url The URL to download from.
+	 * @param destPath Absolute local path to save the file.
+	 */
+	downloadFile(url: string, destPath: string): Promise<void>;
+	// test-workbench_change end
+
 	// Power
 	getSystemIdleState(idleThreshold: number): Promise<SystemIdleState>;
 	getSystemIdleTime(): Promise<number>;

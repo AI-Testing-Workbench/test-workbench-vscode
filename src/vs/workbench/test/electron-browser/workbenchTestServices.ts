@@ -183,6 +183,9 @@ export class TestNativeHostService implements INativeHostService {
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
 	async createZipFile(zipPath: URI, files: { path: string; contents: string }[]): Promise<void> { }
+	async extractZipFile(_zipPath: string, _targetPath: string, _sourcePath?: string): Promise<void> { } // test-workbench_change
+	async launchExternalApp(_exePath: string): Promise<void> { } // test-workbench_change
+	async downloadFile(_url: string, _destPath: string): Promise<void> { } // test-workbench_change
 	async profileRenderer(): Promise<any> { throw new Error(); }
 	async startTracing(): Promise<void> { throw new Error(); }
 	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }
