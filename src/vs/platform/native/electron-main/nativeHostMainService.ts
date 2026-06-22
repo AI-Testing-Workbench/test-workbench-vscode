@@ -1296,7 +1296,37 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	// test-workbench_change start
 	async extractZipFile(windowId: number | undefined, zipPath: string, targetPath: string, sourcePath?: string): Promise<void> {
-		await extract(zipPath, targetPath, { sourcePath }, CancellationToken.None);
+		this.logService.info(`[extractZipFile] Starting extraction of ${zipPath} to ${targetPath}`);
+		this.logService.info(`[extractZipFile] sourcePath option: ${sourcePath || 'none'}`);
+
+		try {
+			await extract(zipPath, targetPath, { sourcePath, overwrite: true }, CancellationToken.None);
+			this.logService.info(`[extractZipFile] Extraction completed successfully`);
+
+			// Verify extraction by checking some key files
+			const fs = await import('fs');
+			const path = await import('path');
+			const resourcesDir = path.join(targetPath, 'resources');
+			const appAsarPath = path.join(resourcesDir, 'app.asar');
+
+			if (fs.existsSync(resourcesDir)) {
+				this.logService.info(`[extractZipFile] resources directory exists`);
+				const resourcesContents = fs.readdirSync(resourcesDir);
+				this.logService.info(`[extractZipFile] resources directory contents: ${JSON.stringify(resourcesContents)}`);
+			} else {
+				this.logService.warn(`[extractZipFile] resources directory does not exist!`);
+			}
+
+			if (fs.existsSync(appAsarPath)) {
+				const stats = fs.statSync(appAsarPath);
+				this.logService.info(`[extractZipFile] app.asar exists, size: ${stats.size} bytes`);
+			} else {
+				this.logService.warn(`[extractZipFile] app.asar does not exist!`);
+			}
+		} catch (error) {
+			this.logService.error(`[extractZipFile] Extraction failed:`, error);
+			throw error;
+		}
 	}
 
 	async launchExternalApp(windowId: number | undefined, exePath: string): Promise<void> {
