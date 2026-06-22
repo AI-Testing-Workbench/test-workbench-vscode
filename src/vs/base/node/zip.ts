@@ -72,13 +72,15 @@ function toExtractError(err: Error): ExtractError {
 }
 
 function extractEntry(stream: Readable, fileName: string, mode: number, targetPath: string, options: IOptions, token: CancellationToken): Promise<void> {
-	const dirName = path.dirname(fileName);
+	// Normalize path separators for Windows
+	const normalizedFileName = fileName.replace(/\//g, path.sep);
+	const dirName = path.dirname(normalizedFileName);
 	const targetDirName = path.join(targetPath, dirName);
 	if (!targetDirName.startsWith(targetPath)) {
 		console.error(`[extractEntry] Invalid file path: ${fileName}, target: ${targetPath}, targetDirName: ${targetDirName}`);
 		return Promise.reject(new Error(nls.localize('invalid file', "Error extracting {0}. Invalid file.", fileName)));
 	}
-	const targetFileName = path.join(targetPath, fileName);
+	const targetFileName = path.join(targetPath, normalizedFileName);
 	console.log(`[extractEntry] Extracting to: ${targetFileName}`);
 
 	let istream: WriteStream;
@@ -116,7 +118,8 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 
 function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, token: CancellationToken): Promise<void> {
 	let last = createCancelablePromise<void>(() => Promise.resolve());
-	let extractedEntriesCount = 0;
+	let processedEntriesCount = 0; // Count of all entries we've seen
+	let extractedEntriesCount = 0; // Count of entries actually extracted
 
 	const listener = token.onCancellationRequested(() => {
 		last.cancel();
@@ -131,17 +134,17 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 				return;
 			}
 
-			extractedEntriesCount++;
+			processedEntriesCount++;
 			zipfile.readEntry();
 		};
 
 		zipfile.once('error', e);
 		zipfile.once('close', () => last.then(() => {
-			console.log(`[extractZip] Close event: extracted ${extractedEntriesCount} of ${zipfile.entryCount} entries`);
-			if (token.isCancellationRequested || zipfile.entryCount === extractedEntriesCount) {
+			console.log(`[extractZip] Close event: processed ${processedEntriesCount} of ${zipfile.entryCount} entries, extracted ${extractedEntriesCount} files`);
+			if (token.isCancellationRequested || zipfile.entryCount === processedEntriesCount) {
 				c();
 			} else {
-				e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Found {0} of {1} entries", extractedEntriesCount, zipfile.entryCount))));
+				e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Found {0} of {1} entries", processedEntriesCount, zipfile.entryCount))));
 			}
 		}, e));
 		zipfile.readEntry();
@@ -172,7 +175,10 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 			if (/\/$/.test(fileName)) {
 				const targetFileName = path.join(targetPath, fileName);
 				console.log(`[extractZip] Creating directory: ${targetFileName}`);
-				last = createCancelablePromise(token => promises.mkdir(targetFileName, { recursive: true }).then(() => readNextEntry(token)).then(undefined, e));
+				last = createCancelablePromise(token => promises.mkdir(targetFileName, { recursive: true }).then(() => {
+					extractedEntriesCount++;
+					readNextEntry(token);
+				}).then(undefined, e));
 				return;
 			}
 
@@ -181,6 +187,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 
 			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => {
 				console.log(`[extractZip] Successfully extracted: ${fileName}`);
+				extractedEntriesCount++;
 				readNextEntry(token);
 			}).catch(err => {
 				console.error(`[extractZip] Failed to extract ${fileName}:`, err);
