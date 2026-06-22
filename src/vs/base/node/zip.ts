@@ -72,16 +72,12 @@ function toExtractError(err: Error): ExtractError {
 }
 
 function extractEntry(stream: Readable, fileName: string, mode: number, targetPath: string, options: IOptions, token: CancellationToken): Promise<void> {
-	// Normalize path separators for Windows
-	const normalizedFileName = fileName.replace(/\//g, path.sep);
-	const dirName = path.dirname(normalizedFileName);
+	const dirName = path.dirname(fileName);
 	const targetDirName = path.join(targetPath, dirName);
 	if (!targetDirName.startsWith(targetPath)) {
-		console.error(`[extractEntry] Invalid file path: ${fileName}, target: ${targetPath}, targetDirName: ${targetDirName}`);
 		return Promise.reject(new Error(nls.localize('invalid file', "Error extracting {0}. Invalid file.", fileName)));
 	}
-	const targetFileName = path.join(targetPath, normalizedFileName);
-	console.log(`[extractEntry] Extracting to: ${targetFileName}`);
+	const targetFileName = path.join(targetPath, fileName);
 
 	let istream: WriteStream;
 
@@ -96,21 +92,11 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 
 		try {
 			istream = createWriteStream(targetFileName, { mode });
-			istream.once('close', () => {
-				console.log(`[extractEntry] File write completed: ${targetFileName}`);
-				c();
-			});
-			istream.once('error', err => {
-				console.error(`[extractEntry] Write stream error for ${targetFileName}:`, err);
-				e(err);
-			});
-			stream.once('error', err => {
-				console.error(`[extractEntry] Read stream error for ${targetFileName}:`, err);
-				e(err);
-			});
+			istream.once('close', () => c());
+			istream.once('error', e);
+			stream.once('error', e);
 			stream.pipe(istream);
 		} catch (error) {
-			console.error(`[extractEntry] Exception while creating write stream for ${targetFileName}:`, error);
 			e(error);
 		}
 	}));
@@ -118,8 +104,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 
 function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, token: CancellationToken): Promise<void> {
 	let last = createCancelablePromise<void>(() => Promise.resolve());
-	let processedEntriesCount = 0; // Count of all entries we've seen
-	let extractedEntriesCount = 0; // Count of entries actually extracted
+	let extractedEntriesCount = 0;
 
 	const listener = token.onCancellationRequested(() => {
 		last.cancel();
@@ -134,17 +119,16 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 				return;
 			}
 
-			processedEntriesCount++;
+			extractedEntriesCount++;
 			zipfile.readEntry();
 		};
 
 		zipfile.once('error', e);
 		zipfile.once('close', () => last.then(() => {
-			console.log(`[extractZip] Close event: processed ${processedEntriesCount} of ${zipfile.entryCount} entries, extracted ${extractedEntriesCount} files`);
-			if (token.isCancellationRequested || zipfile.entryCount === processedEntriesCount) {
+			if (token.isCancellationRequested || zipfile.entryCount === extractedEntriesCount) {
 				c();
 			} else {
-				e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Found {0} of {1} entries", processedEntriesCount, zipfile.entryCount))));
+				e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Found {0} of {1} entries", extractedEntriesCount, zipfile.entryCount))));
 			}
 		}, e));
 		zipfile.readEntry();
@@ -154,45 +138,24 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 				return;
 			}
 
-			// Skip __MACOSX files and ._* files (macOS resource forks)
-			if (entry.fileName.includes('__MACOSX/') || entry.fileName.includes('/._')) {
-				console.log(`[extractZip] Skipping macOS metadata file: ${entry.fileName}`);
-				readNextEntry(token);
-				return;
-			}
-
-			console.log(`[extractZip] Processing entry: ${entry.fileName}, matches regex: ${options.sourcePathRegex.test(entry.fileName)}`);
-
 			if (!options.sourcePathRegex.test(entry.fileName)) {
 				readNextEntry(token);
 				return;
 			}
 
 			const fileName = entry.fileName.replace(options.sourcePathRegex, '');
-			console.log(`[extractZip] Extracting: ${entry.fileName} -> ${fileName}`);
 
 			// directory file names end with '/'
 			if (/\/$/.test(fileName)) {
 				const targetFileName = path.join(targetPath, fileName);
-				console.log(`[extractZip] Creating directory: ${targetFileName}`);
-				last = createCancelablePromise(token => promises.mkdir(targetFileName, { recursive: true }).then(() => {
-					extractedEntriesCount++;
-					readNextEntry(token);
-				}).then(undefined, e));
+				last = createCancelablePromise(token => promises.mkdir(targetFileName, { recursive: true }).then(() => readNextEntry(token)).then(undefined, e));
 				return;
 			}
 
 			const stream = openZipStream(zipfile, entry);
 			const mode = modeFromEntry(entry);
 
-			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => {
-				console.log(`[extractZip] Successfully extracted: ${fileName}`);
-				extractedEntriesCount++;
-				readNextEntry(token);
-			}).catch(err => {
-				console.error(`[extractZip] Failed to extract ${fileName}:`, err);
-				throw err;
-			}))).then(null, e));
+			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))).then(null, e));
 		});
 	}).finally(() => listener.dispose());
 }
@@ -253,8 +216,7 @@ export async function zip(zipPath: string, files: IFile[]): Promise<string> {
 }
 
 export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, token: CancellationToken): Promise<void> {
-	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '.*');
-	console.log(`[extract] sourcePathRegex pattern: ${sourcePathRegex.source}`);
+	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '');
 
 	let promise = openZip(zipPath, true);
 
