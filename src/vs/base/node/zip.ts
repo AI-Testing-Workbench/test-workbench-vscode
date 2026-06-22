@@ -92,11 +92,45 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 
 		try {
 			istream = createWriteStream(targetFileName, { mode });
-			istream.once('close', () => c());
-			istream.once('error', e);
-			stream.once('error', e);
+			let bytesWritten = 0;
+			let finished = false;
+
+			// Use 'finish' event to ensure all data is flushed to disk
+			// This is especially important for large files on Windows
+			istream.once('finish', () => {
+				finished = true;
+				// Log for debugging
+				if (bytesWritten === 0) {
+					console.warn(`[ZIP] Warning: Extracted ${fileName} with 0 bytes`);
+				}
+				c();
+			});
+
+			istream.once('error', (err) => {
+				console.error(`[ZIP] Write error for ${fileName}:`, err.message);
+				e(new Error(`Failed to write ${fileName}: ${err.message}`));
+			});
+
+			stream.once('error', (err) => {
+				console.error(`[ZIP] Read error for ${fileName}:`, err.message);
+				e(new Error(`Failed to read ${fileName} from zip: ${err.message}`));
+			});
+
+			// Track data flow for debugging
+			stream.on('data', (chunk: Buffer) => {
+				bytesWritten += chunk.length;
+			});
+
+			stream.on('end', () => {
+				// Ensure we actually received data
+				if (bytesWritten === 0 && !finished) {
+					console.warn(`[ZIP] Stream ended for ${fileName} but no data was received`);
+				}
+			});
+
 			stream.pipe(istream);
 		} catch (error) {
+			console.error(`[ZIP] Exception during ${fileName} extraction:`, error);
 			e(error);
 		}
 	}));
@@ -105,6 +139,8 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, token: CancellationToken): Promise<void> {
 	let last = createCancelablePromise<void>(() => Promise.resolve());
 	let extractedEntriesCount = 0;
+	const failedFiles: string[] = [];
+	const successFiles: string[] = [];
 
 	const listener = token.onCancellationRequested(() => {
 		last.cancel();
@@ -125,6 +161,12 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 
 		zipfile.once('error', e);
 		zipfile.once('close', () => last.then(() => {
+			console.log(`[ZIP] Extraction complete. Total entries: ${zipfile.entryCount}, Processed: ${extractedEntriesCount}`);
+			console.log(`[ZIP] Successfully extracted: ${successFiles.length} files`);
+			if (failedFiles.length > 0) {
+				console.error(`[ZIP] Failed to extract ${failedFiles.length} files:`, failedFiles);
+			}
+
 			if (token.isCancellationRequested || zipfile.entryCount === extractedEntriesCount) {
 				c();
 			} else {
@@ -135,6 +177,12 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 		zipfile.on('entry', (entry: Entry) => {
 
 			if (token.isCancellationRequested) {
+				return;
+			}
+
+			// Skip macOS metadata files that can cause conflicts on Windows
+			if (entry.fileName.includes('__MACOSX/') || entry.fileName.startsWith('._')) {
+				readNextEntry(token);
 				return;
 			}
 
@@ -155,7 +203,22 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 			const stream = openZipStream(zipfile, entry);
 			const mode = modeFromEntry(entry);
 
-			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))).then(null, e));
+			last = createCancelablePromise(token => throttler.queue(async () => {
+				try {
+					const readableStream = await stream;
+					await extractEntry(readableStream, fileName, mode, targetPath, options, token);
+					console.log(`[ZIP] Successfully extracted: ${fileName}`);
+					successFiles.push(fileName);
+					readNextEntry(token);
+				} catch (err) {
+					// Log extraction failure but continue with other files
+					console.error(`[ZIP] Failed to extract ${fileName}:`, err);
+					failedFiles.push(fileName);
+					// Still read next entry to continue extraction
+					readNextEntry(token);
+					// Don't re-throw - we want to continue extracting other files
+				}
+			}));
 		});
 	}).finally(() => listener.dispose());
 }
