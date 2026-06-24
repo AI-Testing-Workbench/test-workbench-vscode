@@ -180,13 +180,18 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 				return;
 			}
 
+			// Log every entry for debugging
+			console.log(`[ZIP] Processing entry: ${entry.fileName} (${entry.uncompressedSize} bytes)`);
+
 			// Skip macOS metadata files that can cause conflicts on Windows
 			if (entry.fileName.includes('__MACOSX/') || entry.fileName.startsWith('._')) {
+				console.log(`[ZIP] Skipping macOS metadata: ${entry.fileName}`);
 				readNextEntry(token);
 				return;
 			}
 
 			if (!options.sourcePathRegex.test(entry.fileName)) {
+				console.log(`[ZIP] Skipping (regex mismatch): ${entry.fileName}`);
 				readNextEntry(token);
 				return;
 			}
@@ -195,16 +200,19 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 
 			// directory file names end with '/'
 			if (/\/$/.test(fileName)) {
+				console.log(`[ZIP] Creating directory: ${fileName}`);
 				const targetFileName = path.join(targetPath, fileName);
 				last = createCancelablePromise(token => promises.mkdir(targetFileName, { recursive: true }).then(() => readNextEntry(token)).then(undefined, e));
 				return;
 			}
 
+			console.log(`[ZIP] Queueing file extraction: ${fileName}`);
 			const stream = openZipStream(zipfile, entry);
 			const mode = modeFromEntry(entry);
 
 			last = createCancelablePromise(token => throttler.queue(async () => {
 				try {
+					console.log(`[ZIP] Starting extraction: ${fileName}`);
 					const readableStream = await stream;
 					await extractEntry(readableStream, fileName, mode, targetPath, options, token);
 					console.log(`[ZIP] Successfully extracted: ${fileName}`);

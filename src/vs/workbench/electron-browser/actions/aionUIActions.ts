@@ -86,8 +86,22 @@ export class OpenAionUIApplicationAction extends Action2 {
 			logService.info(`[AionUI] Extracting sub-app.zip to: ${subAppBaseDir}`);
 			await nativeHostService.extractZipFile(zipPath, subAppBaseDir);
 
-			// Step 5: Verify extraction was successful
-			await fileService.stat(URI.file(exePath));
+			// Step 5: Verify extraction was successful by checking critical files
+			const criticalFiles = [
+				exePath,
+				join(subAppBaseDir, 'resources', 'app.asar')
+			];
+
+			for (const filePath of criticalFiles) {
+				try {
+					await fileService.stat(URI.file(filePath));
+					logService.info(`[AionUI] Verified file exists: ${filePath}`);
+				} catch (error) {
+					logService.error(`[AionUI] Missing critical file after extraction: ${filePath}`);
+					throw new Error(`Extraction incomplete: missing ${filePath}`);
+				}
+			}
+
 			logService.info(`[AionUI] Extraction successful, SubApp.exe at: ${exePath}`);
 			return exePath;
 		} catch (error) {
