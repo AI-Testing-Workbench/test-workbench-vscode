@@ -34,9 +34,9 @@ export class OpenAionUIApplicationAction extends Action2 {
 		const nativeHostService = accessor.get(INativeHostService);
 		const environmentService = accessor.get(INativeWorkbenchEnvironmentService);
 
-		// Use userDataPath to store sub-app in user configuration directory
+		// Use userDataPath to store AionUi in user configuration directory
 		const userDataPath = environmentService.userDataPath;
-		const subAppBaseDir = join(userDataPath, 'sub-app');
+		const subAppBaseDir = join(userDataPath, 'AionUi');
 		logService.info(`[AionUI] Launching AionUI application from: ${subAppBaseDir}`);
 
 		const subAppPath = await this.getSubAppPath(subAppBaseDir, fileService, logService, nativeHostService);
@@ -50,58 +50,44 @@ export class OpenAionUIApplicationAction extends Action2 {
 				logService.error('[AionUI] Error opening AionUI:', error);
 			}
 		} else {
-			logService.warn('[AionUI] SubApp.exe not found, nothing to launch');
+			logService.warn('[AionUI] AionUi.exe not found, nothing to launch');
 		}
 	}
 
 	private async getSubAppPath(subAppBaseDir: string, fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): Promise<string | undefined> {
 		try {
-			// Step 1: Ensure sub-app directory exists
+			// Step 1: Ensure AionUi directory exists
 			try {
 				await fileService.stat(URI.file(subAppBaseDir));
 			} catch {
 				await fileService.createFolder(URI.file(subAppBaseDir));
 			}
 
-			// Step 2: Check if SubApp.exe already exists
-			const exePath = join(subAppBaseDir, 'SubApp.exe');
+			// Step 2: Check if AionUi.exe already exists
+			const exePath = join(subAppBaseDir, 'AionUi.exe');
 			try {
 				await fileService.stat(URI.file(exePath));
-				logService.info(`[AionUI] Found existing SubApp.exe at: ${exePath}`);
+				logService.info(`[AionUI] Found existing AionUi.exe at: ${exePath}`);
 				return exePath;
 			} catch {
 				// Not found, continue to download and extract
 			}
 
-			// Step 3: Check if sub-app.zip exists, download if not
-			const zipPath = join(subAppBaseDir, 'sub-app.zip');
+			// Step 3: Check if AionUi.zip exists, download if not
+			const zipPath = join(subAppBaseDir, 'AionUi.zip');
 			try {
 				await fileService.stat(URI.file(zipPath));
 			} catch {
-				logService.info(`[AionUI] Downloading sub-app.zip...`);
-				await nativeHostService.downloadFile('http://localhost:8000/sub-app.zip', zipPath);
+				logService.info(`[AionUI] Downloading AionUi.zip...`);
+				await nativeHostService.downloadFile('http://localhost:8000/AionUi.zip', zipPath);
 			}
 
 			// Step 4: Extract the zip
-			logService.info(`[AionUI] Extracting sub-app.zip to: ${subAppBaseDir}`);
+			logService.info(`[AionUI] Extracting AionUi.zip to: ${subAppBaseDir}`);
 			await nativeHostService.extractZipFile(zipPath, subAppBaseDir);
 
-			// Step 5: Verify extraction was successful by checking critical files
-			const criticalFiles = [
-				exePath,
-				join(subAppBaseDir, 'resources', 'app.asar')
-			];
-
-			for (const filePath of criticalFiles) {
-				try {
-					await fileService.stat(URI.file(filePath));
-					logService.info(`[AionUI] Verified file exists: ${filePath}`);
-				} catch (error) {
-					logService.error(`[AionUI] Missing critical file after extraction: ${filePath}`);
-					throw new Error(`Extraction incomplete: missing ${filePath}`);
-				}
-			}
-
+			// Step 5: Verify extraction was successful
+			await fileService.stat(URI.file(exePath));
 			logService.info(`[AionUI] Extraction successful, SubApp.exe at: ${exePath}`);
 			return exePath;
 		} catch (error) {
