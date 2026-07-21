@@ -137,6 +137,16 @@ export function appendUpdateMenuItems(menuId: MenuId, group: string): void {
 
 	MenuRegistry.appendMenuItem(menuId, {
 		group,
+		command: {
+			id: 'update.cancelling',
+			title: nls.localize('cancellingUpdateMenuEntry', "Cancelling Update..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Cancelling)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
 		order: 2,
 		command: {
 			id: 'update.restart',
@@ -176,6 +186,7 @@ export class ProductContribution implements IWorkbenchContribution {
 			const lastVersion = tryParseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
 			const currentVersion = tryParseVersion(productService.gitVersion ?? productService.version);  // test-workbench_change
 			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
+			const shouldShowPostInstallInfo = configurationService.getValue<boolean>('update.showPostInstallInfo');
 			const releaseNotesUrl = productService.releaseNotesUrl;
 
 			// was there a major/minor update? if so, open release notes
@@ -253,8 +264,9 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		switch (state.type) {
 			case StateType.Idle:
-				if (this.state.type === StateType.CheckingForUpdates && this.state.explicit && !state.error && await this.hostService.hadLastFocus()) {
-					this.onUpdateNotAvailable();
+				// Themed dialog shown from the last focused window; the windowless macOS case is handled by the main process.
+				if (state.notAvailable && !state.error && await this.hostService.hadLastFocus()) {
+					this.dialogService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
 				}
 				break;
 
@@ -280,6 +292,8 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading {0} update...", this.productService.nameShort));
 		} else if (state.type === StateType.Updating) {
 			badge = new ProgressBadge(() => nls.localize('updating', "Updating {0}...", this.productService.nameShort));
+		} else if (state.type === StateType.Cancelling) {
+			badge = new ProgressBadge(() => nls.localize('cancellingUpdate', "Cancelling {0} update...", this.productService.nameShort));
 		}
 
 		this.badgeDisposable.clear();
@@ -329,6 +343,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		CommandsRegistry.registerCommand('update.downloading', () => { });
 		CommandsRegistry.registerCommand('update.install', () => this.updateService.applyUpdate());
 		CommandsRegistry.registerCommand('update.updating', () => { });
+		CommandsRegistry.registerCommand('update.cancelling', () => { });
 		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
 		CommandsRegistry.registerCommand('_update.state', () => {
 			return this.state;

@@ -7,7 +7,6 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
-
 import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
@@ -100,6 +99,7 @@ const desktopEntryPoints = [
 	'vs/sessions/sessions.desktop.main',
 	'vs/workbench/contrib/debug/node/telemetryApp',
 	'vs/platform/files/node/watcher/watcherMain',
+	'vs/platform/localTranscription/node/localTranscriptionMain',
 	'vs/platform/terminal/node/ptyHostMain',
 	'vs/platform/agentHost/node/agentHostMain',
 	'vs/platform/agentHost/node/diffWorkerMain',
@@ -117,6 +117,11 @@ const codeEntryPoints = [
 const webEntryPoints = [
 	'vs/workbench/workbench.web.main.internal',
 	'vs/code/browser/workbench/workbench',
+];
+
+// Additional web-only entry points (CDN build only, not in server-web)
+const webOnlyEntryPoints = [
+	'vs/sessions/sessions.web.main.internal',
 ];
 
 const keyboardMapEntryPoints = [
@@ -173,6 +178,7 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 		case 'web':
 			return [
 				...workerEntryPoints,
+				...webOnlyEntryPoints,
 				'vs/workbench/workbench.web.main.internal', // web workbench only (no browser shell)
 				...keyboardMapEntryPoints,
 			];
@@ -220,6 +226,7 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 		case 'web':
 			return new Set([
 				'vs/workbench/workbench.web.main.internal',
+				'vs/sessions/sessions.web.main.internal',
 			]);
 		default:
 			throw new Error(`Unknown target: ${target}`);
@@ -239,7 +246,8 @@ const commonResourcePatterns = [
 	// SVGs referenced from CSS (needed for transpile/dev builds where CSS is copied as-is)
 	'vs/workbench/browser/media/code-icon.svg',
 	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
-	'vs/sessions/contrib/chat/browser/media/*.svg'
+	'vs/sessions/contrib/chat/browser/media/*.svg',
+	'vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg'
 ];
 
 // Resources for desktop target
@@ -278,6 +286,7 @@ const desktopResourcePatterns = [
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
+	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
 	'vs/workbench/services/extensionManagement/common/media/*.svg',
 	'vs/workbench/services/extensionManagement/common/media/*.png',
@@ -337,6 +346,7 @@ const serverWebResourcePatterns = [
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
+	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.png',
 	'vs/workbench/services/extensionManagement/common/media/*.svg',
@@ -363,6 +373,7 @@ const webResourcePatterns = [
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
+	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.png',
 	'vs/workbench/services/extensionManagement/common/media/*.svg',
