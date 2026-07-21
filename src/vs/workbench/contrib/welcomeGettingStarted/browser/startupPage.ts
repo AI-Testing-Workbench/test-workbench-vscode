@@ -34,6 +34,8 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -289,8 +291,16 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return; // skip welcome flag is set
 		}
 
+		if (isWeb) {
+			return; // not supported on web (e.g. codespaces, github.dev)
+		}
+
 		if (!this.configurationService.getValue<boolean>('workbench.welcomePage.experimentalOnboarding')) {
 			return; // experimental onboarding is disabled
+		}
+
+		if (this.chatEntitlementService.sentiment.hidden) {
+			return; // AI features are hidden, do not show AI-focused onboarding
 		}
 
 		if (!this.storageService.isNew(StorageScope.APPLICATION)) {
