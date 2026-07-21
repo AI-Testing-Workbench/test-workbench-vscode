@@ -10,7 +10,7 @@ import { mkdir, readFile, unlink } from 'fs/promises';
 import { release, tmpdir } from 'os';
 import { Delayer, ProcessTimeRunOnceScheduler, timeout } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { hash } from '../../../base/common/hash.js';
@@ -242,7 +242,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		// test-workbench_change start
 		const baseHeaders = getUpdateRequestHeaders(this.productService.version);
-		enhanceUpdateRequestHeadersWithEmployeeId(baseHeaders, this.applicationStorageMainService)
+		const promise = enhanceUpdateRequestHeadersWithEmployeeId(baseHeaders, this.applicationStorageMainService)
 			.then(headers => this.requestService.request({ url, headers, callSite: 'updateService.win32.checkForUpdates' }, CancellationToken.None))
 			// test-workbench_change end
 			.then<IUpdate | null>(asJson)

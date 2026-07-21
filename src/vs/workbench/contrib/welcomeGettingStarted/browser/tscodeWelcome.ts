@@ -37,6 +37,7 @@ import { IWebviewService } from '../../webview/browser/webview.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js'; // test-workbench_change
 import { ITsCodeTokenStore } from '../../tsCodeAuth/common/tsCodeAuth.js'; // test-workbench_change
 
 interface TscodeWelcomeMemento {
@@ -81,6 +82,7 @@ export class TscodeWelcomePage extends GettingStartedPage {
 		@IWorkspaceContextService workspaceContextService: any,
 		@IAccessibilityService accessibilityService: any,
 		@IMarkdownRendererService markdownRendererService: any,
+		@IChatEntitlementService chatEntitlementService: any, // test-workbench_change
 		@ITsCodeTokenStore tokenStore: ITsCodeTokenStore,
 	) {
 		super(
@@ -88,7 +90,8 @@ export class TscodeWelcomePage extends GettingStartedPage {
 			configurationService, telemetryService, languageService, fileService, openerService,
 			themeService, storageService, extensionService, instantiationService, notificationService,
 			groupsService, contextService, quickInputService, workspacesService, labelService,
-			hostService, webviewService, workspaceContextService, accessibilityService, markdownRendererService
+			hostService, webviewService, workspaceContextService, accessibilityService, markdownRendererService,
+			chatEntitlementService // test-workbench_change
 		);
 		this.tscodeStorageService = storageService;
 		this.tscodeTokenStore = tokenStore; // test-workbench_change
