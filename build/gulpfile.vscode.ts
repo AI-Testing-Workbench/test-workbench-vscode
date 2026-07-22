@@ -641,7 +641,16 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 function hasAuthenticodeSignature(filePath: string): Promise<boolean> {
 	return new Promise((resolve, reject) => {
 		const proc = cp.spawn('signtool.exe', ['verify', '/pa', filePath]);
-		proc.on('error', reject);
+		proc.on('error', err => {
+			// signtool.exe may not be available on CI runners without the Windows SDK.
+			// Fall through gracefully — native PEs won't have Authenticode signatures
+			// in that case, and the rcedit patching that follows does not require them.
+			if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+				resolve(false);
+			} else {
+				reject(err);
+			}
+		});
 		proc.on('exit', code => resolve(code === 0));
 	});
 }
