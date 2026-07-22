@@ -242,6 +242,7 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 	const copilotBase = path.join(extensionNodeModules, '@github', 'copilot');
 	const copilotSdkBase = path.join(copilotBase, 'sdk');
 
+	// test-workbench_change start
 	// The @github/copilot npm package does not ship sdk/ — it only contains
 	// npm-loader.js, package.json, LICENSE.md, and README.md. The SDK files
 	// (index.js, definitions/, builtin-skills/, queries/, etc.) come from the
@@ -288,6 +289,7 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 	if (!fs.existsSync(copilotSdkBase)) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot SDK directory not found at ${copilotSdkBase} (tried platform package at ${path.join(appNodeModulesDir, '@github', `copilot-${copilotPackagePlatformArch}`)})`);
 	}
+	// test-workbench_change end
 	materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch, tgrepPlatformArch, copilotBase, appNodeModulesDir);
 	pruneNonTargetCopilotSdkPrebuilds(copilotPackagePlatformArch, path.join(copilotSdkBase, 'prebuilds'), copilotPlatforms);
 	pruneNonTargetCopilotSdkPrebuilds(tgrepPlatformArch, path.join(copilotSdkBase, path.join('tgrep', 'bin')), copilotTgrepPlatforms);
