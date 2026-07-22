@@ -241,8 +241,52 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 	const extensionNodeModules = path.join(builtInCopilotExtensionDir, 'node_modules');
 	const copilotBase = path.join(extensionNodeModules, '@github', 'copilot');
 	const copilotSdkBase = path.join(copilotBase, 'sdk');
+
+	// The @github/copilot npm package does not ship sdk/ — it only contains
+	// npm-loader.js, package.json, LICENSE.md, and README.md. The SDK files
+	// (index.js, definitions/, builtin-skills/, queries/, etc.) come from the
+	// platform-specific @github/copilot-{platform} package and are normally
+	// copied by extensions/copilot/script/postinstall.ts during npm install.
+	// If that postinstall did not run (e.g. cache hit, CI re-build), we
+	// materialize sdk/ from the app node_modules here so the build does not
+	// fail later when prepareBuiltInCopilotRipgrepShim runs.
 	if (!fs.existsSync(copilotSdkBase)) {
-		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot SDK directory not found at ${copilotSdkBase}`);
+		const platformPackageDir = path.join(appNodeModulesDir, '@github', `copilot-${copilotPackagePlatformArch}`);
+		if (fs.existsSync(platformPackageDir)) {
+			const platformSdk = path.join(platformPackageDir, 'sdk');
+			if (fs.existsSync(platformSdk)) {
+				fs.mkdirSync(copilotSdkBase, { recursive: true });
+				fs.cpSync(platformSdk, copilotSdkBase, { recursive: true, force: true });
+				console.log(`[prepareBuiltInCopilotRipgrepShim] Materialized sdk/ from ${platformSdk} to ${copilotSdkBase}`);
+			} else {
+				// Fallback: copy from copilot-sdk/ (older package layout)
+				const platformCopilotSdk = path.join(platformPackageDir, 'copilot-sdk');
+				if (fs.existsSync(platformCopilotSdk)) {
+					fs.mkdirSync(copilotSdkBase, { recursive: true });
+					fs.cpSync(platformCopilotSdk, copilotSdkBase, { recursive: true, force: true });
+					console.log(`[prepareBuiltInCopilotRipgrepShim] Materialized sdk/ from ${platformCopilotSdk} to ${copilotSdkBase}`);
+				}
+			}
+		}
+	}
+
+	// Also copy top-level runtime dirs (definitions, builtin-skills, queries, etc.)
+	// that the copilot postinstall would have placed alongside sdk/.
+	const runtimeDirs = ['definitions', 'builtin-skills', 'queries', 'prebuilds', 'tgrep'];
+	const platformPackageDir = path.join(appNodeModulesDir, '@github', `copilot-${copilotPackagePlatformArch}`);
+	if (fs.existsSync(platformPackageDir)) {
+		for (const dir of runtimeDirs) {
+			const src = path.join(platformPackageDir, dir);
+			const dest = path.join(copilotBase, dir);
+			if (fs.existsSync(src) && !fs.existsSync(dest)) {
+				fs.mkdirSync(path.dirname(dest), { recursive: true });
+				fs.cpSync(src, dest, { recursive: true, force: true });
+			}
+		}
+	}
+
+	if (!fs.existsSync(copilotSdkBase)) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot SDK directory not found at ${copilotSdkBase} (tried platform package at ${path.join(appNodeModulesDir, '@github', `copilot-${copilotPackagePlatformArch}`)})`);
 	}
 	materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch, tgrepPlatformArch, copilotBase, appNodeModulesDir);
 	pruneNonTargetCopilotSdkPrebuilds(copilotPackagePlatformArch, path.join(copilotSdkBase, 'prebuilds'), copilotPlatforms);
