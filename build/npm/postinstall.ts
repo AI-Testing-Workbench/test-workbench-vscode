@@ -60,8 +60,10 @@ async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): 
 		shell: true,
 	};
 
-	const rawCommand = process.env['npm_command'] || 'install';
-	const command = rawCommand.trim();
+	// Always use `npm install` for subdirectory installs.
+	// Propagating the parent command (e.g. `npm ci`) is too strict:
+	// subdirectory package-lock.json files may be out of sync after merges,
+	// and `npm ci` would fail with EUSAGE. `npm install` is more resilient.
 
 	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		const syncOpts: child_process.SpawnSyncOptions = {
@@ -88,7 +90,7 @@ async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): 
 		], syncOpts);
 		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], syncOpts);
 	} else {
-		const args = command.split(' ').filter(a => a.length > 0);
+		const args = ['install'];
 		log(dir, `Running: ${npm} ${args.join(' ')}`);
 		const output = await spawnAsync(npm, args, finalOpts);
 		if (output.trim()) {
