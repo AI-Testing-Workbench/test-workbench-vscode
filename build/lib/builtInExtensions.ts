@@ -93,9 +93,11 @@ function getExtensionDownloadStream(extension: IExtensionDefinition) {
 			return es.readArray([]);
 		}
 		input = ext.fromGithub(extension, { asset, latest: isInsiders() });
-	} else if (productjson.extensionsGallery?.serviceUrl) {
-		input = ext.fromMarketplace(productjson.extensionsGallery.serviceUrl, extension);
-	} else {
+	// test-workbench_change start - disable marketplace download, fallback to GitHub
+	// } else if (productjson.extensionsGallery?.serviceUrl) {
+	// 	input = ext.fromMarketplace(productjson.extensionsGallery.serviceUrl, extension);
+	// } else {
+	} else { // test-workbench_change end
 		input = ext.fromGithub(extension, { latest: isInsiders() });
 	}
 
