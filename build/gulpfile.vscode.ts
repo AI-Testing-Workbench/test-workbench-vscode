@@ -641,6 +641,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 function hasAuthenticodeSignature(filePath: string): Promise<boolean> {
 	return new Promise((resolve, reject) => {
 		const proc = cp.spawn('signtool.exe', ['verify', '/pa', filePath]);
+		// test-workbench_change start
 		proc.on('error', err => {
 			// signtool.exe may not be available on CI runners without the Windows SDK.
 			// Fall through gracefully — native PEs won't have Authenticode signatures
@@ -651,6 +652,7 @@ function hasAuthenticodeSignature(filePath: string): Promise<boolean> {
 				reject(err);
 			}
 		});
+		// test-workbench_change end
 		proc.on('exit', code => resolve(code === 0));
 	});
 }
