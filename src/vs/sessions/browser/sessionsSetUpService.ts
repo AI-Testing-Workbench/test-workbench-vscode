@@ -99,6 +99,13 @@ class SessionsSetUpWidget extends Disposable {
 			return;
 		}
 
+		// test-workbench_change start: skip sign-in when mock auth is enabled
+		if (this.productService.tsCodeAuthMockEnabled) {
+			this.onCompleted();
+			return;
+		}
+		// test-workbench_change end
+
 		if (shouldSkipSessionsWelcome(this.environmentService)) {
 			this.onCompleted();
 			return;

@@ -60,6 +60,19 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 
 	async checkAndHandleAuth(): Promise<void> {
 		try {
+			// test-workbench_change start: auto-create mock token immediately when mock is enabled
+			if (this.productService.tsCodeAuthMockEnabled) {
+				const mockToken = createMockToken();
+				await this.tokenStore.saveToken(mockToken);
+				this._syncEmployeeIdForUpdateService(mockToken.employeeId);
+				this.telemetryService.setCommonProperty('common.userId', mockToken.employeeId ?? '');
+				this.telemetryService.setCommonProperty('common.userName', mockToken.userName ?? '');
+				this.telemetryService.setCommonProperty('common.pathName', mockToken.pathName ?? '');
+				this._onDidLogin.fire();
+				return;
+			}
+			// test-workbench_change end
+
 			const token = await this.tokenStore.getToken();
 			if (token) {
 				this._syncEmployeeIdForUpdateService(token.employeeId); // test-workbench_change
