@@ -30,7 +30,7 @@ import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IAc
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
+// test-workbench_change - AHP_AUTH_REQUIRED, ProtocolError removed: auth bypassed
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { isSubagentSession, parseSubagentSessionUri, buildDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, isDefaultChatUri, ChatInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -493,8 +493,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	private _resolveTransportMode(): 'proxy' | 'native' {
-		// Defaults to proxied when the `claudeUseCopilotProxy` root value is unset.
-		const useProxy = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.ClaudeUseCopilotProxy) ?? true;
+		// test-workbench_change - default to native so no GitHub auth is required
+		const useProxy = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.ClaudeUseCopilotProxy) ?? false;
 		return useProxy ? 'proxy' : 'native';
 	}
 
@@ -528,18 +528,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * proxy handle is required, otherwise {@link AHP_AUTH_REQUIRED} is thrown.
 	 */
 	private _ensureAuthenticated(): ClaudeTransport {
-		if (this._transportMode !== 'proxy') {
-			return { kind: 'native' };
-		}
-		const handle = this._proxyHandle;
-		if (!handle) {
-			throw new ProtocolError(
-				AHP_AUTH_REQUIRED,
-				'Authentication is required to use Claude',
-				this.getProtectedResources(),
-			);
-		}
-		return { kind: 'proxy', handle };
+		// test-workbench_change - skip auth check, allow use without login
+		return { kind: 'native' };
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {

@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostByokModelsEnabledEnvVar, AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostByokModelsEnabledEnvVar, AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostOpenCodeAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
@@ -31,6 +31,7 @@ import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from 
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
+import { OpenCodeAgent } from './openCode/openCodeAgent.js'; // test-workbench_change
 import { ByokLmProxyService, IByokLmProxyService } from './copilot/byokLmProxyService.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
@@ -262,9 +263,14 @@ async function startAgentHost(): Promise<void> {
 					agentService.registerProvider(instantiationService.createInstance(CodexAgent));
 				}
 			};
-			registerCodexIfEnabled();
-			disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
-		}
+	registerCodexIfEnabled();
+	disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
+}
+
+// OpenCode agent: enabled by default (opt-out via env var) // test-workbench_change start
+if (isAgentEnabled(process.env[AgentHostOpenCodeAgentEnabledEnvVar], true)) {
+	agentService.registerProvider(instantiationService.createInstance(OpenCodeAgent));
+} // test-workbench_change end
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		throw err;

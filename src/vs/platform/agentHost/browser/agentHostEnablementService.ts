@@ -61,7 +61,7 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
-		this.enabled = !isWeb && (configurationService.getValue<boolean>(agentHostEnabledSettingId) ?? false);
+		this.enabled = !isWeb; // test-workbench_change - always enable agent host on desktop
 		AGENT_HOST_ENABLED_CONTEXT_KEY.bindTo(contextKeyService).set(this.enabled);
 	}
 }

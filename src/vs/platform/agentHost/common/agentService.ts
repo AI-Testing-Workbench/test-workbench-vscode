@@ -113,6 +113,8 @@ export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT
  */
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
 
+export const AgentHostOpenCodeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_OPENCODE_AGENT_ENABLED'; // test-workbench_change
+
 /**
  * Environment variable form of {@link AgentHostByokModelsEnabledSettingId}.
  * Set by the agent host starters from the setting. Accepts `'true'` /
@@ -214,11 +216,10 @@ export function affectsAgentHostProviderPreference(event: IConfigurationChangeEv
 }
 
 export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
+	// test-workbench_change - always surface all agent host providers without login
 	switch (provider) {
 		case CLAUDE_AGENT_PROVIDER_ID:
-			return configurationService.getValue<boolean>(claudePreferAgentHostSettingId(isSessionsWindow)) === true;
 		case CODEX_AGENT_PROVIDER_ID:
-			return configurationService.getValue<boolean>(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId) === true;
 		default:
 			return true;
 	}
@@ -753,6 +754,9 @@ export const CLAUDE_AGENT_PROVIDER_ID = 'claude' as const;
 
 /** Well-known agent provider id for the Codex agent-host backend. */
 export const CODEX_AGENT_PROVIDER_ID = 'codex' as const;
+
+/** Well-known agent provider id for the OpenCode agent-host backend. */
+export const OPENCODE_AGENT_PROVIDER_ID = 'opencode' as const; // test-workbench_change
 
 /**
  * Static capability facts an agent backend advertises about itself. Each flag

@@ -71,23 +71,13 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _onMcpNotification = this._register(new Relay<IMcpNotification>());
 	readonly onMcpNotification = this._onMcpNotification.event;
 
-	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
+	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false); // test-workbench_change - skip auth so sessions work without login
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
-	private _authenticationSettled = false;
 	private _completionTriggerCharactersOnce: Promise<readonly string[]> | undefined;
 	private readonly _initializeResult: ISettableObservable<InitializeResult | undefined> = observableValue('agentHostInitializeResult', undefined);
 
-	setAuthenticationPending(pending: boolean): void {
-		// Sticky: once the first authentication pass settles, never surface
-		// pending again. Subsequent re-auths (account/session changes, reconnect)
-		// happen silently in the background and should not flicker the UI.
-		if (this._authenticationSettled) {
-			return;
-		}
-		if (!pending) {
-			this._authenticationSettled = true;
-		}
-		this._authenticationPending.set(pending, undefined);
+		setAuthenticationPending(pending: boolean): void {
+		// test-workbench_change - skip auth entirely, never surface pending
 	}
 
 	get initializeResult(): IObservable<InitializeResult | undefined> {

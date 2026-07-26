@@ -46,12 +46,13 @@ import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from 
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
+import { OpenCodeAgent } from './openCode/openCodeAgent.js'; // test-workbench_change
 import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
-import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostOpenCodeAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
@@ -330,6 +331,11 @@ async function main(): Promise<void> {
 			agentService.registerProvider(codexAgent);
 			log('CodexAgent registered');
 		}
+		if (isAgentEnabled(process.env[AgentHostOpenCodeAgentEnabledEnvVar], true)) { // test-workbench_change start
+			const openCodeAgent = disposables.add(instantiationService.createInstance(OpenCodeAgent));
+			agentService.registerProvider(openCodeAgent);
+			log('OpenCodeAgent registered');
+		} // test-workbench_change end
 	}
 
 	// Surface agent-SDK download progress to clients as generic `progress`

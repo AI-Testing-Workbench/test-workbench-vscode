@@ -1178,10 +1178,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const sessionKey = resolvedSession.toString();
 
 			// The chat-input picker may have pre-created a provisional session
-			// against this resource (`IAgentHostUntitledProvisionalSessionService.getOrCreate`).
-			// In that case the agent already has the session + the user's chip
-			// selections in `state.config.values`; ensure we hold a refcounted
-			// subscription on it so the rest of the handler observes those.
 			await raceCancellation(this._provisionalService.waitForPending(request.sessionResource), cancellationToken);
 			if (cancellationToken.isCancellationRequested) {
 				return {};
@@ -3689,16 +3685,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private async _ensureRequiredAuthentication(): Promise<ProtectedResourceMetadata[]> {
+		// test-workbench_change - skip auth check, allow use without login
 		const agentInfo = this._getRootState()?.agents.find(a => a.provider === this._config.provider);
-		const protectedResources = agentInfo?.protectedResources ?? [];
-		const hasRequiredAuth = protectedResources.some(r => r.required !== false);
-		if (hasRequiredAuth && this._config.resolveAuthentication) {
-			const authenticated = await this._config.resolveAuthentication(protectedResources);
-			if (!authenticated) {
-				throw new Error(localize('agentHost.authRequired', "Authentication is required to start a session. Please sign in and try again."));
-			}
-		}
-		return protectedResources;
+		return agentInfo?.protectedResources ?? [];
 	}
 
 	/** Creates a new backend session and subscribes to its state. */
