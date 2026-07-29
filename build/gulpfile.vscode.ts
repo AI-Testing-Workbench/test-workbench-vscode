@@ -34,7 +34,6 @@ import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
 import rceditCallback from 'rcedit';
-import * as cp from 'child_process';
 
 
 const glob = promisify(globCallback);
