@@ -10,7 +10,7 @@ import { mkdir, readFile, unlink } from 'fs/promises';
 import { release, tmpdir } from 'os';
 import { Delayer, ProcessTimeRunOnceScheduler, timeout } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { hash } from '../../../base/common/hash.js';
@@ -234,6 +234,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		if (this.state.type !== StateType.Overwriting) {
 			this.setState(State.CheckingForUpdates(explicit));
 		}
+
+		// Track this check/download chain so it can be cancelled if updates are disabled at runtime.
+		this.checkCancellationTokenSource?.dispose(true);
+		const cts = this.checkCancellationTokenSource = new CancellationTokenSource();
+		const token = cts.token;
 
 		// Track this check/download chain so it can be cancelled if updates are disabled at runtime.
 		this.checkCancellationTokenSource?.dispose(true);

@@ -28,16 +28,13 @@ import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
-import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
-import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
-import { readAgentSdkResults } from './agent-sdk/common.ts';
+import { getCopilotExcludeFilter, copyCopilotNativeDeps, prepareBuiltInCopilotExtensionShims } from './lib/copilot.ts';
+import type { EmbeddedProductInfo } from './lib/embeddedType.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
 import rceditCallback from 'rcedit';
-import { spawnTsgo } from './lib/tsgo.ts';
-import { runEsbuildTranspile, runEsbuildBundle } from './lib/esbuild.ts';
-import { preparePrebuiltExtensions } from './prepare-prebuilt-extensions.ts'; // test-workbench_change
+import * as cp from 'child_process';
 
 
 const glob = promisify(globCallback);
@@ -119,7 +116,6 @@ const vscodeResourceIncludes = [
 
 	// Welcome
 	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
-	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 
 	// Sessions
 	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
@@ -258,26 +254,6 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
-// onnxruntime-node (direct dependency and transitive via @huggingface/transformers,
-// on-device chat dictation) ships prebuilt binaries for every platform/arch inside its
-// tarball. Keep only the target build's binary so we don't bloat each package
-// with ~170MB of unused native code.
-const onnxRuntimeShippedTargets: readonly [string, string][] = [
-	['darwin', 'arm64'],
-	['linux', 'x64'],
-	['linux', 'arm64'],
-	['win32', 'x64'],
-	['win32', 'arm64'],
-];
-function getOnnxRuntimeExcludeFilter(platform: string, arch: string): string[] {
-	return [
-		'**',
-		...onnxRuntimeShippedTargets
-			.filter(([p, a]) => !(p === platform && a === arch))
-			.map(([p, a]) => `!**/onnxruntime-node/bin/napi-v6/${p}/${a}/**`),
-	];
-}
-
 function packageTask(platform: string, arch: string, sourceFolderName: string, destinationFolderName: string, _opts?: { stats?: boolean }) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
@@ -371,20 +347,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		let productJsonContents: string;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(jsonEditor((json: Record<string, unknown>) => {
-				json.commit = commit;
-				json.date = readISODate(out);
-				json.checksums = checksums;
-				json.version = version;
-				// Stamp agentSdks from the per-platform results file produced
-				// by `build/agent-sdk/produce.ts` (an earlier pipeline step).
-				// Local dev: file absent → empty → not stamped.
-				const agentSdks = readAgentSdkResults();
-				if (Object.keys(agentSdks).length > 0) {
-					json.agentSdks = agentSdks;
-				}
-				return json;
-			}))
+			.pipe(jsonEditor({ commit, date: readISODate(out), checksums, version }))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
@@ -417,11 +380,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const osProxyResolverPlatformPackage = gulp.src(getOSProxyResolverPlatformFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
 		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds, osProxyResolverPlatformPackage)
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
-			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
-			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
-			.pipe(filter(getMxcExcludeFilter(arch)))
-			.pipe(filter(getOnnxRuntimeExcludeFilter(platform, arch)))
-			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)
@@ -636,49 +594,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 	};
 	task.taskName = `package-${platform}-${arch}`;
 	return task;
-}
-
-function hasAuthenticodeSignature(filePath: string): Promise<boolean> {
-	return new Promise((resolve, reject) => {
-		const proc = cp.spawn('signtool.exe', ['verify', '/pa', filePath]);
-		// test-workbench_change start
-		proc.on('error', err => {
-			// signtool.exe may not be available on CI runners without the Windows SDK.
-			// Fall through gracefully — native PEs won't have Authenticode signatures
-			// in that case, and the rcedit patching that follows does not require them.
-			if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-				resolve(false);
-			} else {
-				reject(err);
-			}
-		});
-		// test-workbench_change end
-		proc.on('exit', code => resolve(code === 0));
-	});
-}
-
-async function stripAuthenticodeSignature(filePath: string): Promise<void> {
-	// ESRP's `signtool /as` (append) fails with 0x800700C1 on PEs whose existing
-	// Authenticode signature was invalidated by rcedit. Strip cleanly first so
-	// rcedit operates on an unsigned PE.
-	if (!await hasAuthenticodeSignature(filePath)) {
-		return;
-	}
-	await new Promise<void>((resolve, reject) => {
-		const proc = cp.spawn('signtool.exe', ['remove', '/s', filePath]);
-		let out = '';
-		proc.stdout?.on('data', chunk => out += chunk.toString());
-		proc.stderr?.on('data', chunk => out += chunk.toString());
-		proc.on('error', reject);
-		proc.on('exit', code => {
-			if (code === 0) {
-				resolve();
-			} else {
-				process.stderr.write(out);
-				reject(new Error(`signtool remove /s failed for ${filePath} (exit ${code})`));
-			}
-		});
-	});
 }
 
 function patchWin32DependenciesTask(destinationFolderName: string) {

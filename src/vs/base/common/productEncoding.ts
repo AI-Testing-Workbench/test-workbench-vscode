@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+<<<<<<<< HEAD:src/vs/base/common/productEncoding.ts
 export function decodeProductUrl(value: string): string {
 	try {
 		if (typeof atob === 'function') {
@@ -16,3 +17,9 @@ export function decodeProductUrl(value: string): string {
 	}
 	return value;
 }
+========
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { McpServersViewsContribution } from './mcpServersView.js';
+
+registerWorkbenchContribution2(McpServersViewsContribution.ID, McpServersViewsContribution, WorkbenchPhase.AfterRestored);
+>>>>>>>> upstream/main:src/vs/workbench/contrib/mcp/browser/mcp.view.contribution.ts

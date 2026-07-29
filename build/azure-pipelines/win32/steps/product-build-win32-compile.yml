@@ -5,6 +5,9 @@ parameters:
     type: boolean
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL
+    type: boolean
+    default: false
   - name: VSCODE_RUN_ELECTRON_TESTS
     type: boolean
     default: false
@@ -22,6 +25,10 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
+
+  - ${{ if eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true) }}:
+    - script: node build/azure-pipelines/common/disableFoundryLocalInstall.ts
+      displayName: Disable Foundry Local Native Install
 
   - task: UsePythonVersion@0
     inputs:
@@ -128,6 +135,10 @@ steps:
   - template: ../../common/install-builtin-extensions.yml@self
 
   - template: ../../common/agent-sdk-produce.yml@self
+    parameters:
+      vscodePlatform: win32
+
+  - template: ../../common/dictation-runtime-produce.yml@self
     parameters:
       vscodePlatform: win32
 
@@ -329,10 +340,10 @@ steps:
         $Version = $PackageJson.version
 
         mkdir $(Build.ArtifactStagingDirectory)\out\system-setup -Force
-        mv .build\win32-$(VSCODE_ARCH)\system-setup\TestAgentStudio.exe $(Build.ArtifactStagingDirectory)\out\system-setup\TSCode-$(VSCODE_ARCH)-$Version.exe
+        mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $(Build.ArtifactStagingDirectory)\out\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$Version.exe
 
         mkdir $(Build.ArtifactStagingDirectory)\out\user-setup -Force
-        mv .build\win32-$(VSCODE_ARCH)\user-setup\TestAgentStudio.exe $(Build.ArtifactStagingDirectory)\out\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe
+        mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $(Build.ArtifactStagingDirectory)\out\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe
 
         mkdir $(Build.ArtifactStagingDirectory)\out\archive -Force
         mv .build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH).zip $(Build.ArtifactStagingDirectory)\out\archive\VSCode-win32-$(VSCODE_ARCH)-$Version.zip

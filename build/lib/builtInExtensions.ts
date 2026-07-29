@@ -84,21 +84,10 @@ function getExtensionDownloadStream(extension: IExtensionDefinition) {
 
 	if (extension.vsix) {
 		input = ext.fromVsix(path.join(root, extension.vsix), extension);
-	} else if (extension.platformSpecific) {
-		// A platform-specific extension publishes its VSIX assets on a GitHub release using a
-		// specific asset naming convention, so it is always downloaded from GitHub and never falls
-		// back to the Marketplace (which does not serve those assets) even when a gallery is configured.
-		const asset = resolvePlatformSpecificAsset(extension);
-		if (!asset) {
-			return es.readArray([]);
-		}
-		input = ext.fromGithub(extension, { asset, latest: isInsiders() });
-	// test-workbench_change start - disable marketplace download, fallback to GitHub
-	// } else if (productjson.extensionsGallery?.serviceUrl) {
-	// 	input = ext.fromMarketplace(productjson.extensionsGallery.serviceUrl, extension);
-	// } else {
-	} else { // test-workbench_change end
-		input = ext.fromGithub(extension, { latest: isInsiders() });
+	} else if (productjson.extensionsGallery?.serviceUrl) {
+		input = ext.fromMarketplace(productjson.extensionsGallery.serviceUrl, extension);
+	} else {
+		input = ext.fromGithub(extension);
 	}
 
 	return input.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));

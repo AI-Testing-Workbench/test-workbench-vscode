@@ -8,13 +8,13 @@ node_modules/
 /extensionsCG/
 .vscode/extensions/**/out/
 extensions/**/dist/
+src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 /out*/
 /extensions/**/out/
 build/node_modules
 build/darwin/.dmgbuild
 coverage/
-!src/vs/platform/agentHost/test/node/protocol/coverage/
-!src/vs/platform/agentHost/test/node/protocol/coverage/agentHostE2E.json
+!/src/vs/platform/agentHost/test/node/e2e/coverage/
 test_data/
 test-results/
 test-results.xml

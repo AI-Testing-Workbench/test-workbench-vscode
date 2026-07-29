@@ -75,7 +75,8 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 		const useVersionedUpdate = (product as typeof product & { win32VersionedUpdate?: boolean })?.win32VersionedUpdate;
 		const versionedResourcesFolder = useVersionedUpdate ? commit!.substring(0, 10) : '';
 		const issPath = path.join(import.meta.dirname, 'win32', 'code.iss');
-		const originalProductJsonPath = path.join(sourcePath, versionedResourcesFolder, 'resources/app/product.json');
+		const productJsonRelativePath = path.join(versionedResourcesFolder, 'resources/app/product.json');
+		const originalProductJsonPath = path.join(sourcePath, productJsonRelativePath);
 		const productJsonPath = path.join(outputPath, 'product.json');
 		const productJson = JSON.parse(fs.readFileSync(originalProductJsonPath, 'utf8'));
 		productJson['target'] = target;
@@ -106,21 +107,36 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 			RepoDir: repoPath,
 			OutputDir: outputPath,
 			InstallTarget: target,
+			ProductJsonRelativePath: productJsonRelativePath,
 			ProductJsonPath: productJsonPath,
 			VersionedResourcesFolder: versionedResourcesFolder,
 			Quality: quality
 		};
 
-		// test-workbench_change - Skip appx package generation
-		// if (quality === 'stable' || quality === 'insider') {
-		// 	definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
-		// 	definitions['AppxPackageDll'] = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
-		// 	definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
-		//	const ctxMenu = (product as { win32ContextMenu?: Record<string, { clsid: string }> }).win32ContextMenu;
-		//	if (ctxMenu && ctxMenu[arch]) {
-		//		definitions['FileExplorerContextMenuCLSID'] = ctxMenu[arch].clsid;
-		//	}
-		// }
+		const isInsiderOrExploration = quality === 'insider' || quality === 'exploration';
+		const embedded = isInsiderOrExploration
+			? (product as typeof product & { embedded?: EmbeddedProductInfo }).embedded
+			: undefined;
+
+		if (embedded) {
+			// VS Code's sibling is the embedded app.
+			productJson['win32SiblingExeBasename'] = embedded.nameShort;
+			// The embedded app's sibling is VS Code.
+			if (productJson['embedded']) {
+				productJson['embedded']['win32SiblingExeBasename'] = product.nameShort;
+			}
+			definitions['ProxyExeBasename'] = embedded.nameShort;
+			definitions['ProxyAppUserId'] = embedded.win32AppUserModelId;
+			definitions['ProxyNameLong'] = embedded.nameLong;
+			definitions['ProxyExeUrlProtocol'] = embedded.urlProtocol;
+			definitions['ProxyMutex'] = embedded.win32MutexName;
+		}
+
+		if (quality === 'stable' || quality === 'insider') {
+			definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
+			definitions['AppxPackageDll'] = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
+			definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
+		}
 
 		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
@@ -152,39 +168,5 @@ function updateIcon(executablePath: string): task.CallbackTask {
 	};
 }
 
-task.task(task.define('vscode-win32-x64-inno-updater', task.series(copyInnoUpdater('x64'), updateIcon(path.join(buildPath('x64'), 'tools', 'inno_updater.exe')))));
-task.task(task.define('vscode-win32-arm64-inno-updater', task.series(copyInnoUpdater('arm64'), updateIcon(path.join(buildPath('arm64'), 'tools', 'inno_updater.exe')))));
-
-// test-workbench_change start - Update git version before build
-function updateGitVersion(): task.CallbackTask {
-	return (cb) => {
-		const updateScript = path.join(repoPath, 'build', 'update-git-version.cjs');
-		cp.exec(`node "${updateScript}"`, (err, stdout, stderr) => {
-			if (stdout) {
-				console.log(stdout);
-			}
-			if (stderr) {
-				console.error(stderr);
-			}
-			if (cb) {
-				cb(err || undefined);
-			}
-		});
-	};
-}
-
-// Combined build and setup tasks with git version update
-function defineWin32CombinedTasks(arch: string, target: string) {
-	const updateVersionTask = updateGitVersion();
-	const _gulp = require('gulp');
-	const vscodeBuildTask = _gulp.task(`vscode-${arch === 'x64' ? 'win32-x64' : 'win32-arm64'}-min`) as task.Task;
-	const innoUpdaterTask = _gulp.task(`vscode-win32-${arch}-inno-updater`) as task.Task;
-	const setupTask = _gulp.task(`vscode-win32-${arch}-${target}-setup`) as task.Task;
-	task.task(task.define(`vscode-win32-${arch}-${target}-setup-full`, task.series(updateVersionTask, vscodeBuildTask, innoUpdaterTask, setupTask)));
-}
-
-defineWin32CombinedTasks('x64', 'user');
-defineWin32CombinedTasks('x64', 'system');
-defineWin32CombinedTasks('arm64', 'user');
-defineWin32CombinedTasks('arm64', 'system');
-// test-workbench_change end
+gulp.task(task.define('vscode-win32-x64-inno-updater', task.series(copyInnoUpdater('x64'), updateIcon(path.join(buildPath('x64'), 'tools', 'inno_updater.exe')))));
+gulp.task(task.define('vscode-win32-arm64-inno-updater', task.series(copyInnoUpdater('arm64'), updateIcon(path.join(buildPath('arm64'), 'tools', 'inno_updater.exe')))));
