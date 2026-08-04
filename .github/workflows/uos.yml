@@ -1,0 +1,850 @@
+name: Build Custom VSCode for UOS (unzip uos-terminnal.yml)
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build'
+        required: true
+        default: 'main'
+      version:
+        description: 'Package version'
+        required: false
+        default: '1.116.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.branch }}
+          fetch-depth: 1
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20.x'
+
+      - name: 🔧 Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential pkg-config libgtk-3-dev libxkbfile-dev \
+            libkrb5-dev libgbm-dev rpm libx11-dev libxss-dev libxtst-dev \
+            libnss3-dev libasound2-dev libglib2.0-dev libcairo2-dev \
+            libpango1.0-dev libatk1.0-dev libgdk-pixbuf2.0-dev \
+            python3 git wget curl tree xz-utils
+
+      - name: 🔧 Fix TypeScript scripts
+        run: |
+          echo 'console.log("Preinstall OK");' > build/npm/preinstall.js
+          sed -i 's/"preinstall": "node build\/npm\/preinstall.ts"/"preinstall": "node build\/npm\/preinstall.js"/' package.json
+          echo 'console.log("Postinstall OK");' > build/npm/postinstall.js
+          sed -i 's/"postinstall": "node build\/npm\/postinstall.ts"/"postinstall": "node build\/npm\/postinstall.js"/' package.json
+
+      - name: 📦 Install dependencies
+        run: |
+          echo "=========================================="
+          echo "📦 Installing dependencies"
+          echo "=========================================="
+          npm install --legacy-peer-deps
+
+      - name: 📦 Install build tools
+        run: |
+          npm install -g tsx
+          npm install --legacy-peer-deps \
+            ternary-stream vscode-gulp-watch esbuild jsonc-parser \
+            gulp-merge-json gulp-tsb gulp-sourcemaps gulp-filter \
+            gulp-rename gulp-sort 2>/dev/null || true
+
+      - name: 🔧 Fix extensions.ts
+        run: |
+          cat > build/lib/extensions.ts << 'EOF'
+          import { Stream } from "stream";
+          const empty: any[] = [];
+          function emptyStream(): Stream {
+            const s = new Stream.Readable();
+            s._read = () => s.push(null);
+            return s;
+          }
+          export function isWebExtension(): boolean { return false; }
+          export function getExtensionStream(): Stream { return emptyStream(); }
+          export function getExtensionDownloadStream(): Stream { return emptyStream(); }
+          export function packageMarketplaceExtensionsStream(): Stream { return emptyStream(); }
+          export function packageNativeLocalExtensionsStream(): Stream { return emptyStream(); }
+          export function packageNonNativeLocalExtensionsStream(): Stream { return emptyStream(); }
+          export function packageLocalExtensionsStream(): Stream { return emptyStream(); }
+          export function packageExtensionsStream(): Stream { return emptyStream(); }
+          export function packageCopilotExtensionStream(): Stream { return emptyStream(); }
+          export function packageCopilotChatExtensionStream(): Stream { return emptyStream(); }
+          export function packageCopilotAgentsExtensionStream(): Stream { return emptyStream(); }
+          export function fromMarketplace(): any[] { return empty; }
+          export async function fetchUrls(urls: string[], options: any): Promise<void> {
+            console.log("fetchUrls: disabled");
+            return Promise.resolve();
+          }
+          export function buildExtensionMedia(): void {}
+          export function compileExtensionMedia(): void {}
+          export function buildExtensionMediaTask(done: any): void { done(); }
+          export const builtInExtensions = empty;
+          export const shouldDownloadBuiltInExtensions = false;
+          export const webBuiltInExtensions = empty;
+          export const shouldDownloadWebBuiltInExtensions = false;
+          EOF
+          echo 'export const builtInExtensions: any[] = [];
+          export const shouldDownloadBuiltInExtensions = false;
+          export const webBuiltInExtensions: any[] = [];
+          export const shouldDownloadWebBuiltInExtensions = false;' > build/lib/builtInExtensions.ts
+          echo 'import { Stream } from "stream";
+          export async function fetchUrls(urls: string[], options: any): Promise<void> {
+            console.log("fetchUrls: disabled");
+            return Promise.resolve();
+          }' > build/lib/fetch.ts
+
+      - name: 🔧 Fix gulpfile spawn calls
+        run: |
+          python3 << 'PY_END'
+          import re
+          with open('build/gulpfile.vscode.ts', 'r') as f:
+              content = f.read()
+          content = re.sub(r"spawn\('node'", "spawn('tsx'", content)
+          content = re.sub(r'spawn\("node"', 'spawn("tsx"', content)
+          content = re.sub(r"spawn\(process\.execPath", "spawn('tsx'", content)
+          with open('build/gulpfile.vscode.ts', 'w') as f:
+              f.write(content)
+          print("spawn calls fixed")
+          PY_END
+
+      - name: 🔧 Replace copilot.ts
+        run: |
+          cat > build/lib/copilot.ts << 'EOF'
+          export async function prepareBuiltInCopilotExtensionShims(extRoot: string): Promise<void> {
+              console.log('Copilot extension shims preparation skipped for UOS build');
+              return;
+          }
+          export function copyCopilotNativeDeps(productRoot: string): void {
+              console.log('Copilot native deps copy skipped for UOS build');
+          }
+          export function getCopilotExcludeFilter(): any {
+              return function() { return false; };
+          }
+          EOF
+
+      - name: 🔧 Disable Crashpad
+        run: |
+          echo "Disabling Crashpad"
+          python3 << 'PY_JSON_END'
+          import json
+          import os
+          if os.path.exists('product.json'):
+              with open('product.json', 'r') as f:
+                  data = json.load(f)
+              data['enableCrashReport'] = False
+              if 'crashReporter' not in data:
+                  data['crashReporter'] = {}
+              data['crashReporter']['disabled'] = True
+              with open('product.json', 'w') as f:
+                  json.dump(data, f, indent=2)
+              print("product.json modified")
+          PY_JSON_END
+
+          mkdir -p src/vs/platform/crash/common
+          cat > src/vs/platform/crash/common/crashService.ts << 'CRASH_EOF'
+          /*---------------------------------------------------------------------------------------------
+           *  Copyright (c) Microsoft Corporation. All rights reserved.
+           *  Licensed under the MIT License. See License.txt in the project root for license information.
+           *--------------------------------------------------------------------------------------------*/
+          import { createDecorator } from '../../../base/common/instantiation.js';
+          export const ICrashService = createDecorator<ICrashService>('crashService');
+          export interface ICrashService { _serviceBrand: undefined; }
+          export class CrashService implements ICrashService {
+              declare readonly _serviceBrand: undefined;
+              constructor() { console.log('Crash service disabled for UOS build'); }
+          }
+          CRASH_EOF
+          echo "crashService.ts created"
+
+      - name: ⚙️ Set env
+        run: |
+          echo "VSCODE_SKIP_BUILTIN_EXTENSION_DOWNLOAD=1" >> $GITHUB_ENV
+          echo "VSCODE_ELECTRON_SKIP_DOWNLOAD=1" >> $GITHUB_ENV
+          echo "VSCODE_SKIP_PRELAUNCH=1" >> $GITHUB_ENV
+          echo "VSCODE_SKIP_BUNDLED_EXTENSIONS=1" >> $GITHUB_ENV
+          echo "ELECTRON_DISABLE_CRASH_REPORTER=1" >> $GITHUB_ENV
+          echo "ELECTRON_DISABLE_CRASH_REPORTING=1" >> $GITHUB_ENV
+
+      - name: 🔨 Build VSCode
+        run: |
+          export NODE_OPTIONS="--max-old-space-size=8192"
+          export VSCODE_SKIP_BUILTIN_EXTENSION_DOWNLOAD=1
+          export VSCODE_ELECTRON_SKIP_DOWNLOAD=1
+          export VSCODE_SKIP_PRELAUNCH=1
+          export VSCODE_SKIP_BUNDLED_EXTENSIONS=1
+          export ELECTRON_DISABLE_CRASH_REPORTER=1
+          export ELECTRON_DISABLE_CRASH_REPORTING=1
+          echo "Start: $(date)"
+          npx tsx node_modules/gulp/bin/gulp.js vscode-linux-x64 --no-color
+          echo "Done: $(date)"
+
+      - name: 🔍 Verify build contents
+        run: |
+          echo "=========================================="
+          echo "🔍 Verify build contents"
+          echo "=========================================="
+
+          BUILD_DIR=""
+          for dir in "./VSCode-linux-x64" "./vscode/VSCode-linux-x64" "../VSCode-linux-x64"; do
+            if [ -d "$dir" ]; then
+              BUILD_DIR="$dir"
+              echo "Found build directory: $BUILD_DIR"
+              break
+            fi
+          done
+
+          if [ -z "$BUILD_DIR" ]; then
+            echo "Build directory not found!"
+            exit 1
+          fi
+
+          echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
+
+      # ============================================================
+      # 关键修复：复制 node_modules 到 resources/app
+      # ============================================================
+      - name: 📦 Copy node_modules to resources/app
+        run: |
+          echo "=========================================="
+          echo "📦 Copy node_modules to resources/app"
+          echo "=========================================="
+
+          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+
+          if [ ! -d "./node_modules" ]; then
+            echo "❌ node_modules not found in root!"
+            echo "Installing node_modules..."
+            npm install --legacy-peer-deps
+          fi
+
+          echo "📌 Copying node_modules to $BUILD_DIR/resources/app/"
+          rm -rf "$BUILD_DIR/resources/app/node_modules"
+          cp -r ./node_modules "$BUILD_DIR/resources/app/"
+
+          echo "✅ node_modules copied"
+
+      # ============================================================
+      # 🔥 关键修复：用官方 1.116.0 版本的 node-pty 覆盖
+      # ============================================================
+      - name: 🔥 Replace node-pty with official 1.116.0 version
+        run: |
+          echo "=========================================="
+          echo "🔥 Replacing node-pty with official 1.116.0 version"
+          echo "=========================================="
+
+          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          VERSION="${{ github.event.inputs.version || '1.116.0' }}"
+
+          echo "📌 Target version: $VERSION"
+
+          echo "📌 Downloading official VSCode $VERSION for Linux x64..."
+          wget -q --show-progress "https://update.code.visualstudio.com/$VERSION/linux-x64/stable" -O /tmp/official.tar.gz
+
+          if [ $? -ne 0 ] || [ ! -s /tmp/official.tar.gz ]; then
+            echo "⚠️ Failed to download version $VERSION, trying latest..."
+            wget -q --show-progress https://update.code.visualstudio.com/latest/linux-x64/stable -O /tmp/official.tar.gz
+          fi
+
+          tar -xzf /tmp/official.tar.gz -C /tmp/ 2>/dev/null
+
+          OFFICIAL_DIR=$(find /tmp -maxdepth 1 -type d -name "VSCode-linux-x64" 2>/dev/null | head -1)
+          if [ -z "$OFFICIAL_DIR" ]; then
+            OFFICIAL_DIR=$(find /tmp -type d -name "VSCode-linux-x64" 2>/dev/null | head -1)
+          fi
+
+          if [ -z "$OFFICIAL_DIR" ] || [ ! -d "$OFFICIAL_DIR/resources/app/node_modules/node-pty" ]; then
+            echo "❌ Could not find official node-pty!"
+            echo "   OFFICIAL_DIR: $OFFICIAL_DIR"
+            echo "   Contents of /tmp:"
+            ls -la /tmp/
+            exit 1
+          fi
+
+          echo "✅ Official VSCode found at: $OFFICIAL_DIR"
+
+          echo ""
+          echo "📌 Official version info:"
+          if [ -f "$OFFICIAL_DIR/resources/app/product.json" ]; then
+            cat "$OFFICIAL_DIR/resources/app/product.json" | grep -E '"version"|"date"' || echo "   ⚠️ Version info not found"
+          fi
+
+          echo ""
+          echo "📌 Official node-pty info:"
+          ls -la "$OFFICIAL_DIR/resources/app/node_modules/node-pty/"
+
+          if [ -f "$OFFICIAL_DIR/resources/app/node_modules/node-pty/package.json" ]; then
+            echo "   node-pty version:"
+            cat "$OFFICIAL_DIR/resources/app/node_modules/node-pty/package.json" | grep '"version"' || echo "   ⚠️ Version not found"
+          fi
+
+          if [ -f "$OFFICIAL_DIR/resources/app/node_modules/node-pty/build/Release/pty.node" ]; then
+            echo "   ✅ pty.node exists"
+            file "$OFFICIAL_DIR/resources/app/node_modules/node-pty/build/Release/pty.node"
+            ls -la "$OFFICIAL_DIR/resources/app/node_modules/node-pty/build/Release/pty.node"
+          else
+            echo "   ⚠️ pty.node not found in official build"
+          fi
+
+          echo ""
+          echo "📌 Backing up current node-pty..."
+          if [ -d "$BUILD_DIR/resources/app/node_modules/node-pty" ]; then
+            mv "$BUILD_DIR/resources/app/node_modules/node-pty" \
+               "$BUILD_DIR/resources/app/node_modules/node-pty.bak"
+            echo "   ✅ Backed up to node-pty.bak"
+          fi
+
+          echo ""
+          echo "📌 Copying official node-pty..."
+          rm -rf "$BUILD_DIR/resources/app/node_modules/node-pty"
+          cp -r "$OFFICIAL_DIR/resources/app/node_modules/node-pty" \
+                "$BUILD_DIR/resources/app/node_modules/"
+          echo "   ✅ node-pty replaced with official $VERSION version"
+
+          echo ""
+          echo "📌 Verifying replaced node-pty:"
+          if [ -d "$BUILD_DIR/resources/app/node_modules/node-pty" ]; then
+            echo "   ✅ node-pty directory exists"
+
+            if [ -f "$BUILD_DIR/resources/app/node_modules/node-pty/package.json" ]; then
+              echo "   node-pty version after replacement:"
+              cat "$BUILD_DIR/resources/app/node_modules/node-pty/package.json" | grep '"version"' || echo "   ⚠️ Version not found"
+            fi
+
+            if [ -f "$BUILD_DIR/resources/app/node_modules/node-pty/build/Release/pty.node" ]; then
+              echo "   ✅ pty.node exists"
+              file "$BUILD_DIR/resources/app/node_modules/node-pty/build/Release/pty.node"
+              ls -la "$BUILD_DIR/resources/app/node_modules/node-pty/build/Release/pty.node"
+
+              PTY_SIZE=$(stat -c%s "$BUILD_DIR/resources/app/node_modules/node-pty/build/Release/pty.node" 2>/dev/null || stat -f%z "$BUILD_DIR/resources/app/node_modules/node-pty/build/Release/pty.node" 2>/dev/null)
+              if [ -n "$PTY_SIZE" ] && [ "$PTY_SIZE" -gt 100000 ]; then
+                echo "   ✅ pty.node size: $PTY_SIZE bytes (valid)"
+              else
+                echo "   ⚠️ pty.node size seems small: $PTY_SIZE bytes"
+              fi
+            else
+              echo "   ❌ pty.node missing after replacement!"
+              exit 1
+            fi
+          else
+            echo "   ❌ node-pty not found after copy!"
+            exit 1
+          fi
+
+          rm -rf /tmp/official.tar.gz
+          rm -rf "$OFFICIAL_DIR"
+          echo ""
+          echo "✅ node-pty replacement completed for version $VERSION"
+
+      # ============================================================
+      # 🔥 替换其他关键原生模块（使用官方 1.116.0 版本）
+      # ============================================================
+      - name: 🔥 Replace other native modules with official 1.116.0 version
+        run: |
+          echo "=========================================="
+          echo "🔥 Replacing other native modules with official 1.116.0 version"
+          echo "=========================================="
+
+          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          VERSION="${{ github.event.inputs.version || '1.116.0' }}"
+
+          if [ ! -d "/tmp/VSCode-linux-x64" ]; then
+            echo "📌 Downloading official VSCode $VERSION for Linux x64..."
+            wget -q --show-progress "https://update.code.visualstudio.com/$VERSION/linux-x64/stable" -O /tmp/official.tar.gz
+
+            if [ $? -ne 0 ] || [ ! -s /tmp/official.tar.gz ]; then
+              echo "⚠️ Failed to download version $VERSION, trying latest..."
+              wget -q --show-progress https://update.code.visualstudio.com/latest/linux-x64/stable -O /tmp/official.tar.gz
+            fi
+
+            tar -xzf /tmp/official.tar.gz -C /tmp/ 2>/dev/null
+          fi
+
+          OFFICIAL_DIR=$(find /tmp -maxdepth 1 -type d -name "VSCode-linux-x64" 2>/dev/null | head -1)
+          if [ -z "$OFFICIAL_DIR" ]; then
+            OFFICIAL_DIR=$(find /tmp -type d -name "VSCode-linux-x64" 2>/dev/null | head -1)
+          fi
+
+          NATIVE_MODULES=(
+            "@vscode/spdlog"
+            "@vscode/sqlite3"
+            "native-keymap"
+            "vscode-ripgrep"
+            "vscode-textmate"
+          )
+
+          echo ""
+          echo "📌 Replacing native modules from official $VERSION build..."
+
+          for module in "${NATIVE_MODULES[@]}"; do
+            OFFICIAL_MODULE="$OFFICIAL_DIR/resources/app/node_modules/$module"
+            TARGET_MODULE="$BUILD_DIR/resources/app/node_modules/$module"
+
+            if [ -d "$OFFICIAL_MODULE" ]; then
+              echo ""
+              echo "📌 Replacing $module..."
+
+              if [ -d "$TARGET_MODULE" ]; then
+                rm -rf "$TARGET_MODULE.bak"
+                mv "$TARGET_MODULE" "$TARGET_MODULE.bak"
+                echo "   ✅ Backed up to ${module}.bak"
+              fi
+
+              cp -r "$OFFICIAL_MODULE" "$TARGET_MODULE"
+              echo "   ✅ $module replaced"
+
+              NODE_FILES=$(find "$TARGET_MODULE" -name "*.node" 2>/dev/null)
+              if [ -n "$NODE_FILES" ]; then
+                echo "   📎 Native files found:"
+                echo "$NODE_FILES" | while read f; do
+                  SIZE=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null)
+                  echo "      $(basename $f) ($SIZE bytes)"
+                done
+              else
+                echo "   ℹ️ No .node files found in this module"
+              fi
+            else
+              echo "   ⚠️ $module not found in official build"
+            fi
+          done
+
+          rm -rf /tmp/official.tar.gz
+          echo ""
+          echo "✅ Native modules replacement completed for version $VERSION"
+
+      # ============================================================
+      # 🧹 清理与瘦身（移除开发依赖和冗余文件）
+      # ============================================================
+      - name: 🧹 Strip down build for release
+        run: |
+          echo "=========================================="
+          echo "🧹 Stripping down build for release"
+          echo "=========================================="
+
+          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          cd "$BUILD_DIR/resources/app"
+
+          echo "📌 Current size before cleanup:"
+          du -sh .
+
+          # 1. 删除所有开发依赖 (devDependencies)
+          echo ""
+          echo "📌 Removing devDependencies..."
+          if command -v json &> /dev/null; then
+            npx json -I -f package.json -e 'this.devDependencies={}'
+          else
+            npm install -g json
+            npx json -I -f package.json -e 'this.devDependencies={}'
+          fi
+
+          # 2. 删除 node_modules 中不必要的文件
+          echo ""
+          echo "📌 Cleaning node_modules..."
+
+          # 删除所有类型定义文件 (.d.ts)
+          echo "   Removing .d.ts files..."
+          find node_modules -name "*.d.ts" -type f -delete 2>/dev/null || true
+
+          # 删除所有 Markdown 文档
+          echo "   Removing .md files..."
+          find node_modules -name "*.md" -type f -delete 2>/dev/null || true
+
+          # 删除所有许可证文件
+          echo "   Removing LICENSE files..."
+          find node_modules -name "LICENSE*" -type f -delete 2>/dev/null || true
+          find node_modules -name "CHANGELOG*" -type f -delete 2>/dev/null || true
+          find node_modules -name "CHANGES*" -type f -delete 2>/dev/null || true
+
+          # 删除所有测试目录
+          echo "   Removing test directories..."
+          find node_modules -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
+          find node_modules -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
+          find node_modules -type d -name "__tests__" -exec rm -rf {} + 2>/dev/null || true
+          find node_modules -type d -name "test-data" -exec rm -rf {} + 2>/dev/null || true
+          find node_modules -type d -name "testdata" -exec rm -rf {} + 2>/dev/null || true
+
+          # 删除所有示例目录
+          echo "   Removing example directories..."
+          find node_modules -type d -name "example" -exec rm -rf {} + 2>/dev/null || true
+          find node_modules -type d -name "examples" -exec rm -rf {} + 2>/dev/null || true
+
+          # 删除所有 .ts 源文件（保留 .js 和 .node）
+          echo "   Removing .ts source files..."
+          find node_modules -name "*.ts" -type f ! -name "*.d.ts" -delete 2>/dev/null || true
+
+          # 删除 .map 文件
+          echo "   Removing .map files..."
+          find node_modules -name "*.map" -type f -delete 2>/dev/null || true
+
+          # 删除 .git 目录
+          echo "   Removing .git directories..."
+          find node_modules -type d -name ".git" -exec rm -rf {} + 2>/dev/null || true
+
+          # 3. 删除构建过程中产生的临时目录
+          echo ""
+          echo "📌 Removing build temp directories..."
+          rm -rf .cache 2>/dev/null || true
+          rm -rf build 2>/dev/null || true
+
+          # 4. 删除部分大型不必要的模块（如果存在）
+          echo ""
+          echo "📌 Removing unnecessary large modules..."
+          rm -rf node_modules/@types 2>/dev/null || true
+          rm -rf node_modules/*/node_modules/@types 2>/dev/null || true
+
+          # 5. 可选：对 node_modules 进行去重
+          echo ""
+          echo "📌 Running node-prune for additional optimization..."
+          npx -y node-prune@1.0.2 ./node_modules 2>/dev/null || echo "   ⚠️ node-prune not available, skipping"
+
+          echo ""
+          echo "📌 Final size after cleanup:"
+          du -sh .
+          cd -
+
+      # ============================================================
+      # 复制 extensions 并编译
+      # ============================================================
+      - name: 📂 Copy and build extensions
+        run: |
+          echo "=========================================="
+          echo "📂 Copy and build extensions"
+          echo "=========================================="
+
+          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          mkdir -p "$BUILD_DIR/resources/app/extensions"
+
+          # 1. 从源码复制 extensions
+          if [ -d "./extensions" ]; then
+            echo "📌 Copying extensions from source..."
+            for dir in ./extensions/*; do
+              if [ -d "$dir" ]; then
+                dir_name=$(basename "$dir")
+                echo "   Processing $dir_name..."
+                cp -r "$dir" "$BUILD_DIR/resources/app/extensions/"
+              fi
+            done
+            echo "   ✅ extensions copied"
+          fi
+
+          # 2. 复制预构建扩展 (VSIX)
+          if [ -d "./prebuilt-extensions" ]; then
+            echo ""
+            echo "📌 Installing prebuilt extensions..."
+            for vsix in ./prebuilt-extensions/*.vsix; do
+              if [ -f "$vsix" ]; then
+                ext_name=$(basename "$vsix" .vsix)
+                echo "   Installing $ext_name..."
+                EXT_DIR="$BUILD_DIR/resources/app/extensions/$ext_name"
+                rm -rf "$EXT_DIR" 2>/dev/null
+                mkdir -p "$EXT_DIR"
+                unzip -q "$vsix" -d "$EXT_DIR"
+                if [ -d "$EXT_DIR/extension" ]; then
+                  mv "$EXT_DIR/extension"/* "$EXT_DIR/"
+                  rm -rf "$EXT_DIR/extension"
+                fi
+                echo "   ✅ Installed $ext_name"
+              fi
+            done
+            echo "   ✅ prebuilt extensions installed"
+          fi
+
+          # 3. 从官方下载 Git 扩展
+          echo ""
+          echo "📌 Downloading official VSCode for Git extensions..."
+          wget -q --show-progress https://update.code.visualstudio.com/latest/linux-x64/stable -O /tmp/official.tar.gz
+          tar -xzf /tmp/official.tar.gz -C /tmp/ 2>/dev/null
+          OFFICIAL_DIR=$(find /tmp -type d -name "VSCode-linux-x64" 2>/dev/null | head -1)
+
+          if [ -n "$OFFICIAL_DIR" ] && [ -d "$OFFICIAL_DIR/resources/app/extensions" ]; then
+            echo "   ✅ Found official extensions directory"
+
+            GIT_EXTS=("git" "git-base" "github" "github-authentication" "tunnel-forwarding")
+
+            for ext in "${GIT_EXTS[@]}"; do
+              OFFICIAL_EXT="$OFFICIAL_DIR/resources/app/extensions/$ext"
+              TARGET_EXT="$BUILD_DIR/resources/app/extensions/$ext"
+
+              if [ -d "$OFFICIAL_EXT" ]; then
+                echo "   Processing $ext..."
+                rm -rf "$TARGET_EXT" 2>/dev/null
+                cp -r "$OFFICIAL_EXT" "$TARGET_EXT"
+                echo "      ✅ $ext copied"
+              fi
+            done
+          fi
+
+          # 4. 清理临时文件
+          rm -rf /tmp/official.tar.gz /tmp/VSCode-linux-x64
+
+          echo ""
+          echo "✅ Extensions preparation complete"
+
+      # ============================================================
+      # 调试：检查文件结构
+      # ============================================================
+      - name: 🔍 Debug build structure
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "🔍 Debug build structure"
+          echo "=========================================="
+
+          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+
+          echo ""
+          echo "📁 resources/app/ contents:"
+          ls -la "$BUILD_DIR/resources/app/" | head -20
+
+          echo ""
+          echo "📁 node_modules in resources/app/:"
+          if [ -d "$BUILD_DIR/resources/app/node_modules" ]; then
+            echo "   ✅ node_modules exists"
+            echo "   Size: $(du -sh $BUILD_DIR/resources/app/node_modules 2>/dev/null | cut -f1)"
+            echo "   Top modules:"
+            ls -la "$BUILD_DIR/resources/app/node_modules" | head -15
+          else
+            echo "   ❌ node_modules NOT found!"
+          fi
+
+          echo ""
+          echo "📁 Extensions count:"
+          ls -la "$BUILD_DIR/resources/app/extensions" | wc -l
+
+      # ============================================================
+      # 复制配置文件到根目录
+      # ============================================================
+      - name: 📄 Copy config files to root
+        run: |
+          echo "=========================================="
+          echo "📄 Copy config files to root"
+          echo "=========================================="
+
+          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          cd "$BUILD_DIR"
+
+          [ -f "resources/app/package.json" ] && cp "resources/app/package.json" . && echo "✅ package.json"
+          [ -f "resources/app/product.json" ] && cp "resources/app/product.json" . && echo "✅ product.json"
+
+      # ============================================================
+      # 创建启动脚本
+      # ============================================================
+      - name: 🚀 Create startup scripts
+        run: |
+          echo "=========================================="
+          echo "🚀 Create startup scripts"
+          echo "=========================================="
+
+          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          cd "$BUILD_DIR"
+
+          REAL_EXEC=""
+          for name in code code-oss; do
+            if [ -f "./$name" ]; then
+              REAL_EXEC="$name"
+              break
+            fi
+          done
+
+          if [ -z "$REAL_EXEC" ]; then
+            REAL_EXEC=$(find . -maxdepth 1 -type f -executable ! -name "*.so" ! -name "*.sh" ! -name "chrome-*" 2>/dev/null | head -1)
+          fi
+
+          if [ -z "$REAL_EXEC" ]; then
+            echo "❌ No executable found!"
+            exit 1
+          fi
+
+          echo "✅ Found executable: $REAL_EXEC"
+          mv "$REAL_EXEC" "tscode.real"
+
+          cat > tscode << 'WRAPPER_EOF'
+          #!/bin/bash
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+          export ELECTRON_ENABLE_GPU=0
+          export LIBGL_ALWAYS_SOFTWARE=1
+          export NODE_OPTIONS="--max-old-space-size=4096"
+          export ELECTRON_DISABLE_SANDBOX=1
+          export GDK_BACKEND=x11
+          export QT_QPA_PLATFORM=xcb
+          export DISPLAY=:0
+          export ELECTRON_DISABLE_CRASH_REPORTER=1
+          export ELECTRON_DISABLE_CRASH_REPORTING=1
+          export CRASHPAD_DISABLE=1
+
+          export VSCODE_APP_NAME="TSCode"
+          export VSCODE_APP_VERSION="1.116.0"
+
+          if [ -f "$SCRIPT_DIR/tscode.real" ]; then
+              EXEC="$SCRIPT_DIR/tscode.real"
+          else
+              echo "VSCode executable not found!"
+              exit 1
+          fi
+
+          USER_DATA_DIR="$SCRIPT_DIR/user-data"
+          mkdir -p "$USER_DATA_DIR"
+
+          exec "$EXEC" \
+              --no-sandbox \
+              --disable-gpu-sandbox \
+              --disable-software-rasterizer \
+              --disable-gpu \
+              --user-data-dir="$USER_DATA_DIR" \
+              --enable-extensions \
+              --builtin-extensions-dir="$SCRIPT_DIR/resources/app/extensions" \
+              --extensions-dir="$USER_DATA_DIR/extensions" \
+              "$@"
+          WRAPPER_EOF
+
+          chmod +x tscode
+          chmod +x tscode.real
+
+          cat > start-vscode.sh << 'START_EOF'
+          #!/bin/bash
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+          export ELECTRON_ENABLE_GPU=0
+          export LIBGL_ALWAYS_SOFTWARE=1
+          export NODE_OPTIONS="--max-old-space-size=4096"
+          export ELECTRON_DISABLE_SANDBOX=1
+          export GDK_BACKEND=x11
+          export QT_QPA_PLATFORM=xcb
+          export DISPLAY=:0
+          export ELECTRON_DISABLE_CRASH_REPORTER=1
+          export ELECTRON_DISABLE_CRASH_REPORTING=1
+          export CRASHPAD_DISABLE=1
+          export VSCODE_APP_NAME="TSCode"
+          export VSCODE_APP_VERSION="1.116.0"
+
+          if [ -f "$SCRIPT_DIR/tscode.real" ]; then
+              EXEC="$SCRIPT_DIR/tscode.real"
+          else
+              echo "VSCode executable not found!"
+              exit 1
+          fi
+
+          echo "=== TSCode for UOS ==="
+          USER_DATA_DIR="$SCRIPT_DIR/user-data"
+          mkdir -p "$USER_DATA_DIR"
+
+          exec "$EXEC" \
+              --no-sandbox \
+              --disable-gpu-sandbox \
+              --disable-software-rasterizer \
+              --disable-gpu \
+              --user-data-dir="$USER_DATA_DIR" \
+              --enable-extensions \
+              --builtin-extensions-dir="$SCRIPT_DIR/resources/app/extensions" \
+              --extensions-dir="$USER_DATA_DIR/extensions" \
+              "$@"
+          START_EOF
+
+          chmod +x start-vscode.sh
+
+          cat > vscode-uos.desktop << 'EOF'
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=TSCode
+          Comment=Visual Studio Code for UOS
+          Exec=./tscode %F
+          Icon=./resources/app/resources/linux/code.png
+          Terminal=false
+          Categories=Development;IDE
+          MimeType=text/plain;inode/directory
+          StartupNotify=true
+          StartupWMClass=Code
+          EOF
+
+          echo "✅ Startup scripts created"
+
+      # ============================================================
+      # 打包（使用 xz 压缩以获得更小体积）
+      # ============================================================
+      - name: 📦 Package
+        run: |
+          echo "=========================================="
+          echo "📦 Package"
+          echo "=========================================="
+
+          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          VERSION="${{ github.event.inputs.version || '1.116.0' }}"
+
+          chmod +x $BUILD_DIR/tscode 2>/dev/null || true
+          chmod +x $BUILD_DIR/start-vscode.sh 2>/dev/null || true
+          chmod +x $BUILD_DIR/chrome-sandbox 2>/dev/null || true
+          chmod +x $BUILD_DIR/tscode.real 2>/dev/null || true
+
+          echo ""
+          echo "📌 Pre-package validation:"
+          echo "   node_modules: $(if [ -d $BUILD_DIR/resources/app/node_modules ]; then echo 'OK'; else echo 'MISSING!'; fi)"
+          echo "   extensions: $(ls -la $BUILD_DIR/resources/app/extensions/ 2>/dev/null | wc -l)"
+
+          echo ""
+          echo "📌 Critical files:"
+          for f in "resources/app/package.json" "resources/app/product.json" "resources/app/node_modules"; do
+            if [ -e "$BUILD_DIR/$f" ]; then
+              echo "   ✅ $f"
+            else
+              echo "   ❌ $f"
+            fi
+          done
+
+          echo ""
+          echo "📌 Total size before packaging:"
+          du -sh "$BUILD_DIR"
+
+          # 使用 xz 压缩以获得更小体积
+          echo ""
+          echo "📌 Packaging with xz compression..."
+          tar -cJf "vscode-uos-${VERSION}-double-click.tar.xz" \
+            --preserve-permissions \
+            -C "$(dirname "$BUILD_DIR")" \
+            "$(basename "$BUILD_DIR")"
+
+          echo ""
+          echo "✅ Package created:"
+          ls -lh vscode-uos-*.tar.xz
+
+      - name: 📤 Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: vscode-uos-double-click
+          path: vscode-uos-*.tar.xz
+          retention-days: 30
+
+      - name: 📊 Build summary
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "BUILD SUMMARY"
+          echo "=========================================="
+          echo "Status: ${{ job.status }}"
+          echo "Version: ${{ github.event.inputs.version || '1.116.0' }}"
+          echo "=========================================="
+          if [ "${{ job.status }}" = "success" ]; then
+            echo ""
+            echo "✅ Build completed successfully!"
+            echo ""
+            echo "📁 node_modules: $(if [ -d $BUILD_DIR/resources/app/node_modules ]; then echo '✅ OK'; else echo '❌ MISSING'; fi)"
+            echo "📁 Extensions: $(ls -1 $BUILD_DIR/resources/app/extensions 2>/dev/null | wc -l)"
+            echo ""
+            echo "On UOS:"
+            echo "  1. tar -xJf vscode-uos-*.tar.xz"
+            echo "  2. cd VSCode-linux-x64"
+            echo "  3. ./tscode"
+          fi
+          echo "=========================================="
