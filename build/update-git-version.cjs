@@ -13,28 +13,6 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-function getGitVersion() {
-	try {
-		// Try to get the latest git tag (sorted by version number)
-		const tag = execSync('git tag -l --sort=-version:refname', { encoding: 'utf8' }).trim().split('\n')[0];
-		if (tag) {
-			return tag;
-		}
-		// If no tag exists, use commit hash
-		const commit = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
-		return `dev-${commit}`;
-	} catch (error) {
-		// If error occurs, use commit hash
-		try {
-			const commit = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
-			return `dev-${commit}`;
-		} catch (commitError) {
-			console.warn('Unable to get git version info:', commitError.message);
-			return 'unknown';
-		}
-	}
-}
-
 function getGitCommitHash() {
 	try {
 		return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
@@ -60,12 +38,10 @@ function updateProductJson() {
 	const productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
 
 	// Get git version information
-	const gitVersion = getGitVersion();
 	const gitCommit = getGitCommitHash();
 	const gitDate = getGitCommitDate();
 
 	// Update product.json
-	productJson.gitVersion = gitVersion;
 	productJson.commit = gitCommit;
 	productJson.date = gitDate;
 
@@ -73,7 +49,6 @@ function updateProductJson() {
 	fs.writeFileSync(productJsonPath, JSON.stringify(productJson, null, '\t') + '\n', 'utf8');
 
 	console.log('✓ Updated product.json:');
-	console.log(`  Git Version: ${gitVersion}`);
 	console.log(`  Commit: ${gitCommit}`);
 	console.log(`  Date: ${gitDate}`);
 }

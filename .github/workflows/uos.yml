@@ -10,7 +10,7 @@ on:
       version:
         description: 'Package version'
         required: false
-        default: '1.0.0'
+        default: '1.116.0'
 
 jobs:
   build:
@@ -210,6 +210,14 @@ jobs:
             exit 1
           fi
 
+          # 将构建产物目录重命名为 tscode-uos-x64
+          TARGET_DIR="./tscode-uos-x64"
+          if [ "$BUILD_DIR" != "$TARGET_DIR" ]; then
+            echo "Renaming $BUILD_DIR to $TARGET_DIR"
+            rm -rf "$TARGET_DIR"
+            mv "$BUILD_DIR" "$TARGET_DIR"
+          fi
+          BUILD_DIR="$TARGET_DIR"
           echo "BUILD_DIR=$BUILD_DIR" >> $GITHUB_ENV
 
       # ============================================================
@@ -221,7 +229,7 @@ jobs:
           echo "📦 Copy node_modules to resources/app"
           echo "=========================================="
 
-          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          BUILD_DIR="${BUILD_DIR:-./tscode-uos-x64}"
 
           if [ ! -d "./node_modules" ]; then
             echo "❌ node_modules not found in root!"
@@ -244,7 +252,7 @@ jobs:
           echo "🔥 Replacing node-pty with official 1.116.0 version"
           echo "=========================================="
 
-          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          BUILD_DIR="${BUILD_DIR:-./tscode-uos-x64}"
           VERSION="${{ github.event.inputs.version || '1.116.0' }}"
 
           echo "📌 Target version: $VERSION"
@@ -356,7 +364,7 @@ jobs:
           echo "🔥 Replacing other native modules with official 1.116.0 version"
           echo "=========================================="
 
-          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          BUILD_DIR="${BUILD_DIR:-./tscode-uos-x64}"
           VERSION="${{ github.event.inputs.version || '1.116.0' }}"
 
           if [ ! -d "/tmp/VSCode-linux-x64" ]; then
@@ -432,7 +440,7 @@ jobs:
           echo "🧹 Stripping down build for release"
           echo "=========================================="
 
-          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          BUILD_DIR="${BUILD_DIR:-./tscode-uos-x64}"
           cd "$BUILD_DIR/resources/app"
 
           echo "📌 Current size before cleanup:"
@@ -522,7 +530,7 @@ jobs:
           echo "📂 Copy and build extensions"
           echo "=========================================="
 
-          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          BUILD_DIR="${BUILD_DIR:-./tscode-uos-x64}"
           mkdir -p "$BUILD_DIR/resources/app/extensions"
 
           # 1. 从源码复制 extensions
@@ -601,7 +609,7 @@ jobs:
           echo "🔍 Debug build structure"
           echo "=========================================="
 
-          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          BUILD_DIR="${BUILD_DIR:-./tscode-uos-x64}"
 
           echo ""
           echo "📁 resources/app/ contents:"
@@ -631,7 +639,7 @@ jobs:
           echo "📄 Copy config files to root"
           echo "=========================================="
 
-          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          BUILD_DIR="${BUILD_DIR:-./tscode-uos-x64}"
           cd "$BUILD_DIR"
 
           [ -f "resources/app/package.json" ] && cp "resources/app/package.json" . && echo "✅ package.json"
@@ -646,7 +654,7 @@ jobs:
           echo "🚀 Create startup scripts"
           echo "=========================================="
 
-          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          BUILD_DIR="${BUILD_DIR:-./tscode-uos-x64}"
           cd "$BUILD_DIR"
 
           REAL_EXEC=""
@@ -780,7 +788,7 @@ jobs:
           echo "📦 Package"
           echo "=========================================="
 
-          BUILD_DIR="${BUILD_DIR:-./VSCode-linux-x64}"
+          BUILD_DIR="${BUILD_DIR:-./tscode-uos-x64}"
           VERSION="${{ github.event.inputs.version || '1.116.0' }}"
 
           chmod +x $BUILD_DIR/tscode 2>/dev/null || true
@@ -844,7 +852,7 @@ jobs:
             echo ""
             echo "On UOS:"
             echo "  1. tar -xJf tscode-*.tar.xz"
-            echo "  2. cd VSCode-linux-x64"
+            echo "  2. cd tscode-uos-x64"
             echo "  3. ./tscode"
           fi
           echo "=========================================="
