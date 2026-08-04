@@ -1,4 +1,4 @@
-name: Build Custom VSCode for UOS (unzip uos-terminnal.yml)
+name: Build for UOS
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ on:
       version:
         description: 'Package version'
         required: false
-        default: '1.116.0'
+        default: '1.0.0'
 
 jobs:
   build:
@@ -712,7 +712,7 @@ jobs:
           chmod +x tscode
           chmod +x tscode.real
 
-          cat > start-vscode.sh << 'START_EOF'
+          cat > start-tscode.sh << 'START_EOF'
           #!/bin/bash
           SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -752,14 +752,14 @@ jobs:
               "$@"
           START_EOF
 
-          chmod +x start-vscode.sh
+          chmod +x start-tscode.sh
 
-          cat > vscode-uos.desktop << 'EOF'
+          cat > tscode.desktop << 'EOF'
           [Desktop Entry]
           Version=1.0
           Type=Application
           Name=TSCode
-          Comment=Visual Studio Code for UOS
+          Comment=Test Studio Code for UOS
           Exec=./tscode %F
           Icon=./resources/app/resources/linux/code.png
           Terminal=false
@@ -784,7 +784,7 @@ jobs:
           VERSION="${{ github.event.inputs.version || '1.116.0' }}"
 
           chmod +x $BUILD_DIR/tscode 2>/dev/null || true
-          chmod +x $BUILD_DIR/start-vscode.sh 2>/dev/null || true
+          chmod +x $BUILD_DIR/start-tscode.sh 2>/dev/null || true
           chmod +x $BUILD_DIR/chrome-sandbox 2>/dev/null || true
           chmod +x $BUILD_DIR/tscode.real 2>/dev/null || true
 
@@ -810,20 +810,20 @@ jobs:
           # 使用 xz 压缩以获得更小体积
           echo ""
           echo "📌 Packaging with xz compression..."
-          tar -cJf "vscode-uos-${VERSION}-double-click.tar.xz" \
+          tar -cJf "tscode-${VERSION}.tar.xz" \
             --preserve-permissions \
             -C "$(dirname "$BUILD_DIR")" \
             "$(basename "$BUILD_DIR")"
 
           echo ""
           echo "✅ Package created:"
-          ls -lh vscode-uos-*.tar.xz
+          ls -lh tscode-*.tar.xz
 
       - name: 📤 Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: vscode-uos-double-click
-          path: vscode-uos-*.tar.xz
+          name: tscode
+          path: tscode-*.tar.xz
           retention-days: 30
 
       - name: 📊 Build summary
@@ -843,7 +843,7 @@ jobs:
             echo "📁 Extensions: $(ls -1 $BUILD_DIR/resources/app/extensions 2>/dev/null | wc -l)"
             echo ""
             echo "On UOS:"
-            echo "  1. tar -xJf vscode-uos-*.tar.xz"
+            echo "  1. tar -xJf tscode-*.tar.xz"
             echo "  2. cd VSCode-linux-x64"
             echo "  3. ./tscode"
           fi
