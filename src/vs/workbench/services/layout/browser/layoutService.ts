@@ -325,8 +325,8 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	toggleZenMode(): void;
 
 	/**
-	 * Toggles the workbench in and out of concise mode - status bar hidden, menu bar shows only File.
-	 */ // test-workbench_change start
+	 * Toggles the workbench in and out of concise mode - menu bar shows only File, Run and Help.
+	 */ // test-workbench_change - 简洁模式保持状态栏显示
 	toggleConciseMode(): void;
 
 	/**

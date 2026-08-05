@@ -1167,7 +1167,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// test-workbench_change start: Restore Concise Mode
 		if (this.isConciseModeActiveInternal()) {
 			const activityBarPart = this.getPart(Parts.ACTIVITYBAR_PART) as ActivitybarPart;
-			this.setStatusBarHidden(true);
 			activityBarPart.setGlobalCompositeBarVisible(false);
 			this._onDidChangeConciseMode.fire(true);
 		}
@@ -1617,18 +1616,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		if (this.isConciseModeActive()) {
 			// --- Entering concise mode ---
-			const conciseModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.CONCISE_MODE_EXIT_INFO);
-			conciseModeExitInfo.wasStatusBarVisible = this.isVisible(Parts.STATUSBAR_PART, mainWindow);
-			this.stateModel.setRuntimeValue(LayoutStateKeys.CONCISE_MODE_EXIT_INFO, conciseModeExitInfo);
-
-			this.setStatusBarHidden(true);
+			// 简洁模式保持状态栏显示，只隐藏全局复合栏
 			activityBarPart.setGlobalCompositeBarVisible(false);
 		} else {
 			// --- Leaving concise mode ---
-			const conciseModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.CONCISE_MODE_EXIT_INFO);
-			if (conciseModeExitInfo.wasStatusBarVisible) {
-				this.setStatusBarHidden(false);
-			}
 			activityBarPart.setGlobalCompositeBarVisible(true);
 		}
 		// test-workbench_change end
@@ -2847,9 +2838,6 @@ const LayoutStateKeys = {
 	// test-workbench_change start
 	// Concise Mode — default true (first launch starts in concise mode), persisted at PROFILE scope so user preference is remembered across workspaces
 	CONCISE_MODE_ACTIVE: new RuntimeStateKey<boolean>('conciseMode.active', StorageScope.PROFILE, StorageTarget.USER, true),
-	CONCISE_MODE_EXIT_INFO: new RuntimeStateKey('conciseMode.exitInfo', StorageScope.PROFILE, StorageTarget.USER, {
-		wasStatusBarVisible: true,
-	}),
 	// test-workbench_change end
 
 	// Part Sizing
