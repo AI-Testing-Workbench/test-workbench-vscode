@@ -156,6 +156,22 @@ jobs:
           name: vscode-win32-x64-user-setup
           path: .build/win32-x64/user-setup/*.exe
 
+      - name: Build Windows x64 Server
+        shell: pwsh
+        run: npm run gulp vscode-reh-win32-x64
+
+      - name: Create Windows x64 Server archive
+        shell: pwsh
+        run: |
+          Move-Item -Force ../vscode-reh-win32-x64 ../vscode-server-win32-x64
+          7z.exe a -tzip .build/vscode-server-win32-x64.zip ../vscode-server-win32-x64
+
+      - name: Upload Windows x64 Server Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-server-win32-x64
+          path: .build/vscode-server-win32-x64.zip
+
   build-win32-arm64:
     name: Build Windows arm64
     runs-on: windows-2022
@@ -272,6 +288,22 @@ jobs:
           name: vscode-win32-arm64-user-setup
           path: .build/win32-arm64/user-setup/*.exe
 
+      - name: Build Windows arm64 Server
+        shell: pwsh
+        run: npm run gulp vscode-reh-win32-arm64
+
+      - name: Create Windows arm64 Server archive
+        shell: pwsh
+        run: |
+          Move-Item -Force ../vscode-reh-win32-arm64 ../vscode-server-win32-arm64
+          7z.exe a -tzip .build/vscode-server-win32-arm64.zip ../vscode-server-win32-arm64
+
+      - name: Upload Windows arm64 Server Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-server-win32-arm64
+          path: .build/vscode-server-win32-arm64.zip
+
   build-darwin:
     name: Build macOS
     runs-on: macos-latest
@@ -381,6 +413,29 @@ jobs:
           name: vscode-darwin-arm64
           path: .build/VSCode-darwin-arm64.zip
 
+      - name: Build macOS Servers
+        run: |
+          npm run gulp vscode-reh-darwin-x64
+          npm run gulp vscode-reh-darwin-arm64
+
+      - name: Create macOS Server archives
+        run: |
+          mv ../vscode-reh-darwin-x64 ../vscode-server-darwin-x64
+          ditto -c -k --sequesterRsrc --keepParent ../vscode-server-darwin-x64 .build/vscode-server-darwin-x64.zip
+          mv ../vscode-reh-darwin-arm64 ../vscode-server-darwin-arm64
+          ditto -c -k --sequesterRsrc --keepParent ../vscode-server-darwin-arm64 .build/vscode-server-darwin-arm64.zip
+
+      - name: Upload macOS x64 Server Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-server-darwin-x64
+          path: .build/vscode-server-darwin-x64.zip
+
+      - name: Upload macOS arm64 Server Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-server-darwin-arm64
+          path: .build/vscode-server-darwin-arm64.zip
 
   build-linux:
     name: Build Linux
@@ -497,3 +552,27 @@ jobs:
         with:
           name: vscode-linux-arm64
           path: .build/VSCode-linux-arm64.tar.gz
+
+      - name: Build Linux Servers
+        run: |
+          npm run gulp vscode-reh-linux-x64
+          npm run gulp vscode-reh-linux-arm64
+
+      - name: Create Linux Server archives
+        run: |
+          mv ../vscode-reh-linux-x64 ../vscode-server-linux-x64
+          tar --owner=0 --group=0 -czf .build/vscode-server-linux-x64.tar.gz -C .. vscode-server-linux-x64
+          mv ../vscode-reh-linux-arm64 ../vscode-server-linux-arm64
+          tar --owner=0 --group=0 -czf .build/vscode-server-linux-arm64.tar.gz -C .. vscode-server-linux-arm64
+
+      - name: Upload Linux x64 Server Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-server-linux-x64
+          path: .build/vscode-server-linux-x64.tar.gz
+
+      - name: Upload Linux arm64 Server Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-server-linux-arm64
+          path: .build/vscode-server-linux-arm64.tar.gz
