@@ -134,9 +134,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare prebuilt extensions
+        shell: pwsh
+        run: node build/prepare-prebuilt-extensions.ts --platform=win32 --arch=x64
+
+      - name: Compile core (esbuild)
+        shell: pwsh
+        run: npm run gulp core-ci
+
+      - name: Compile Copilot extension
+        shell: pwsh
+        run: npm run gulp compile-copilot-extension-build
+
       - name: Build Windows x64 Server
         shell: pwsh
-        run: npm run gulp vscode-reh-win32-x64
+        run: npm run gulp vscode-reh-win32-x64-min-ci
 
       - name: Create Windows x64 Server archive
         shell: pwsh
@@ -150,13 +162,9 @@ jobs:
           name: vscode-server-win32-x64
           path: .build/vscode-server-win32-x64.zip
 
-      - name: Compile
-        shell: pwsh
-        run: npm run gulp compile
-
       - name: Build Windows x64 Application
         shell: pwsh
-        run: npm run gulp vscode-win32-x64
+        run: npm run gulp vscode-win32-x64-min-ci
 
       - name: Prepare Windows x64 Inno Updater
         shell: pwsh
@@ -266,9 +274,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare prebuilt extensions
+        shell: pwsh
+        run: node build/prepare-prebuilt-extensions.ts --platform=win32 --arch=arm64
+
+      - name: Compile core (esbuild)
+        shell: pwsh
+        run: npm run gulp core-ci
+
+      - name: Compile Copilot extension
+        shell: pwsh
+        run: npm run gulp compile-copilot-extension-build
+
       - name: Build Windows arm64 Server
         shell: pwsh
-        run: npm run gulp vscode-reh-win32-arm64
+        run: npm run gulp vscode-reh-win32-arm64-min-ci
 
       - name: Create Windows arm64 Server archive
         shell: pwsh
@@ -282,13 +302,9 @@ jobs:
           name: vscode-server-win32-arm64
           path: .build/vscode-server-win32-arm64.zip
 
-      - name: Compile
-        shell: pwsh
-        run: npm run gulp compile
-
       - name: Build Windows arm64 Application
         shell: pwsh
-        run: npm run gulp vscode-win32-arm64
+        run: npm run gulp vscode-win32-arm64-min-ci
 
       - name: Prepare Windows arm64 Inno Updater
         shell: pwsh
@@ -384,10 +400,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare prebuilt extensions
+        run: |
+          node build/prepare-prebuilt-extensions.ts --platform=darwin --arch=x64
+          node build/prepare-prebuilt-extensions.ts --platform=darwin --arch=arm64
+
+      - name: Compile core (esbuild)
+        run: npm run gulp core-ci
+
+      - name: Compile Copilot extension
+        run: npm run gulp compile-copilot-extension-build
+
       - name: Build macOS Servers
         run: |
-          npm run gulp vscode-reh-darwin-x64
-          npm run gulp vscode-reh-darwin-arm64
+          npm run gulp vscode-reh-darwin-x64-min-ci
+          npm run gulp vscode-reh-darwin-arm64-min-ci
 
       - name: Create macOS Server archives
         run: |
@@ -408,14 +435,11 @@ jobs:
           name: vscode-server-darwin-arm64
           path: .build/vscode-server-darwin-arm64.zip
 
-      - name: Compile
-        run: npm run gulp compile
-
       - name: Build macOS x64
-        run: npm run gulp vscode-darwin-x64
+        run: npm run gulp vscode-darwin-x64-min-ci
 
       - name: Build macOS arm64
-        run: npm run gulp vscode-darwin-arm64
+        run: npm run gulp vscode-darwin-arm64-min-ci
 
       - name: Create macOS x64 archive
         run: |
@@ -522,10 +546,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare prebuilt extensions
+        run: |
+          node build/prepare-prebuilt-extensions.ts --platform=linux --arch=x64
+          node build/prepare-prebuilt-extensions.ts --platform=linux --arch=arm64
+
+      - name: Compile core (esbuild)
+        run: npm run gulp core-ci
+
+      - name: Compile Copilot extension
+        run: npm run gulp compile-copilot-extension-build
+
       - name: Build Linux Servers
         run: |
-          npm run gulp vscode-reh-linux-x64
-          npm run gulp vscode-reh-linux-arm64
+          npm run gulp vscode-reh-linux-x64-min-ci
+          npm run gulp vscode-reh-linux-arm64-min-ci
 
       - name: Create Linux Server archives
         run: |
@@ -546,16 +581,13 @@ jobs:
           name: vscode-server-linux-arm64
           path: .build/vscode-server-linux-arm64.tar.gz
 
-      - name: Compile
-        run: npm run gulp compile
-
       - name: Build Linux x64
         run: |
-          npm run gulp "vscode-linux-x64"
+          npm run gulp "vscode-linux-x64-min-ci"
 
       - name: Build Linux arm64
         run: |
-          npm run gulp "vscode-linux-arm64"
+          npm run gulp "vscode-linux-arm64-min-ci"
 
       - name: Create Linux x64 archive
         run: |
