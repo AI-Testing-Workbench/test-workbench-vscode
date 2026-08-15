@@ -479,6 +479,28 @@ function copyCopilotNativeDepsTaskREH(platform: string, arch: string, destinatio
 	};
 }
 
+// test-workbench_change start - Update git version task
+function updateGitVersion(): task.CallbackTask {
+	return (cb) => {
+		const updateScript = path.join(REPO_ROOT, 'build', 'update-git-version.cjs');
+		cp.exec(`node "${updateScript}"`, (err, stdout, stderr) => {
+			if (stdout) {
+				console.log(stdout);
+			}
+			if (stderr) {
+				console.error(stderr);
+			}
+			if (cb) {
+				cb(err || undefined);
+			}
+		});
+	};
+}
+
+const updateGitVersionTask = task.define('update-git-version-reh', updateGitVersion());
+gulp.task(updateGitVersionTask);
+// test-workbench_change end
+
 // test-workbench_change start - Prepare prebuilt extensions task for REH
 function preparePrebuiltExtensionsTask(platform: string, arch: string): task.Task {
 	const taskName = `prepare-prebuilt-extensions-reh-${platform}-${arch}`;
@@ -537,6 +559,7 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			const prepareExtensionsTask = preparePrebuiltExtensionsTask(platform, arch);
 
 			const packageTasks: task.Task[] = [
+				updateGitVersionTask, // test-workbench_change - Update git version in product.json before packaging
 				compileNativeExtensionsBuildTask,
 				gulp.task(`node-${platform}-${arch}`) as task.Task,
 				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
@@ -551,8 +574,9 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			const serverTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));
 			gulp.task(serverTaskCI);
 
-			// test-workbench_change - Add prebuilt extensions before build
+			// test-workbench_change - Add git version update and prebuilt extensions before build
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+				updateGitVersionTask,
 				prepareExtensionsTask,
 				compileBuildWithManglingTask,
 				cleanExtensionsBuildTask,
