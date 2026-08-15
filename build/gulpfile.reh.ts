@@ -28,7 +28,7 @@ import glob from 'glob';
 import { promisify } from 'util';
 import rceditCallback from 'rcedit';
 import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
-import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
+import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask, compileCopilotExtensionBuildTask, getPrebuiltExtensions } from './gulpfile.extensions.ts';
 import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.ts';
 import { preparePrebuiltExtensions } from './prepare-prebuilt-extensions.ts'; // test-workbench_change
 import * as cp from 'child_process';
@@ -301,7 +301,11 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.filter(entry => !entry.platforms || new Set(entry.platforms).has(platform))
 			.filter(entry => !entry.clientOnly)
 			.map(entry => entry.name);
-		const extensionPaths = [...localWorkspaceExtensions, ...marketplaceExtensions]
+		// test-workbench_change start - Include prebuilt extensions (extracted to .build/extensions) in the server package
+		const prebuiltExtensions = getPrebuiltExtensions()
+			.map(name => `.build/extensions/${name}/**`);
+		// test-workbench_change end
+		const extensionPaths = [...localWorkspaceExtensions, ...marketplaceExtensions, ...prebuiltExtensions]
 			.map(name => `.build/extensions/${name}/**`);
 
 		const extensions = gulp.src(extensionPaths, { base: '.build', dot: true });
