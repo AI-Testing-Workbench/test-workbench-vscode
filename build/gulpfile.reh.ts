@@ -302,8 +302,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.filter(entry => !entry.clientOnly)
 			.map(entry => entry.name);
 		// test-workbench_change start - Include prebuilt extensions (extracted to .build/extensions) in the server package
-		const prebuiltExtensions = getPrebuiltExtensions()
-			.map(name => `.build/extensions/${name}/**`);
+		const prebuiltExtensions = getPrebuiltExtensions();
 		// test-workbench_change end
 		const extensionPaths = [...localWorkspaceExtensions, ...marketplaceExtensions, ...prebuiltExtensions]
 			.map(name => `.build/extensions/${name}/**`);
