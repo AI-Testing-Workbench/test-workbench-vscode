@@ -3,7 +3,7 @@ set -e
 
 mkdir -p /run/sshd
 
-SSH_USER="${SSH_USER:-sandbox}"
+SSH_USER="${SSH_USER:-root}"
 PUBKEY="${TSCode_SSH_PUBKEY:-}"
 
 if [[ -n "$PUBKEY" ]]; then
