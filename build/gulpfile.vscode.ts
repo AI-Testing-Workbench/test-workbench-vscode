@@ -794,6 +794,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const prepareExtensionsTask = preparePrebuiltExtensionsTask(platform, arch);
 
 		const packageTasks: task.Task[] = [
+			updateGitVersionTask, // test-workbench_change - Update git version in product.json before packaging
 			compileNativeExtensionsBuildTask,
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts),
