@@ -35,6 +35,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os'; // test-workbench_change
 import { promisify } from 'util';
+import { pathToFileURL } from 'url';
 import yauzl from 'yauzl';
 
 const exec = promisify(cp.exec);
@@ -385,7 +386,8 @@ export async function preparePrebuiltExtensions(options: ExtractOptions = {}): P
 }
 
 // CLI support
-if (import.meta.url === `file://${process.argv[1]}`) {
+// test-workbench_change - use pathToFileURL so main-module detection also works on Windows (backslash paths)
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
 	const args = process.argv.slice(2);
 	const platform = args.find(arg => arg.startsWith('--platform='))?.split('=')[1];
 	const arch = args.find(arg => arg.startsWith('--arch='))?.split('=')[1];
