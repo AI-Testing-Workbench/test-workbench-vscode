@@ -1,4 +1,4 @@
-name: UOS Copy Official
+name: Build for Debian 10
 
 on:
   workflow_dispatch:
@@ -608,7 +608,7 @@ jobs:
           GenericName=Code Editor
           Comment=Code Editing. Redefined.
           Exec=/opt/tscode/run.sh %F
-          Icon=./resources/app/resources/linux/code.png
+          Icon=tscode
           Terminal=false
           Categories=Development;IDE;
           MimeType=text/plain;inode/directory;
@@ -833,7 +833,7 @@ jobs:
             'GenericName=Code Editor' \
             'Comment=Code Editing. Redefined.' \
             'Exec=/opt/tscode/run.sh %F' \
-            'Icon=./resources/app/resources/linux/code.png' \
+            'Icon=tscode' \
             'Terminal=false' \
             'Categories=Development;IDE' \
             'MimeType=text/plain;inode/directory' \
