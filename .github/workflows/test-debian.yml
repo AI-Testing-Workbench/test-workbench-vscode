@@ -1,4 +1,4 @@
-name: Build for Debian 10 New
+name: Build for Debian 10 New2
 on:
   workflow_dispatch:
 jobs:
