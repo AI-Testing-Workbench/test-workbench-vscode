@@ -1,4 +1,4 @@
-name: Build for Debian 10 Copy Official
+name: UOS Copy Official
 
 on:
   workflow_dispatch:
