@@ -5,6 +5,7 @@
 ## 环境状态
 
 ✅ **已完成设置**：
+
 - Node.js v22.22.1
 - npm 10.9.4
 - node-gyp
@@ -12,6 +13,7 @@
 - 编译进程已启动（后台运行）
 
 ⚠️ **可选组件**：
+
 - Rust（仅编译 CLI 时需要）- 运行 `bash scripts/install-rust.sh` 安装
 
 ## 常用命令
@@ -103,16 +105,20 @@ src/vs/
 ## 开发工作流
 
 ### 1. 修改代码
+
 在 `src/vs/` 下修改相关文件
 
 ### 2. 等待编译
+
 `npm run watch` 会自动检测更改并重新编译
 
 ### 3. 测试更改
+
 - 在开发版 VSCode 中按 `Ctrl+R` 重载窗口
 - 或重启 `./scripts/code.sh`
 
 ### 4. 调试
+
 - 使用开发者工具（Ctrl+Shift+I）
 - 或从稳定版 VSCode 附加调试器
 
@@ -189,17 +195,20 @@ export VSCODE_LOG=trace
 ## 性能优化
 
 ### 加速编译
+
 - 使用 `npm run watch` 而不是重复 `compile`
 - 仅修改必要的文件
 - 关闭不需要的扩展编译
 
 ### 减少内存使用
+
 - 编译时关闭其他应用
 - 使用 `--max-old-space-size` 调整 Node 内存限制（已在 package.json 配置）
 
 ## 故障排除
 
 ### 编译失败
+
 ```bash
 # 清理并重新安装
 npm run clean
@@ -209,16 +218,19 @@ npm run compile
 ```
 
 ### Electron 无法启动
+
 ```bash
 # 重新下载 Electron
 npm run electron
 ```
 
 ### 扩展主机错误
+
 - 检查扩展代码的 TypeScript 错误
 - 查看扩展主机调试端口 5870 的日志
 
 ### 内存不足
+
 - 确保至少有 9GB 可用内存
 - 关闭其他应用
 - 增加系统交换空间
@@ -235,8 +247,6 @@ npm run electron
 1. ✅ 编译正在后台运行（`npm run watch`）
 2. ⏳ 等待首次编译完成（约 5-10 分钟）
 3. 🚀 运行 `./scripts/code.sh` 启动开发版
-4. 📝 开始开发你的功能！
-
----
+4.
 
 **提示**：首次编译需要较长时间，请耐心等待，后续增量编译会快很多。
