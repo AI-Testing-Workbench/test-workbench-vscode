@@ -1,8 +1,0 @@
-name: Build for Debian 10 New2
-on:
-  workflow_dispatch:
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "test"
