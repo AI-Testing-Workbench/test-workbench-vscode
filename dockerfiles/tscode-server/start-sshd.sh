@@ -20,4 +20,10 @@ if [[ ! -f /etc/ssh/ssh_host_rsa_key ]]; then
     ssh-keygen -A
 fi
 
+# Cloud mode marker for the TestAgent plugin: environment variable is picked up
+# by the SSH session (Ubuntu pam_env reads /etc/environment), and the marker
+# file is a 100% reliable fallback when env propagation fails.
+echo 'TESTAGENT_CLOUD_MODE=1' >> /etc/environment
+touch /etc/tscode-cloud-mode
+
 exec /usr/sbin/sshd -D -e
