@@ -6,7 +6,7 @@ on:
       branch:
         description: 'Branch to build'
         required: true
-        default: 'main'
+        default: 'feature/uos-workflow'
       version:
         description: 'Package version'
         required: false
@@ -18,7 +18,7 @@ on:
       custom_extension_branch:
         description: 'Custom extension branch'
         required: false
-        default: 'main'
+        default: 'feature/uos-workflow'
 
 jobs:
   build:
@@ -489,7 +489,7 @@ jobs:
 
           # 直接从 github.event.inputs 读取
           CUSTOM_REPO="${{ github.event.inputs.custom_extension_repo }}"
-          CUSTOM_BRANCH="${{ github.event.inputs.custom_extension_branch || 'main' }}"
+          CUSTOM_BRANCH="${{ github.event.inputs.custom_extension_branch || 'feature/uos-workflow' }}"
 
           echo "CUSTOM_REPO: [$CUSTOM_REPO]"
           echo "CUSTOM_BRANCH: [$CUSTOM_BRANCH]"
