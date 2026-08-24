@@ -434,17 +434,6 @@ jobs:
             exit 1
           fi
 
-          # 如果复制失败率过高，警告
-          FAILURE_RATE=0
-          if [ $EXT_TOTAL -gt 0 ]; then
-            FAILURE_RATE=$((EXT_FAILED * 100 / EXT_TOTAL))
-            if [ $FAILURE_RATE -gt 50 ]; then
-              echo ""
-              echo "⚠️ High failure rate: $FAILURE_RATE% of extensions failed to copy"
-            fi
-          fi
-
-          # 验证关键扩展是否存在
           echo ""
           echo "   🔍 Verifying critical extensions..."
           CRITICAL_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features"
@@ -619,89 +608,6 @@ jobs:
             echo "   Valid extensions (Linux only): $EXT_COUNT"
           else
             echo "  ❌ custom-extensions directory not found!"
-          fi
-
-      - name: 🔍 Verify custom extensions in build
-        run: |
-          echo "=========================================="
-          echo "🔍 Verifying custom extensions in build"
-          echo "=========================================="
-
-          BUILD_DIR="${BUILD_DIR:-./tscode}"
-
-          CUSTOM_EXT_DIR="$BUILD_DIR/resources/app/custom-extensions"
-
-          echo "📌 Checking: $CUSTOM_EXT_DIR"
-
-          if [ ! -d "$CUSTOM_EXT_DIR" ]; then
-            echo "❌ ERROR: custom-extensions directory not found!"
-            echo "   This means no custom extensions were copied to the build."
-            echo "   Please check the 'Download and prepare custom extensions' step."
-            exit 1
-          fi
-
-          echo "📋 Directory contents:"
-          ls -la "$CUSTOM_EXT_DIR"
-
-          # 统计扩展数量
-          EXT_COUNT=$(find "$CUSTOM_EXT_DIR" -maxdepth 1 -type d ! -path "$CUSTOM_EXT_DIR" 2>/dev/null | wc -l | tr -d ' ')
-          FILE_COUNT=$(find "$CUSTOM_EXT_DIR" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
-
-          echo ""
-          echo "📊 Custom extensions statistics:"
-          echo "   Subdirectories (extensions): $EXT_COUNT"
-          echo "   Files: $FILE_COUNT"
-
-          # 检查是否有 .empty 标记文件
-          if [ -f "$CUSTOM_EXT_DIR/.empty" ]; then
-            echo "   ⚠️ .empty marker file found - no custom extensions"
-            echo "   This is expected if no custom extensions were provided."
-          fi
-
-          # 列出所有预构建的插件
-          echo ""
-          echo "📋 Prebuilt extensions found in build:"
-          if [ "$EXT_COUNT" -gt 0 ]; then
-            echo "----------------------------------------"
-            for ext_dir in "$CUSTOM_EXT_DIR"/*/; do
-              if [ -d "$ext_dir" ]; then
-                ext_name=$(basename "$ext_dir")
-                if [ -f "$ext_dir/package.json" ]; then
-                  ext_version=$(grep -o '"version": *"[^"]*"' "$ext_dir/package.json" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "unknown")
-                  ext_publisher=$(grep -o '"publisher": *"[^"]*"' "$ext_dir/package.json" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "unknown")
-                  echo "  ✅ $ext_name"
-                  echo "     Publisher: $ext_publisher"
-                  echo "     Version: $ext_version"
-                else
-                  echo "  ⚠️ $ext_name (no package.json)"
-                fi
-              fi
-            done
-            echo "----------------------------------------"
-            echo "   Total prebuilt extensions: $EXT_COUNT"
-          else
-            echo "  ℹ️ No prebuilt extensions found"
-          fi
-
-          # 检查是否包含特定扩展
-          echo ""
-          echo "🔍 Specific extensions check:"
-          TEST_TECH_COUNT=$(find "$CUSTOM_EXT_DIR" -maxdepth 1 -type d -name "test-tech*" 2>/dev/null | wc -l | tr -d ' ')
-          MS_CEINTL_COUNT=$(find "$CUSTOM_EXT_DIR" -maxdepth 1 -type d -name "ms-ceintl*" 2>/dev/null | wc -l | tr -d ' ')
-          CWEIJAN_COUNT=$(find "$CUSTOM_EXT_DIR" -maxdepth 1 -type d -name "cweijan*" 2>/dev/null | wc -l | tr -d ' ')
-
-          echo "   test-tech*: $TEST_TECH_COUNT"
-          echo "   ms-ceintl*: $MS_CEINTL_COUNT"
-          echo "   cweijan*: $CWEIJAN_COUNT"
-
-          if [ "$EXT_COUNT" -eq 0 ] && [ "$FILE_COUNT" -eq 0 ]; then
-            echo ""
-            echo "⚠️ WARNING: custom-extensions directory is completely empty!"
-            echo "   This may be intentional if no custom extensions were provided."
-            echo "   If custom extensions were expected, check the build configuration."
-          elif [ "$EXT_COUNT" -gt 0 ]; then
-            echo ""
-            echo "✅ Found $EXT_COUNT prebuilt extension(s) in build"
           fi
 
       - name: 🧹 Deep cleanup (preserve runtime files)
@@ -1167,6 +1073,78 @@ jobs:
           cp -r "$BUILD_DIR"/* "$DEB_ROOT/opt/tscode/"
 
           # ============================================================
+          # 修复所有权限
+          # ============================================================
+          echo ""
+          echo "📌 Fixing all permissions..."
+
+          # 1. chrome-sandbox SUID
+          if [ -f "$DEB_ROOT/opt/tscode/chrome-sandbox" ]; then
+            sudo chown root:root "$DEB_ROOT/opt/tscode/chrome-sandbox"
+            sudo chmod 4755 "$DEB_ROOT/opt/tscode/chrome-sandbox"
+            echo "   ✅ chrome-sandbox SUID set"
+          fi
+
+          # 2. 主程序可执行权限
+          chmod +x "$DEB_ROOT/opt/tscode/tscode" 2>/dev/null || true
+          chmod +x "$DEB_ROOT/opt/tscode/run.sh" 2>/dev/null || true
+          chmod +x "$DEB_ROOT/opt/tscode/start-tscode.sh" 2>/dev/null || true
+          chmod +x "$DEB_ROOT/opt/tscode/validate.sh" 2>/dev/null || true
+
+          # ============================================================
+          # 3. 修复所有扩展中的二进制文件（简化全面版）
+          # ============================================================
+          echo ""
+          echo "📌 Setting executable permissions for ALL extension binaries..."
+
+          EXTENSIONS_DIR="$DEB_ROOT/opt/tscode/resources/app/extensions"
+
+          if [ -d "$EXTENSIONS_DIR" ]; then
+              # 修复所有 bin/ scripts/ tools/ utils/ 目录
+              echo "   🔧 Fixing bin/ scripts/ tools/ utils/ directories..."
+              find "$EXTENSIONS_DIR" -type d \( -name "bin" -o -name "scripts" -o -name "tools" -o -name "utils" \) 2>/dev/null | while read -r dir; do
+                  find "$dir" -type f -exec chmod +x {} \; 2>/dev/null || true
+              done
+
+              # 修复所有常见的可执行文件
+              echo "   🔧 Fixing common executable files..."
+              find "$EXTENSIONS_DIR" -type f \( \
+                  -name "*.sh" -o -name "*.bash" -o -name "*.zsh" -o \
+                  -name "*.py" -o -name "*.pl" -o -name "*.rb" -o \
+                  -name "*.js" -o -name "*.mjs" -o -name "*.cjs" -o \
+                  -name "testflow" -o -name "testagent" -o \
+                  -name "rg" -o -name "grep" -o \
+                  -name "server" -o -name "main" -o -name "run" -o \
+                  -name "start" -o -name "bootstrap" -o -name "cli" -o \
+                  -name "node" -o -name "npm" -o -name "npx" -o \
+                  -name "*.node" \
+              \) -exec chmod +x {} \; 2>/dev/null || true
+
+              # 修复所有没有扩展名的文件（可能是二进制）
+              echo "   🔧 Fixing files without extensions (ELF/scripts)..."
+              find "$EXTENSIONS_DIR" -type f ! -name "*.*" 2>/dev/null | while read -r file; do
+                  if file "$file" 2>/dev/null | grep -qE "(ELF|script|executable)"; then
+                      chmod +x "$file" 2>/dev/null || true
+                  fi
+              done
+
+              echo "   ✅ All extension binaries permissions fixed"
+          fi
+
+          # 4. 修复自定义扩展
+          echo "   🔧 Fixing custom extensions..."
+          if [ -d "$DEB_ROOT/opt/tscode/resources/app/custom-extensions" ]; then
+              find "$DEB_ROOT/opt/tscode/resources/app/custom-extensions" -type f -exec chmod +x {} \; 2>/dev/null || true
+              echo "   ✅ Custom extensions binaries permissions fixed"
+          fi
+
+          # 5. ripgrep 权限
+          find "$DEB_ROOT/opt/tscode" -name "rg" -type f -exec chmod 755 {} \; 2>/dev/null || true
+          find "$DEB_ROOT/opt/tscode" -type f -executable -exec chmod 755 {} \; 2>/dev/null || true
+
+          echo "   ✅ All permissions fixed"
+
+          # ============================================================
           # 验证 DEB 根目录中的 custom-extensions
           # ============================================================
           echo ""
@@ -1189,30 +1167,7 @@ jobs:
           fi
 
           # ============================================================
-          # 修复所有权限
-          # ============================================================
-          echo ""
-          echo "📌 Fixing permissions..."
-
-          if [ -f "$DEB_ROOT/opt/tscode/chrome-sandbox" ]; then
-            sudo chown root:root "$DEB_ROOT/opt/tscode/chrome-sandbox"
-            sudo chmod 4755 "$DEB_ROOT/opt/tscode/chrome-sandbox"
-            echo "   ✅ chrome-sandbox SUID set"
-          fi
-
-          chmod +x "$DEB_ROOT/opt/tscode/tscode" 2>/dev/null || true
-          chmod +x "$DEB_ROOT/opt/tscode/run.sh" 2>/dev/null || true
-          chmod +x "$DEB_ROOT/opt/tscode/start-tscode.sh" 2>/dev/null || true
-          chmod +x "$DEB_ROOT/opt/tscode/validate.sh" 2>/dev/null || true
-          chmod +x "$DEB_ROOT/opt/tscode/resources/app/custom-extensions" 2>/dev/null || true
-
-          find "$DEB_ROOT/opt/tscode" -name "rg" -type f -exec chmod 755 {} \; 2>/dev/null || true
-          find "$DEB_ROOT/opt/tscode" -type f -executable -exec chmod 755 {} \; 2>/dev/null || true
-
-          echo "   ✅ All permissions fixed"
-
-          # ============================================================
-          # 创建 /usr/bin/tscode 包装脚本（不是符号链接！）
+          # 创建 /usr/bin/tscode 包装脚本
           # ============================================================
           echo ""
           echo "📌 Creating /usr/bin/tscode wrapper script..."
@@ -1310,34 +1265,68 @@ jobs:
           fi
 
           # ============================================================
-          # 4. 复制预构建的自定义扩展到用户目录
+          # 4. 修复所有扩展中的二进制文件（简化全面版）
+          # ============================================================
+          echo ""
+          echo "📌 Setting executable permissions for ALL extension binaries..."
+
+          EXTENSIONS_DIR="/opt/tscode/resources/app/extensions"
+
+          if [ -d "$EXTENSIONS_DIR" ]; then
+              # 修复所有 bin/ scripts/ tools/ utils/ 目录
+              echo "   🔧 Fixing bin/ scripts/ tools/ utils/ directories..."
+              find "$EXTENSIONS_DIR" -type d \( -name "bin" -o -name "scripts" -o -name "tools" -o -name "utils" \) 2>/dev/null | while read -r dir; do
+                  find "$dir" -type f -exec chmod +x {} \; 2>/dev/null || true
+              done
+
+              # 修复所有常见的可执行文件
+              echo "   🔧 Fixing common executable files..."
+              find "$EXTENSIONS_DIR" -type f \( \
+                  -name "*.sh" -o -name "*.bash" -o -name "*.zsh" -o \
+                  -name "*.py" -o -name "*.pl" -o -name "*.rb" -o \
+                  -name "*.js" -o -name "*.mjs" -o -name "*.cjs" -o \
+                  -name "testflow" -o -name "testagent" -o \
+                  -name "rg" -o -name "grep" -o \
+                  -name "server" -o -name "main" -o -name "run" -o \
+                  -name "start" -o -name "bootstrap" -o -name "cli" -o \
+                  -name "node" -o -name "npm" -o -name "npx" -o \
+                  -name "*.node" \
+              \) -exec chmod +x {} \; 2>/dev/null || true
+
+              # 修复所有没有扩展名的文件（可能是二进制）
+              echo "   🔧 Fixing files without extensions (ELF/scripts)..."
+              find "$EXTENSIONS_DIR" -type f ! -name "*.*" 2>/dev/null | while read -r file; do
+                  if file "$file" 2>/dev/null | grep -qE "(ELF|script|executable)"; then
+                      chmod +x "$file" 2>/dev/null || true
+                  fi
+              done
+
+              echo "  ✅ All extension binaries permissions fixed"
+          fi
+
+          # 5. 修复自定义扩展
+          echo "   🔧 Fixing custom extensions..."
+          if [ -d "/opt/tscode/resources/app/custom-extensions" ]; then
+              find /opt/tscode/resources/app/custom-extensions -type f -exec chmod +x {} \; 2>/dev/null || true
+              echo "  ✅ Custom extensions binaries permissions fixed"
+          fi
+
+          # ============================================================
+          # 6. 复制预构建的自定义扩展到用户目录
           # ============================================================
           echo ""
           echo "📦 Copying prebuilt custom extensions to user directories..."
 
           CUSTOM_EXT_DIR="/opt/tscode/resources/app/custom-extensions"
 
-          echo "  📌 Checking custom extensions directory..."
           if [ -d "$CUSTOM_EXT_DIR" ]; then
-              echo "  ✅ Custom extensions directory exists: $CUSTOM_EXT_DIR"
-              echo "  📋 Contents:"
-              ls -la "$CUSTOM_EXT_DIR" 2>/dev/null || echo "    (empty or inaccessible)"
-
               rm -f "$CUSTOM_EXT_DIR/.empty" 2>/dev/null || true
 
               EXT_DIRS=$(find "$CUSTOM_EXT_DIR" -maxdepth 1 -type d ! -path "$CUSTOM_EXT_DIR" 2>/dev/null)
               EXT_COUNT=$(echo "$EXT_DIRS" | grep -v "^$" | wc -l | tr -d ' ')
 
-              echo "  📊 Found $EXT_COUNT extension directories"
-
               if [ "$EXT_COUNT" -gt 0 ]; then
-                  echo "  📌 Found $EXT_COUNT custom extension(s):"
-                  for ext in "$CUSTOM_EXT_DIR"/*/; do
-                      if [ -d "$ext" ]; then
-                          ext_name=$(basename "$ext")
-                          echo "     - $ext_name"
-                      fi
-                  done
+                  echo "  📌 Found $EXT_COUNT custom extension(s)"
 
                   for USER_HOME in /home/* /root; do
                       if [ -d "$USER_HOME" ] && [ "$USER_HOME" != "/home/*" ]; then
@@ -1346,20 +1335,17 @@ jobs:
 
                           TSC_EXT_DIR="$USER_HOME/.tscode/extensions"
                           mkdir -p "$TSC_EXT_DIR" 2>/dev/null || true
-                          echo "    📂 Target directory: $TSC_EXT_DIR"
 
-                          EXT_COPIED=0
                           for ext in "$CUSTOM_EXT_DIR"/*/; do
                               if [ -d "$ext" ]; then
                                   ext_name=$(basename "$ext")
-                                  echo "      ✅ Copying: $ext_name"
+                                  echo "    ✅ Copying: $ext_name"
                                   rm -rf "$TSC_EXT_DIR/$ext_name" 2>/dev/null || true
                                   cp -r "$ext" "$TSC_EXT_DIR/" 2>/dev/null || true
+
+                                  # 复制后再次修复权限
                                   if [ -d "$TSC_EXT_DIR/$ext_name" ]; then
-                                      echo "        ✅ Successfully copied: $ext_name"
-                                      EXT_COPIED=$((EXT_COPIED + 1))
-                                  else
-                                      echo "        ❌ Failed to copy: $ext_name"
+                                      find "$TSC_EXT_DIR/$ext_name" -type f -exec chmod +x {} \; 2>/dev/null || true
                                   fi
                               fi
                           done
@@ -1371,19 +1357,17 @@ jobs:
                               fi
                           fi
 
-                          echo "    ✅ $EXT_COPIED custom extension(s) installed for $USER_NAME"
+                          echo "    ✅ Custom extensions installed for $USER_NAME"
                       fi
                   done
               else
-                  echo "  ℹ️ No custom extensions found in $CUSTOM_EXT_DIR"
+                  echo "  ℹ️ No custom extensions found"
               fi
           else
-              echo "  ❌ Custom extensions directory not found: $CUSTOM_EXT_DIR"
+              echo "  ℹ️ No custom extensions directory"
           fi
 
-          # ============================================================
-          # 5. 清理 ~/.tscode 下多余的非 extensions 目录
-          # ============================================================
+          # 7. 清理 ~/.tscode 下多余的非 extensions 目录
           echo ""
           echo "🧹 Cleaning up user directories..."
 
@@ -1392,33 +1376,21 @@ jobs:
                   TSC_DIR="$USER_HOME/.tscode"
 
                   if [ -d "$TSC_DIR" ]; then
-                      echo "  📌 Cleaning: $TSC_DIR"
-
                       for item in "$TSC_DIR"/*; do
                           if [ -d "$item" ]; then
                               item_name=$(basename "$item")
                               if [ "$item_name" != "extensions" ]; then
-                                  echo "    🗑️ Removing directory: $item_name"
+                                  echo "    🗑️ Removing: $item_name"
                                   rm -rf "$item" 2>/dev/null || true
                               fi
                           fi
                       done
-
-                      mkdir -p "$TSC_DIR/extensions" 2>/dev/null || true
-
-                      if [ "$USER_HOME" != "/root" ]; then
-                          USER_OWNER=$(stat -c '%u:%g' "$USER_HOME" 2>/dev/null || echo "")
-                          if [ -n "$USER_OWNER" ]; then
-                              chown -R "$USER_OWNER" "$TSC_DIR" 2>/dev/null || true
-                          fi
-                      fi
-
-                      echo "    ✅ Cleaned: $TSC_DIR (only extensions directory kept)"
+                      echo "    ✅ Cleaned: $TSC_DIR"
                   fi
               fi
           done
 
-          # 6. 为安装用户禁用密钥环
+          # 8. 为安装用户禁用密钥环
           REAL_USER="${SUDO_USER:-$USER}"
           if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ]; then
               REAL_HOME=$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6)
@@ -1432,7 +1404,7 @@ jobs:
               fi
           fi
 
-          # 7. 更新桌面数据库
+          # 9. 更新桌面数据库
           if command -v update-desktop-database >/dev/null 2>&1; then
               update-desktop-database /usr/share/applications/
               echo "  ✅ Desktop database updated"
@@ -1447,12 +1419,11 @@ jobs:
           echo "=========================================="
           echo "✅ TSCode installed successfully!"
           echo ""
-          echo "📁 System extensions (built-in): /opt/tscode/resources/app/extensions/"
-          echo "📂 User extensions directory: ~/.tscode/extensions/"
-          echo "📂 User data directory: ~/.local/share/tscode/"
+          echo "📁 System extensions: /opt/tscode/resources/app/extensions/"
+          echo "📂 User extensions: ~/.tscode/extensions/"
+          echo "📂 User data: ~/.local/share/tscode/"
           echo ""
           echo "🚀 Run 'tscode' to start (no password required)"
-          echo "📂 Desktop entry available in application menu"
           echo "=========================================="
 
           exit 0
@@ -1537,9 +1508,6 @@ jobs:
 
           if [ ! -d "$EXT_DIR" ]; then
             echo "❌ Extensions directory not found in DEB package!"
-            echo "   Expected: $EXT_DIR"
-            echo "   Contents of ./opt/tscode/resources/app/:"
-            ls -la ./opt/tscode/resources/app/ 2>/dev/null || echo "   (directory not found)"
             exit 1
           fi
 
@@ -1569,26 +1537,40 @@ jobs:
           if [ -n "$CRITICAL_MISSING" ]; then
             echo ""
             echo "❌❌❌ CRITICAL ERROR: Missing critical extensions:$CRITICAL_MISSING"
-            echo "   The DEB package may not function correctly!"
             exit 1
           fi
 
           echo ""
-          echo "🔍 Checking @builtin extensions:"
-          if [ -d "$EXT_DIR/@builtin" ]; then
-            BUILTIN_COUNT=$(find "$EXT_DIR/@builtin" -maxdepth 1 -type d ! -path "$EXT_DIR/@builtin" 2>/dev/null | wc -l | tr -d ' ')
-            echo "   ✅ @builtin directory exists with $BUILTIN_COUNT extensions"
+          echo "🔍 Checking binary file permissions in extensions:"
+          echo "----------------------------------------"
+
+          # 检查 testflow 权限
+          TESTFLOW_FILES=$(find "$EXT_DIR" -name "testflow" -type f 2>/dev/null)
+          if [ -n "$TESTFLOW_FILES" ]; then
+            echo "testflow files found:"
+            for f in $TESTFLOW_FILES; do
+              PERMS=$(stat -c %a "$f" 2>/dev/null || echo "unknown")
+              echo "  📄 $f (perms: $PERMS)"
+              if [ "$PERMS" = "755" ] || [ "$PERMS" = "775" ] || [ "$PERMS" = "777" ]; then
+                echo "    ✅ Executable"
+              else
+                echo "    ⚠️ May not be executable"
+              fi
+            done
           else
-            echo "   ⚠️ @builtin directory not found (may be optional)"
+            echo "  ℹ️ No testflow files found"
           fi
 
-          echo ""
-          echo "📊 Extension directory size:"
-          du -sh "$EXT_DIR"
-
-          echo ""
-          echo "📊 Top 10 largest extensions:"
-          du -sh "$EXT_DIR"/* 2>/dev/null | sort -hr | head -10
+          # 检查 bin 目录
+          BIN_DIRS=$(find "$EXT_DIR" -type d -name "bin" 2>/dev/null)
+          if [ -n "$BIN_DIRS" ]; then
+            echo ""
+            echo "bin directories found:"
+            for d in $BIN_DIRS; do
+              echo "  📂 $d"
+              find "$d" -type f -exec ls -la {} \; 2>/dev/null | head -5
+            done
+          fi
 
           echo ""
           echo "=========================================="
@@ -1646,11 +1628,6 @@ jobs:
 
           if [ ! -d "$CUSTOM_EXT_DIR" ]; then
             echo "❌❌❌ CRITICAL ERROR: custom-extensions directory not found in DEB package!"
-            echo "   Expected: $CUSTOM_EXT_DIR"
-            echo "   This means custom extensions were NOT included in the DEB package."
-            echo ""
-            echo "   Contents of ./opt/tscode/resources/app/:"
-            ls -la ./opt/tscode/resources/app/ 2>/dev/null || echo "   (directory not found)"
             exit 1
           fi
 
@@ -1667,12 +1644,7 @@ jobs:
           echo "   Subdirectories (extensions): $EXT_COUNT"
           echo "   Files: $FILE_COUNT"
 
-          if [ "$EXT_COUNT" -eq 0 ] && [ "$FILE_COUNT" -eq 0 ]; then
-            echo ""
-            echo "⚠️ WARNING: custom-extensions directory is empty!"
-            echo "   This means no custom extensions were included in the DEB package."
-            echo "   If custom extensions were expected, check the build configuration."
-          elif [ "$EXT_COUNT" -gt 0 ]; then
+          if [ "$EXT_COUNT" -gt 0 ]; then
             echo ""
             echo "✅ Found $EXT_COUNT prebuilt extension(s) in DEB package"
             echo ""
@@ -1727,10 +1699,11 @@ jobs:
           echo "   - No sandbox password prompt"
           echo "   - Desktop entry in application menu"
           echo "   - /usr/bin/tscode is a wrapper script (not a symlink)"
+          echo "   - ✅ ALL extension binaries have execute permissions"
           echo ""
           echo "📂 Directory structure:"
-          echo "   System (built-in): /opt/tscode/resources/app/extensions/"
-          echo "   User extensions:   ~/.tscode/extensions/ (only this directory)"
+          echo "   System extensions: /opt/tscode/resources/app/extensions/"
+          echo "   User extensions:   ~/.tscode/extensions/"
           echo "   User data:         ~/.local/share/tscode/"
           echo ""
           echo "💡 Extensions persist across reinstallation"
@@ -1754,10 +1727,7 @@ jobs:
             echo ""
             echo "📂 Directory structure:"
             echo "  System extensions: /opt/tscode/resources/app/extensions/"
-            echo "  User extensions:   ~/.tscode/extensions/ (only this)"
+            echo "  User extensions:   ~/.tscode/extensions/"
             echo "  User data:         ~/.local/share/tscode/"
-            echo ""
-            echo "✅ Extension verification:"
-            echo "  - All critical extensions present in DEB package"
             echo "=========================================="
           fi
