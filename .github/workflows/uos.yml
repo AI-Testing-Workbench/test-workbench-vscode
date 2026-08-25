@@ -780,7 +780,6 @@ jobs:
           echo "📌 1. Build Directory Structure"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          # 首先列出目录结构以便调试
           echo "   📂 Build directory: $BUILD_DIR"
           echo "   📂 Contents of resources/app:"
           ls -la "$BUILD_DIR/resources/app/" 2>/dev/null | head -20 || echo "   ❌ resources/app not found"
@@ -789,12 +788,10 @@ jobs:
           echo "   📂 Checking for out directory:"
           if [ -d "$BUILD_DIR/resources/app/out" ]; then
               echo "   ✅ out directory exists"
-              echo "   📂 out contents:"
-              ls -la "$BUILD_DIR/resources/app/out/" 2>/dev/null | head -10
+              ((PASSED++))
           else
-              echo "   ⚠️ out directory not found (may be in different location)"
-              # 搜索可能的 out 位置
-              find "$BUILD_DIR" -type d -name "out" 2>/dev/null | head -5
+              echo "   ❌ out directory not found"
+              ((FAILED++))
           fi
 
           echo ""
@@ -817,22 +814,43 @@ jobs:
           for path in "${SEARCH_PATHS[@]}"; do
               if [ -d "$path" ]; then
                   echo "   📂 Found: $path"
+                  # 列出找到的 js 文件
                   ls -la "$path" 2>/dev/null | grep -E "\.js$" | head -5
-                  EXTENSION_HOST_FOUND=$((EXTENSION_HOST_FOUND + 1))
+
+                  # 检查是否包含 extensionHostProcess.js
+                  if [ -f "$path/extensionHostProcess.js" ]; then
+                      echo "      ✅ extensionHostProcess.js found"
+                      EXTENSION_HOST_FOUND=$((EXTENSION_HOST_FOUND + 1))
+                  fi
+
+                  # 检查是否包含 extHost 相关文件
+                  EXT_HOST_FILES=$(find "$path" -name "extHost*.js" 2>/dev/null | wc -l)
+                  if [ "$EXT_HOST_FILES" -gt 0 ]; then
+                      echo "      ✅ Found $EXT_HOST_FILES extHost*.js files"
+                      EXTENSION_HOST_FOUND=$((EXTENSION_HOST_FOUND + 1))
+                  fi
               fi
           done
 
+          # 如果上面的搜索没找到，尝试全局搜索
+          if [ $EXTENSION_HOST_FOUND -eq 0 ]; then
+              echo "   🔍 Searching globally for extensionHostProcess.js..."
+              EXT_HOST_FILE=$(find "$BUILD_DIR" -name "extensionHostProcess.js" 2>/dev/null | head -1)
+              if [ -n "$EXT_HOST_FILE" ]; then
+                  echo "   ✅ Found: $EXT_HOST_FILE"
+                  EXTENSION_HOST_FOUND=1
+              else
+                  echo "   🔍 Searching globally for extHost*.js..."
+                  find "$BUILD_DIR" -name "extHost*.js" 2>/dev/null | head -5
+              fi
+          fi
+
           if [ $EXTENSION_HOST_FOUND -gt 0 ]; then
-              echo "   ✅ ExtensionHost directories found ($EXTENSION_HOST_FOUND locations)"
+              echo "   ✅ ExtensionHost files found"
               ((PASSED++))
           else
-              echo "   ⚠️ ExtensionHost directories not found in standard locations"
-              # 尝试全局搜索
-              echo "   🔍 Searching for extensionHostProcess.js..."
-              find "$BUILD_DIR" -name "extensionHostProcess.js" 2>/dev/null | head -5
-              echo "   🔍 Searching for extHost*.js..."
-              find "$BUILD_DIR" -name "extHost*.js" 2>/dev/null | head -5
-              ((WARNINGS++))
+              echo "   ❌ ExtensionHost files NOT found"
+              ((FAILED++))
           fi
 
           echo ""
@@ -912,22 +930,24 @@ jobs:
           echo ""
           echo "   🔍 Checking extension binaries..."
           BIN_FOUND=0
-          find "$EXT_DIR" -type f \( -name "testflow" -o -name "testagent" -o -name "rg" \) 2>/dev/null | while read -r bin; do
-              if [ -x "$bin" ]; then
-                  echo "      ✅ $(basename $bin) is executable"
-                  BIN_FOUND=$((BIN_FOUND + 1))
-              else
-                  echo "      ❌ $(basename $bin) is NOT executable"
-                  ((FAILED++))
-              fi
-          done
+          if [ -d "$EXT_DIR" ]; then
+              find "$EXT_DIR" -type f \( -name "testflow" -o -name "testagent" -o -name "rg" \) 2>/dev/null | while read -r bin; do
+                  if [ -x "$bin" ]; then
+                      echo "      ✅ $(basename $bin) is executable"
+                      BIN_FOUND=$((BIN_FOUND + 1))
+                  else
+                      echo "      ❌ $(basename $bin) is NOT executable"
+                      ((FAILED++))
+                  fi
+              done
 
-          if [ $BIN_FOUND -gt 0 ]; then
-              echo "   ✅ Found $BIN_FOUND executable binaries"
-              ((PASSED++))
-          else
-              echo "   ⚠️ No extension binaries found (may be okay)"
-              ((WARNINGS++))
+              if [ $BIN_FOUND -gt 0 ]; then
+                  echo "   ✅ Found $BIN_FOUND executable binaries"
+                  ((PASSED++))
+              else
+                  echo "   ⚠️ No extension binaries found (may be okay)"
+                  ((WARNINGS++))
+              fi
           fi
 
           echo ""
@@ -959,6 +979,14 @@ jobs:
                   echo "   ⚠️ GNOME_KEYRING_CONTROL not set"
                   ((WARNINGS++))
               fi
+
+              if grep -q "DBUS_SESSION_BUS_ADDRESS" "$BUILD_DIR/run.sh"; then
+                  echo "   ✅ DBUS_SESSION_BUS_ADDRESS disabled"
+                  ((PASSED++))
+              else
+                  echo "   ⚠️ DBUS_SESSION_BUS_ADDRESS not set"
+                  ((WARNINGS++))
+              fi
           else
               echo "   ❌ run.sh not found"
               ((FAILED++))
@@ -978,13 +1006,16 @@ jobs:
                   echo "   📋 Prebuilt extensions:"
                   find "$CUSTOM_EXT_DIR" -maxdepth 1 -type d ! -path "$CUSTOM_EXT_DIR" -exec basename {} \; 2>/dev/null | while read -r ext; do
                       if [ -f "$CUSTOM_EXT_DIR/$ext/package.json" ]; then
-                          echo "      ✅ $ext"
+                          VERSION=$(grep -o '"version": *"[^"]*"' "$CUSTOM_EXT_DIR/$ext/package.json" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "unknown")
+                          echo "      ✅ $ext (v$VERSION)"
                       else
                           echo "      ⚠️ $ext (no package.json)"
                       fi
                   done
+                  ((PASSED++))
+              else
+                  echo "   ℹ️ No prebuilt extensions found"
               fi
-              ((PASSED++))
           else
               echo "   ⚠️ custom-extensions not found"
               ((WARNINGS++))
@@ -1000,7 +1031,7 @@ jobs:
               echo "   ✅ node_modules exists ($MODULE_COUNT modules)"
 
               # 检查关键模块
-              KEY_MODULES=("vscode-jsonrpc" "vscode-languageclient" "typescript")
+              KEY_MODULES=("vscode-jsonrpc" "vscode-languageclient" "typescript" "@vscode/ripgrep")
               for mod in "${KEY_MODULES[@]}"; do
                   if [ -d "$BUILD_DIR/resources/app/node_modules/$mod" ]; then
                       echo "      ✅ $mod"
@@ -1014,12 +1045,37 @@ jobs:
 
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📌 8. DEB Package Content"
+          echo "📌 8. User Directory Structure (~/.tscode)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          # 检查 run.sh 中的用户目录配置
+          if [ -f "$BUILD_DIR/run.sh" ]; then
+              if grep -q "VSCODE_EXTENSIONS_DIR" "$BUILD_DIR/run.sh"; then
+                  echo "   ✅ VSCODE_EXTENSIONS_DIR configured in run.sh"
+                  ((PASSED++))
+              else
+                  echo "   ⚠️ VSCODE_EXTENSIONS_DIR not set in run.sh"
+                  ((WARNINGS++))
+              fi
+
+              if grep -q "VSCODE_APPDATA" "$BUILD_DIR/run.sh"; then
+                  echo "   ✅ VSCODE_APPDATA configured in run.sh"
+                  ((PASSED++))
+              else
+                  echo "   ⚠️ VSCODE_APPDATA not set in run.sh"
+                  ((WARNINGS++))
+              fi
+          fi
+
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📌 9. DEB Package"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
           DEB_FILE="tscode-*.deb"
-          if ls $DEB_FILE 2>/dev/null | grep -q .; then
-              echo "   ✅ DEB package found"
+          DEB_FILES=$(ls $DEB_FILE 2>/dev/null)
+          if [ -n "$DEB_FILES" ]; then
+              echo "   ✅ DEB package found:"
               ls -lh $DEB_FILE 2>/dev/null
               ((PASSED++))
           else
@@ -1042,11 +1098,16 @@ jobs:
               echo ""
               echo "   📋 Summary of working features:"
               echo "      - Build structure verified"
+              echo "      - ExtensionHost files present"
               echo "      - Critical extensions installed"
               echo "      - Binary permissions correct"
               echo "      - Keyring bypass configured"
               echo "      - Prebuilt extensions ready"
+              echo "      - node_modules installed"
               echo ""
+              echo "   🚀 To install and test:"
+              echo "      sudo dpkg -i $DEB_FILE"
+              echo "      tscode"
               exit 0
           else
               echo ""
@@ -1055,11 +1116,7 @@ jobs:
                   echo "   Missing extensions: ${MISSING_EXTS[*]}"
               fi
               echo ""
-              echo "   💡 Note: Some failures may be acceptable if:"
-              echo "      - ExtensionHost files are in different locations"
-              echo "      - Build was successful despite verification warnings"
-              echo ""
-              echo "   📝 Check the actual build output above for details"
+              echo "   💡 Check the actual build output above for details"
               exit 1
           fi
 
