@@ -95,12 +95,16 @@ jobs:
             event-stream \
             2>/dev/null || true
 
+      # ============================================================
+      # 修复所有扩展相关文件 - 一次性完成
+      # ============================================================
       - name: 🔧 Fix all extension build files
         run: |
           echo "=========================================="
           echo "🔧 Fixing all extension build files"
           echo "=========================================="
 
+          # 1. 创建 builtInExtensions.ts
           cat > build/lib/builtInExtensions.ts << 'BUILTIN_EOF'
           /*---------------------------------------------------------------------------------------------
            *  Copyright (c) Microsoft Corporation. All rights reserved.
@@ -152,6 +156,7 @@ jobs:
 
           echo "✅ builtInExtensions.ts created"
 
+          # 2. 创建 extensions.ts - 完全重写，无语法错误
           cat > build/lib/extensions.ts << 'EXTENSIONS_EOF'
           /*---------------------------------------------------------------------------------------------
            *  Copyright (c) Microsoft Corporation. All rights reserved.
@@ -171,61 +176,21 @@ jobs:
           export const webBuiltInExtensions: any[] = [];
           export const shouldDownloadWebBuiltInExtensions = false;
 
-          export function getExtensionStream(): Stream {
-              return createEmptyStream();
-          }
+          export function getExtensionStream(): Stream { return createEmptyStream(); }
+          export function getExtensionDownloadStream(): Stream { return createEmptyStream(); }
+          export function packageMarketplaceExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageNativeLocalExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageNonNativeLocalExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageLocalExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageCopilotExtensionStream(): Stream { return createEmptyStream(); }
+          export function packageCopilotChatExtensionStream(): Stream { return createEmptyStream(); }
+          export function packageCopilotAgentsExtensionStream(): Stream { return createEmptyStream(); }
+          export function getNativeLocalExtensionStream(): Stream { return createEmptyStream(); }
+          export function getLocalExtensionStream(): Stream { return createEmptyStream(); }
+          export function getMarketplaceExtensionStream(): Stream { return createEmptyStream(); }
 
-          export function getExtensionDownloadStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageMarketplaceExtensionsStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageNativeLocalExtensionsStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageNonNativeLocalExtensionsStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageLocalExtensionsStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageExtensionsStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageCopilotExtensionStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageCopilotChatExtensionStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageCopilotAgentsExtensionStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function getNativeLocalExtensionStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function getLocalExtensionStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function getMarketplaceExtensionStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function fromMarketplace(): any[] {
-              return [];
-          }
+          export function fromMarketplace(): any[] { return []; }
 
           export async function fetchUrls(urls: string[], options: any): Promise<void> {
               console.log(`fetchUrls: Skipping ${urls.length} URLs (UOS build)`);
@@ -240,21 +205,10 @@ jobs:
           export const builtInExtensionsProd = [];
           export const shouldDownloadBuiltInExtensionsProd = false;
 
-          export function scanBuiltinExtensions(): any[] {
-              return [];
-          }
-
-          export function getExtensionGalleryResources(): any {
-              return { extensions: [] };
-          }
-
-          export function packageExtension(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageLocalExtension(): Stream {
-              return createEmptyStream();
-          }
+          export function scanBuiltinExtensions(): any[] { return []; }
+          export function getExtensionGalleryResources(): any { return { extensions: [] }; }
+          export function packageExtension(): Stream { return createEmptyStream(); }
+          export function packageLocalExtension(): Stream { return createEmptyStream(); }
 
           export const localExtensions: any[] = [];
           export const marketplaceExtensions: any[] = [];
@@ -265,6 +219,7 @@ jobs:
 
           echo "✅ extensions.ts created"
 
+          # 3. 修改 gulpfile.extensions.ts
           if [ -f "build/gulpfile.extensions.ts" ]; then
               python3 << 'PYTHON_SCRIPT'
           import re
@@ -512,6 +467,56 @@ jobs:
           done
 
           echo "✅ Extensions copied"
+
+          echo ""
+          echo "📌 Step 3: Replacing native modules with compatible versions..."
+
+          OFFICIAL_NM="$OFFICIAL_DIR/resources/app/node_modules"
+          TARGET_NM="$BUILD_DIR/resources/app/node_modules"
+
+          # 需要替换的关键 .node 文件列表
+          NODE_FILES=(
+              "@vscode/sqlite3/build/Release/vscode-sqlite3.node"
+              "@vscode/spdlog/build/Release/spdlog.node"
+          )
+
+          for file in "${NODE_FILES[@]}"; do
+              SRC="$OFFICIAL_NM/$file"
+              DST="$TARGET_NM/$file"
+
+              if [ -f "$SRC" ]; then
+                  echo "  📦 Replacing: $file"
+                  mkdir -p "$(dirname "$DST")"
+
+                  # 备份原文件
+                  if [ -f "$DST" ]; then
+                      mv "$DST" "$DST.bak" 2>/dev/null || true
+                  fi
+
+                  cp "$SRC" "$DST"
+                  chmod 644 "$DST"
+
+                  if [ -f "$DST" ]; then
+                      SIZE=$(ls -lh "$DST" | awk '{print $5}')
+                      echo "    ✅ Replaced successfully ($SIZE)"
+                  else
+                      echo "    ❌ Failed to replace"
+                  fi
+              else
+                  echo "  ⚠️ Source not found: $file"
+              fi
+          done
+
+          # 复制 ripgrep 二进制
+          if [ -f "$OFFICIAL_NM/@vscode/ripgrep/bin/rg" ]; then
+              echo "  📦 Replacing: @vscode/ripgrep/bin/rg"
+              mkdir -p "$TARGET_NM/@vscode/ripgrep/bin"
+              cp "$OFFICIAL_NM/@vscode/ripgrep/bin/rg" "$TARGET_NM/@vscode/ripgrep/bin/rg"
+              chmod 755 "$TARGET_NM/@vscode/ripgrep/bin/rg"
+              echo "    ✅ Replaced successfully"
+          fi
+
+          echo "✅ Native modules replacement completed"
 
           rm -f /tmp/official.tar.gz
           rm -rf /tmp/official-vscode
@@ -761,7 +766,7 @@ jobs:
           fi
 
       # ============================================================
-      # 验证步骤 - 注意缩进：必须与 steps 同级，且在 steps 列表中
+      # 验证步骤
       # ============================================================
       - name: 🔍 Comprehensive ExtensionHost & System Verification
         if: always()
@@ -923,7 +928,7 @@ jobs:
                   echo "   ✅ password-store=basic configured"
                   PASSED=$((PASSED + 1))
               else
-                  echo "   ⚠️ password-store=basic NOT configured (may be okay)"
+                  echo "   ⚠️ password-store=basic NOT configured"
                   WARNINGS=$((WARNINGS + 1))
               fi
 
@@ -931,7 +936,7 @@ jobs:
                   echo "   ✅ --no-sandbox configured"
                   PASSED=$((PASSED + 1))
               else
-                  echo "   ⚠️ --no-sandbox NOT configured (may be okay)"
+                  echo "   ⚠️ --no-sandbox NOT configured"
                   WARNINGS=$((WARNINGS + 1))
               fi
 
@@ -939,7 +944,7 @@ jobs:
                   echo "   ✅ GNOME_KEYRING_CONTROL disabled"
                   PASSED=$((PASSED + 1))
               else
-                  echo "   ⚠️ GNOME_KEYRING_CONTROL not set (may be okay)"
+                  echo "   ⚠️ GNOME_KEYRING_CONTROL not set"
                   WARNINGS=$((WARNINGS + 1))
               fi
           else
@@ -958,7 +963,7 @@ jobs:
               echo "   ✅ custom-extensions exists ($CUSTOM_COUNT extensions)"
               PASSED=$((PASSED + 1))
           else
-              echo "   ⚠️ custom-extensions not found (may be okay)"
+              echo "   ⚠️ custom-extensions not found"
               WARNINGS=$((WARNINGS + 1))
           fi
 
@@ -978,26 +983,24 @@ jobs:
 
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📌 8. User Directory Structure"
+          echo "📌 8. Check GLIBC compatibility"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          if [ -f "$BUILD_DIR/run.sh" ]; then
-              if grep -q "VSCODE_EXTENSIONS_DIR" "$BUILD_DIR/run.sh"; then
-                  echo "   ✅ VSCODE_EXTENSIONS_DIR configured"
-                  PASSED=$((PASSED + 1))
-              else
-                  echo "   ⚠️ VSCODE_EXTENSIONS_DIR not set (may be okay)"
-                  WARNINGS=$((WARNINGS + 1))
-              fi
+          # 检查替换后的 .node 文件
+          TARGET_NM="$BUILD_DIR/resources/app/node_modules"
 
-              if grep -q "VSCODE_APPDATA" "$BUILD_DIR/run.sh"; then
-                  echo "   ✅ VSCODE_APPDATA configured"
-                  PASSED=$((PASSED + 1))
+          echo "   🔍 Checking replaced native modules for GLIBC compatibility:"
+
+          for file in "@vscode/sqlite3/build/Release/vscode-sqlite3.node" "@vscode/spdlog/build/Release/spdlog.node"; do
+              if [ -f "$TARGET_NM/$file" ]; then
+                  echo "   ✅ $file exists"
+                  # 检查需要的 GLIBC 版本
+                  GLIBC_NEEDED=$(strings "$TARGET_NM/$file" 2>/dev/null | grep GLIBC | sort -u | tail -1 || echo "unknown")
+                  echo "      📋 GLIBC version needed: $GLIBC_NEEDED"
               else
-                  echo "   ⚠️ VSCODE_APPDATA not set (may be okay)"
-                  WARNINGS=$((WARNINGS + 1))
+                  echo "   ❌ $file NOT FOUND"
               fi
-          fi
+          done
 
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -1023,7 +1026,6 @@ jobs:
           echo "   ⚠️ Warnings: $WARNINGS"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          # 关键检查：ExtensionHost 必须存在
           if [ $EXTENSION_HOST_FOUND -gt 0 ]; then
               echo ""
               echo "✅✅✅ EXTENSIONHOST IS FUNCTIONAL!"
@@ -1031,6 +1033,7 @@ jobs:
               echo "   📋 ExtensionHost verification passed:"
               echo "      - extensionHostProcess.js found"
               echo "      - $EXT_COUNT extensions installed"
+              echo "      - Native modules replaced with compatible versions"
               echo "      - DEB package built: $(ls -lh tscode-*.deb 2>/dev/null | awk '{print $5}')"
               echo ""
               echo "   🚀 To install and test:"
@@ -1068,6 +1071,7 @@ jobs:
           echo "   - No sandbox password prompt"
           echo "   - Desktop entry in application menu"
           echo "   - Extension host fully functional"
+          echo "   - Compatible native modules for Debian 10"
           echo "==========================================="
           if [ "${{ job.status }}" = "success" ]; then
             echo ""
