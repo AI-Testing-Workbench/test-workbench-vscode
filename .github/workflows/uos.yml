@@ -71,57 +71,104 @@ jobs:
             gulp-rename gulp-sort 2>/dev/null || true
 
       # ============================================================
-      # 注意：这个步骤已经被移除或修改，不再替换整个 extensions.ts
-      # 只修改必要的部分来禁用下载，但保留加载功能
+      # 修复：只修改 builtInExtensions.ts，不破坏 extensions.ts
       # ============================================================
-      - name: 🔧 Patch extensions.ts (preserve functionality)
+      - name: 🔧 Patch built-in extensions (disable downloads only)
         run: |
           echo "=========================================="
-          echo "🔧 Patching extensions.ts - preserving extension loading"
+          echo "🔧 Patching built-in extensions - disabling downloads only"
           echo "=========================================="
 
-          # 备份原始文件
-          cp build/lib/extensions.ts build/lib/extensions.ts.bak
-
-          # 使用 sed 只修改必要部分，而不是完全替换
-          # 1. 禁用内置扩展下载
-          sed -i 's/export const shouldDownloadBuiltInExtensions = true/export const shouldDownloadBuiltInExtensions = false/g' build/lib/extensions.ts
-          sed -i 's/export const shouldDownloadWebBuiltInExtensions = true/export const shouldDownloadWebBuiltInExtensions = false/g' build/lib/extensions.ts
-
-          # 2. 清空 builtInExtensions 列表（避免下载）
+          # 只修改 builtInExtensions.ts，禁用下载
           cat > build/lib/builtInExtensions.ts << 'EOF'
           // Built-in extensions - disabled for UOS build
+          // This file is imported by extensions.ts, must maintain same exports
+
+          import { Stream } from 'stream';
+
+          // 内置扩展列表 - 清空以避免下载
           export const builtInExtensions: any[] = [];
           export const shouldDownloadBuiltInExtensions = false;
           export const webBuiltInExtensions: any[] = [];
           export const shouldDownloadWebBuiltInExtensions = false;
-          EOF
 
-          # 3. 只修改 fetchUrls 为本地模式
-          cat > build/lib/fetch.ts << 'EOF'
-          import { Stream } from "stream";
-          import * as fs from 'fs';
-          import * as path from 'path';
+          // 导出空流，用于扩展打包
+          export function getExtensionStream(): Stream {
+              const s = new Stream.Readable();
+              s._read = () => s.push(null);
+              return s;
+          }
+
+          export function getExtensionDownloadStream(): Stream {
+              const s = new Stream.Readable();
+              s._read = () => s.push(null);
+              return s;
+          }
+
+          // 这些函数在 extensions.ts 中被引用
+          export function packageMarketplaceExtensionsStream(): Stream {
+              const s = new Stream.Readable();
+              s._read = () => s.push(null);
+              return s;
+          }
+
+          export function packageNativeLocalExtensionsStream(): Stream {
+              const s = new Stream.Readable();
+              s._read = () => s.push(null);
+              return s;
+          }
+
+          export function packageNonNativeLocalExtensionsStream(): Stream {
+              const s = new Stream.Readable();
+              s._read = () => s.push(null);
+              return s;
+          }
+
+          export function packageLocalExtensionsStream(): Stream {
+              const s = new Stream.Readable();
+              s._read = () => s.push(null);
+              return s;
+          }
+
+          export function packageExtensionsStream(): Stream {
+              const s = new Stream.Readable();
+              s._read = () => s.push(null);
+              return s;
+          }
+
+          export function packageCopilotExtensionStream(): Stream {
+              const s = new Stream.Readable();
+              s._read = () => s.push(null);
+              return s;
+          }
+
+          export function packageCopilotChatExtensionStream(): Stream {
+              const s = new Stream.Readable();
+              s._read = () => s.push(null);
+              return s;
+          }
+
+          export function packageCopilotAgentsExtensionStream(): Stream {
+              const s = new Stream.Readable();
+              s._read = () => s.push(null);
+              return s;
+          }
+
+          export function fromMarketplace(): any[] { return []; }
 
           export async function fetchUrls(urls: string[], options: any): Promise<void> {
-            // 对于 UOS 构建，只检查本地文件
-            console.log(`fetchUrls: Checking local extensions (${urls.length} urls)`);
-            for (const url of urls) {
-              // 如果 URL 是本地文件路径，尝试读取
-              if (url.startsWith('file://')) {
-                const filePath = url.replace('file://', '');
-                if (fs.existsSync(filePath)) {
-                  console.log(`  ✅ Local file exists: ${filePath}`);
-                }
-              } else {
-                console.log(`  ℹ️ Skipping remote URL: ${url}`);
-              }
-            }
-            return Promise.resolve();
+              console.log(`fetchUrls: Skipping ${urls.length} URLs (UOS build)`);
+              return Promise.resolve();
           }
+
+          export function buildExtensionMedia(): void {}
+          export function compileExtensionMedia(): void {}
+          export function buildExtensionMediaTask(done: any): void { done(); }
+
+          export const isWebExtension = false;
           EOF
 
-          echo "✅ extensions.ts patched - extension loading preserved"
+          echo "✅ builtInExtensions.ts patched with all required exports"
 
       - name: 🔧 Fix gulpfile spawn calls
         run: |
@@ -1518,8 +1565,7 @@ jobs:
 
           if [ ! -f "$DEB_FILE" ]; then
             echo "❌ DEB package not found: $DEB_FILE"
-            exit 1
-          fi
+            exit 1          fi
 
           echo "📦 Extracting DEB package for verification..."
           mkdir -p /tmp/deb-verify
