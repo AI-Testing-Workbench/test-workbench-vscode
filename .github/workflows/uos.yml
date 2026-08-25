@@ -62,15 +62,14 @@ jobs:
           echo "=========================================="
           npm install --legacy-peer-deps
 
-      - name: 📦 Install ALL build tools and create mocks
+      - name: 📦 Install build tools
         run: |
           echo "=========================================="
-          echo "📦 Installing ALL build tools"
+          echo "📦 Installing build tools"
           echo "=========================================="
 
           npm install -g tsx
 
-          # 安装所有必需的模块
           npm install --legacy-peer-deps \
             ternary-stream \
             vscode-gulp-watch \
@@ -94,155 +93,19 @@ jobs:
             through2 \
             merge-stream \
             event-stream \
-            gulp-vinyl-zip \
-            gulp-chmod \
-            gulp-ignore \
-            gulp-decompress \
-            gulp-plumber \
-            gulp-util \
-            gulp-flatmap \
-            bufferstream \
-            into-stream \
-            vinyl-source-stream \
-            gulp-unzip \
-            gulp-zip \
             2>/dev/null || true
 
-          echo "✅ Build tools installed"
-
-          # ============================================================
-          # 创建所有必要的 mock 模块
-          # ============================================================
-          echo ""
-          echo "🔧 Creating mock modules..."
-
-          # 1. 创建 @vscode/vsce mock
-          mkdir -p node_modules/@vscode
-          cat > node_modules/@vscode/vsce.js << 'VSCE_EOF'
-          // Complete mock for @vscode/vsce
-          const stream = require('stream');
-          const fs = require('fs');
-          const path = require('path');
-
-          class VSCE {
-              constructor() {
-                  this.name = 'mock-vsce';
-              }
-
-              async package(options) {
-                  console.log('📦 vsce.package: skipped (UOS build)');
-                  return Promise.resolve();
-              }
-
-              async listFiles() {
-                  return [];
-              }
-
-              async readManifest() {
-                  return { name: 'mock-extension', version: '0.0.0' };
-              }
-
-              async validate() {
-                  return true;
-              }
-          }
-
-          // 导出所有可能的函数
-          module.exports = {
-              packageCommand: async function(options) {
-                  console.log('📦 vsce.packageCommand: skipped (UOS build)');
-                  return Promise.resolve();
-              },
-              listFiles: async function() {
-                  return [];
-              },
-              readManifest: async function() {
-                  return { name: 'mock-extension', version: '0.0.0' };
-              },
-              validateManifest: async function() {
-                  return true;
-              },
-              createDefaultWorkspace: function() { return {}; },
-              getDefaultBaseContentUrl: function() { return ''; },
-              getDefaultGitHubRepository: function() { return ''; },
-              VSCE: VSCE,
-              default: {
-                  packageCommand: async function(options) {
-                      console.log('📦 vsce.default.packageCommand: skipped');
-                      return Promise.resolve();
-                  }
-              }
-          };
-
-          console.log('✅ @vscode/vsce mock loaded');
-          VSCE_EOF
-
-          cat > node_modules/@vscode/package.json << 'PKG_EOF'
-          {
-              "name": "@vscode/vsce",
-              "version": "2.24.0",
-              "description": "Mock vsce for UOS build",
-              "main": "vsce.js"
-          }
-          PKG_EOF
-
-          # 2. 创建 ternary-stream mock（如果不存在）
-          if [ ! -d "node_modules/ternary-stream" ]; then
-              mkdir -p node_modules/ternary-stream
-              cat > node_modules/ternary-stream/index.js << 'TERNARY_EOF'
-          const through2 = require('through2');
-
-          function ternaryStream(test, pass, fail) {
-              return through2.obj(function(file, enc, callback) {
-                  try {
-                      const result = typeof test === 'function' ? test(file) : test;
-                      if (result) {
-                          if (typeof pass === 'function') {
-                              pass(file);
-                          }
-                          this.push(file);
-                      } else {
-                          if (typeof fail === 'function') {
-                              fail(file);
-                          }
-                      }
-                  } catch (err) {
-                      console.error('ternary-stream error:', err);
-                  }
-                  callback();
-              });
-          }
-
-          module.exports = ternaryStream;
-          module.exports.ternaryStream = ternaryStream;
-          TERNARY_EOF
-
-              cat > node_modules/ternary-stream/package.json << 'TERNARY_PKG'
-          {
-              "name": "ternary-stream",
-              "version": "3.0.0",
-              "description": "Mock ternary-stream for UOS build",
-              "main": "index.js"
-          }
-          TERNARY_PKG
-              echo "✅ ternary-stream mock created"
-          else
-              echo "✅ ternary-stream already installed"
-          fi
-
-          echo "✅ All mocks created"
-
       # ============================================================
-      # 完全重写 extensions.ts 相关的函数
+      # 修复所有扩展相关文件 - 一次性完成
       # ============================================================
-      - name: 🔧 Completely patch extensions system
+      - name: 🔧 Fix all extension build files
         run: |
           echo "=========================================="
-          echo "🔧 Completely patching extensions system"
+          echo "🔧 Fixing all extension build files"
           echo "=========================================="
 
-          # 1. 重写 builtInExtensions.ts
-          cat > build/lib/builtInExtensions.ts << 'EOF'
+          # 1. 创建 builtInExtensions.ts
+          cat > build/lib/builtInExtensions.ts << 'BUILTIN_EOF'
           /*---------------------------------------------------------------------------------------------
            *  Copyright (c) Microsoft Corporation. All rights reserved.
            *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -261,7 +124,6 @@ jobs:
               return s;
           }
 
-          // 所有扩展函数返回空流
           export function getExtensionStream(): Stream { return createEmptyStream(); }
           export function getExtensionDownloadStream(): Stream { return createEmptyStream(); }
           export function packageMarketplaceExtensionsStream(): Stream { return createEmptyStream(); }
@@ -290,61 +152,168 @@ jobs:
           export const isWebExtension = false;
           export const builtInExtensionsProd = [];
           export const shouldDownloadBuiltInExtensionsProd = false;
-          EOF
+          BUILTIN_EOF
 
-          # 2. 修改 extensions.ts，注释掉 vsce 相关代码
-          if [ -f "build/lib/extensions.ts" ]; then
-              cp build/lib/extensions.ts build/lib/extensions.ts.bak
+          echo "✅ builtInExtensions.ts created"
 
-              # 使用 Python 更精确地修改
-              python3 << 'PYTHON_SCRIPT'
-          import re
+          # 2. 创建 extensions.ts - 完全重写，无语法错误
+          cat > build/lib/extensions.ts << 'EXTENSIONS_EOF'
+          /*---------------------------------------------------------------------------------------------
+           *  Copyright (c) Microsoft Corporation. All rights reserved.
+           *  Licensed under the MIT License. See License.txt in the project root for license information.
+           *--------------------------------------------------------------------------------------------*/
 
-          with open('build/lib/extensions.ts', 'r') as f:
-              content = f.read()
+          import { Stream, Readable } from 'stream';
 
-          # 注释掉 vsce 导入
-          content = re.sub(r'import\s*\{?\s*vsce\s*\}?\s*from\s*["\']@vscode/vsce["\']',
-                          '// vsce import disabled for UOS build', content)
+          // ============================================================
+          // UOS 构建版本 - 所有扩展函数返回空流
+          // ============================================================
 
-          # 替换 vsce.packageCommand 调用
-          content = re.sub(r'vsce\.packageCommand\s*\(',
-                          '(async () => { console.log("vsce.packageCommand skipped"); return {}; })() // ', content)
+          function createEmptyStream(): Stream {
+              const s = new Readable();
+              s._read = () => s.push(null);
+              return s;
+          }
 
-          # 替换 fromLocal 函数中的 vsce 引用
-          content = re.sub(r'vsce\.', '// vsce.', content)
+          // 内置扩展列表
+          export const builtInExtensions: any[] = [];
+          export const shouldDownloadBuiltInExtensions = false;
+          export const webBuiltInExtensions: any[] = [];
+          export const shouldDownloadWebBuiltInExtensions = false;
 
-          # 添加全局 vsce mock
-          content = '// @ts-ignore\n' + content
+          // 所有扩展流函数
+          export function getExtensionStream(): Stream {
+              return createEmptyStream();
+          }
 
-          with open('build/lib/extensions.ts', 'w') as f:
-              f.write(content)
+          export function getExtensionDownloadStream(): Stream {
+              return createEmptyStream();
+          }
 
-          print("✅ extensions.ts patched")
-          PYTHON_SCRIPT
-          fi
+          export function packageMarketplaceExtensionsStream(): Stream {
+              return createEmptyStream();
+          }
 
-          # 3. 创建 gulpfile.extensions.ts 的补丁
+          export function packageNativeLocalExtensionsStream(): Stream {
+              return createEmptyStream();
+          }
+
+          export function packageNonNativeLocalExtensionsStream(): Stream {
+              return createEmptyStream();
+          }
+
+          export function packageLocalExtensionsStream(): Stream {
+              return createEmptyStream();
+          }
+
+          export function packageExtensionsStream(): Stream {
+              return createEmptyStream();
+          }
+
+          export function packageCopilotExtensionStream(): Stream {
+              return createEmptyStream();
+          }
+
+          export function packageCopilotChatExtensionStream(): Stream {
+              return createEmptyStream();
+          }
+
+          export function packageCopilotAgentsExtensionStream(): Stream {
+              return createEmptyStream();
+          }
+
+          export function getNativeLocalExtensionStream(): Stream {
+              return createEmptyStream();
+          }
+
+          export function getLocalExtensionStream(): Stream {
+              return createEmptyStream();
+          }
+
+          export function getMarketplaceExtensionStream(): Stream {
+              return createEmptyStream();
+          }
+
+          export function fromMarketplace(): any[] {
+              return [];
+          }
+
+          export async function fetchUrls(urls: string[], options: any): Promise<void> {
+              console.log(`fetchUrls: Skipping ${urls.length} URLs (UOS build)`);
+              return Promise.resolve();
+          }
+
+          export function buildExtensionMedia(): void {
+              // 空操作
+          }
+
+          export function compileExtensionMedia(): void {
+              // 空操作
+          }
+
+          export function buildExtensionMediaTask(done: any): void {
+              done();
+          }
+
+          export const isWebExtension = false;
+          export const builtInExtensionsProd = [];
+          export const shouldDownloadBuiltInExtensionsProd = false;
+
+          // 额外的导出
+          export function scanBuiltinExtensions(): any[] {
+              return [];
+          }
+
+          export function getExtensionGalleryResources(): any {
+              return { extensions: [] };
+          }
+
+          export function packageExtension(): Stream {
+              return createEmptyStream();
+          }
+
+          export function packageLocalExtension(): Stream {
+              return createEmptyStream();
+          }
+
+          export const localExtensions: any[] = [];
+          export const marketplaceExtensions: any[] = [];
+          export const nonNativeLocalExtensions: any[] = [];
+
+          console.log('✅ extensions.ts loaded (UOS build)');
+          EXTENSIONS_EOF
+
+          echo "✅ extensions.ts created"
+
+          # 3. 修改 gulpfile.extensions.ts
           if [ -f "build/gulpfile.extensions.ts" ]; then
-              python3 << 'PYTHON_SCRIPT2'
+              python3 << 'PYTHON_SCRIPT'
           import re
 
           with open('build/gulpfile.extensions.ts', 'r') as f:
               content = f.read()
 
-          # 注释掉 vsce 相关任务
-          content = re.sub(r'function\s+packageVsix[^{]*\{[^}]*\}',
-                          'function packageVsix() { console.log("packageVsix skipped for UOS build"); return Promise.resolve(); }',
-                          content, flags=re.DOTALL)
+          # 替换 packageVsix 函数
+          content = re.sub(
+              r'function\s+packageVsix\s*\([^)]*\)\s*\{[^}]*\}',
+              'function packageVsix() { console.log("packageVsix skipped for UOS build"); return Promise.resolve(); }',
+              content,
+              flags=re.DOTALL
+          )
+
+          # 注释掉 vsce 导入
+          content = re.sub(
+              r'import\s*\{?\s*vsce\s*\}?\s*from\s*["\']@vscode/vsce["\']',
+              '// vsce import disabled for UOS build',
+              content
+          )
 
           with open('build/gulpfile.extensions.ts', 'w') as f:
               f.write(content)
 
           print("✅ gulpfile.extensions.ts patched")
-          PYTHON_SCRIPT2
+          PYTHON_SCRIPT
           fi
-
-          echo "✅ Extensions system patched"
 
       - name: 🔧 Fix gulpfile spawn calls
         run: |
@@ -384,14 +353,6 @@ jobs:
           export function getCopilotExcludeFilter(): any {
               return function() { return false; };
           }
-
-          export function prepareCopilotExtension(extRoot: string): void {
-              console.log('Copilot extension preparation skipped for UOS build');
-          }
-
-          export function copyCopilotExtension(extRoot: string): void {
-              console.log('Copilot extension copy skipped for UOS build');
-          }
           EOF
 
       - name: 🔧 Disable Crashpad
@@ -426,7 +387,6 @@ jobs:
               constructor() { console.log('Crash service disabled for UOS build'); }
           }
           CRASH_EOF
-          echo "✅ crashService.ts created"
 
       - name: ⚙️ Set env
         run: |
@@ -573,6 +533,8 @@ jobs:
               rsync -a --no-owner --no-group "$OFFICIAL_EXT_DIR/$ext_name/" "$BUILD_DIR/resources/app/extensions/$ext_name/" 2>/dev/null
             fi
           done
+
+          echo "✅ Extensions copied"
 
           rm -f /tmp/official.tar.gz
           rm -rf /tmp/official-vscode
