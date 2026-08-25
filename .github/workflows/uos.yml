@@ -62,15 +62,15 @@ jobs:
           echo "=========================================="
           npm install --legacy-peer-deps
 
-      - name: 📦 Install ALL build tools and missing modules
+      - name: 📦 Install ALL build tools and create mocks
         run: |
           echo "=========================================="
-          echo "📦 Installing ALL build tools and missing modules"
+          echo "📦 Installing ALL build tools"
           echo "=========================================="
 
           npm install -g tsx
 
-          # 安装所有构建工具和可能缺失的模块
+          # 安装所有必需的模块
           npm install --legacy-peer-deps \
             ternary-stream \
             vscode-gulp-watch \
@@ -83,7 +83,6 @@ jobs:
             gulp-rename \
             gulp-sort \
             gulp \
-            @vscode/vsce \
             vinyl \
             vinyl-fs \
             del \
@@ -109,23 +108,88 @@ jobs:
             gulp-zip \
             2>/dev/null || true
 
-          echo "✅ All build tools installed"
+          echo "✅ Build tools installed"
 
-      # ============================================================
-      # 修复：创建一个 mock ternary-stream 模块（如果安装失败）
-      # ============================================================
-      - name: 🔧 Ensure ternary-stream is available
-        run: |
-          echo "=========================================="
-          echo "🔧 Ensuring ternary-stream is available"
-          echo "=========================================="
+          # ============================================================
+          # 创建所有必要的 mock 模块
+          # ============================================================
+          echo ""
+          echo "🔧 Creating mock modules..."
 
-          # 如果安装失败，手动创建 mock
+          # 1. 创建 @vscode/vsce mock
+          mkdir -p node_modules/@vscode
+          cat > node_modules/@vscode/vsce.js << 'VSCE_EOF'
+          // Complete mock for @vscode/vsce
+          const stream = require('stream');
+          const fs = require('fs');
+          const path = require('path');
+
+          class VSCE {
+              constructor() {
+                  this.name = 'mock-vsce';
+              }
+
+              async package(options) {
+                  console.log('📦 vsce.package: skipped (UOS build)');
+                  return Promise.resolve();
+              }
+
+              async listFiles() {
+                  return [];
+              }
+
+              async readManifest() {
+                  return { name: 'mock-extension', version: '0.0.0' };
+              }
+
+              async validate() {
+                  return true;
+              }
+          }
+
+          // 导出所有可能的函数
+          module.exports = {
+              packageCommand: async function(options) {
+                  console.log('📦 vsce.packageCommand: skipped (UOS build)');
+                  return Promise.resolve();
+              },
+              listFiles: async function() {
+                  return [];
+              },
+              readManifest: async function() {
+                  return { name: 'mock-extension', version: '0.0.0' };
+              },
+              validateManifest: async function() {
+                  return true;
+              },
+              createDefaultWorkspace: function() { return {}; },
+              getDefaultBaseContentUrl: function() { return ''; },
+              getDefaultGitHubRepository: function() { return ''; },
+              VSCE: VSCE,
+              default: {
+                  packageCommand: async function(options) {
+                      console.log('📦 vsce.default.packageCommand: skipped');
+                      return Promise.resolve();
+                  }
+              }
+          };
+
+          console.log('✅ @vscode/vsce mock loaded');
+          VSCE_EOF
+
+          cat > node_modules/@vscode/package.json << 'PKG_EOF'
+          {
+              "name": "@vscode/vsce",
+              "version": "2.24.0",
+              "description": "Mock vsce for UOS build",
+              "main": "vsce.js"
+          }
+          PKG_EOF
+
+          # 2. 创建 ternary-stream mock（如果不存在）
           if [ ! -d "node_modules/ternary-stream" ]; then
-            echo "⚠️ ternary-stream not found, creating mock..."
-            mkdir -p node_modules/ternary-stream
-            cat > node_modules/ternary-stream/index.js << 'TERNARY_EOF'
-          // Mock ternary-stream for UOS build
+              mkdir -p node_modules/ternary-stream
+              cat > node_modules/ternary-stream/index.js << 'TERNARY_EOF'
           const through2 = require('through2');
 
           function ternaryStream(test, pass, fail) {
@@ -141,7 +205,6 @@ jobs:
                           if (typeof fail === 'function') {
                               fail(file);
                           }
-                          // 不 push 文件
                       }
                   } catch (err) {
                       console.error('ternary-stream error:', err);
@@ -152,10 +215,9 @@ jobs:
 
           module.exports = ternaryStream;
           module.exports.ternaryStream = ternaryStream;
-          console.log('✅ Mock ternary-stream loaded');
           TERNARY_EOF
 
-            cat > node_modules/ternary-stream/package.json << 'TERNARY_PKG'
+              cat > node_modules/ternary-stream/package.json << 'TERNARY_PKG'
           {
               "name": "ternary-stream",
               "version": "3.0.0",
@@ -163,20 +225,23 @@ jobs:
               "main": "index.js"
           }
           TERNARY_PKG
-            echo "✅ Mock ternary-stream created"
+              echo "✅ ternary-stream mock created"
           else
-            echo "✅ ternary-stream already installed"
+              echo "✅ ternary-stream already installed"
           fi
 
+          echo "✅ All mocks created"
+
       # ============================================================
-      # 修复：完全重写 builtInExtensions.ts
+      # 完全重写 extensions.ts 相关的函数
       # ============================================================
-      - name: 🔧 Patch built-in extensions (complete rewrite)
+      - name: 🔧 Completely patch extensions system
         run: |
           echo "=========================================="
-          echo "🔧 Completely rewriting builtInExtensions.ts"
+          echo "🔧 Completely patching extensions system"
           echo "=========================================="
 
+          # 1. 重写 builtInExtensions.ts
           cat > build/lib/builtInExtensions.ts << 'EOF'
           /*---------------------------------------------------------------------------------------------
            *  Copyright (c) Microsoft Corporation. All rights reserved.
@@ -185,115 +250,101 @@ jobs:
 
           import { Stream, Readable } from 'stream';
 
-          // 内置扩展列表 - 清空以避免下载
           export const builtInExtensions: any[] = [];
           export const shouldDownloadBuiltInExtensions = false;
           export const webBuiltInExtensions: any[] = [];
           export const shouldDownloadWebBuiltInExtensions = false;
 
-          // 创建一个空流
           function createEmptyStream(): Stream {
               const s = new Readable();
               s._read = () => s.push(null);
               return s;
           }
 
-          // 所有扩展打包函数 - 返回空流
-          export function getExtensionStream(): Stream {
-              return createEmptyStream();
-          }
+          // 所有扩展函数返回空流
+          export function getExtensionStream(): Stream { return createEmptyStream(); }
+          export function getExtensionDownloadStream(): Stream { return createEmptyStream(); }
+          export function packageMarketplaceExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageNativeLocalExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageNonNativeLocalExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageLocalExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageCopilotExtensionStream(): Stream { return createEmptyStream(); }
+          export function packageCopilotChatExtensionStream(): Stream { return createEmptyStream(); }
+          export function packageCopilotAgentsExtensionStream(): Stream { return createEmptyStream(); }
+          export function getNativeLocalExtensionStream(): Stream { return createEmptyStream(); }
+          export function getLocalExtensionStream(): Stream { return createEmptyStream(); }
+          export function getMarketplaceExtensionStream(): Stream { return createEmptyStream(); }
 
-          export function getExtensionDownloadStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageMarketplaceExtensionsStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageNativeLocalExtensionsStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageNonNativeLocalExtensionsStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageLocalExtensionsStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageExtensionsStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageCopilotExtensionStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageCopilotChatExtensionStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function packageCopilotAgentsExtensionStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function fromMarketplace(): any[] {
-              return [];
-          }
+          export function fromMarketplace(): any[] { return []; }
 
           export async function fetchUrls(urls: string[], options: any): Promise<void> {
               console.log(`fetchUrls: Skipping ${urls.length} URLs (UOS build)`);
               return Promise.resolve();
           }
 
-          export function buildExtensionMedia(): void {
-              // 空操作
-          }
+          export function buildExtensionMedia(): void {}
+          export function compileExtensionMedia(): void {}
+          export function buildExtensionMediaTask(done: any): void { done(); }
 
-          export function compileExtensionMedia(): void {
-              // 空操作
-          }
-
-          export function buildExtensionMediaTask(done: any): void {
-              done();
-          }
-
-          // 导出 isWebExtension 常量
           export const isWebExtension = false;
-
-          // 额外的导出
-          export function getNativeLocalExtensionStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function getLocalExtensionStream(): Stream {
-              return createEmptyStream();
-          }
-
-          export function getMarketplaceExtensionStream(): Stream {
-              return createEmptyStream();
-          }
-
           export const builtInExtensionsProd = [];
           export const shouldDownloadBuiltInExtensionsProd = false;
           EOF
 
-          echo "✅ builtInExtensions.ts completely rewritten"
-
-      - name: 🔧 Fix extensions.ts imports
-        run: |
-          echo "=========================================="
-          echo "🔧 Fixing extensions.ts imports"
-          echo "=========================================="
-
+          # 2. 修改 extensions.ts，注释掉 vsce 相关代码
           if [ -f "build/lib/extensions.ts" ]; then
-            cp build/lib/extensions.ts build/lib/extensions.ts.bak
-            # 移除 @vscode/vsce 导入
-            sed -i '/@vscode\/vsce/d' build/lib/extensions.ts
-            echo "✅ Removed @vscode/vsce import"
+              cp build/lib/extensions.ts build/lib/extensions.ts.bak
+
+              # 使用 Python 更精确地修改
+              python3 << 'PYTHON_SCRIPT'
+          import re
+
+          with open('build/lib/extensions.ts', 'r') as f:
+              content = f.read()
+
+          # 注释掉 vsce 导入
+          content = re.sub(r'import\s*\{?\s*vsce\s*\}?\s*from\s*["\']@vscode/vsce["\']',
+                          '// vsce import disabled for UOS build', content)
+
+          # 替换 vsce.packageCommand 调用
+          content = re.sub(r'vsce\.packageCommand\s*\(',
+                          '(async () => { console.log("vsce.packageCommand skipped"); return {}; })() // ', content)
+
+          # 替换 fromLocal 函数中的 vsce 引用
+          content = re.sub(r'vsce\.', '// vsce.', content)
+
+          # 添加全局 vsce mock
+          content = '// @ts-ignore\n' + content
+
+          with open('build/lib/extensions.ts', 'w') as f:
+              f.write(content)
+
+          print("✅ extensions.ts patched")
+          PYTHON_SCRIPT
           fi
+
+          # 3. 创建 gulpfile.extensions.ts 的补丁
+          if [ -f "build/gulpfile.extensions.ts" ]; then
+              python3 << 'PYTHON_SCRIPT2'
+          import re
+
+          with open('build/gulpfile.extensions.ts', 'r') as f:
+              content = f.read()
+
+          # 注释掉 vsce 相关任务
+          content = re.sub(r'function\s+packageVsix[^{]*\{[^}]*\}',
+                          'function packageVsix() { console.log("packageVsix skipped for UOS build"); return Promise.resolve(); }',
+                          content, flags=re.DOTALL)
+
+          with open('build/gulpfile.extensions.ts', 'w') as f:
+              f.write(content)
+
+          print("✅ gulpfile.extensions.ts patched")
+          PYTHON_SCRIPT2
+          fi
+
+          echo "✅ Extensions system patched"
 
       - name: 🔧 Fix gulpfile spawn calls
         run: |
@@ -301,7 +352,6 @@ jobs:
           import re
           import os
 
-          # 修复所有 gulpfile 文件
           for file in ['build/gulpfile.vscode.ts', 'build/gulpfile.extensions.ts', 'build/gulpfile.ts']:
               if os.path.exists(file):
                   with open(file, 'r') as f:
@@ -311,7 +361,7 @@ jobs:
                   content = re.sub(r"spawn\(process\.execPath", "spawn('tsx'", content)
                   with open(file, 'w') as f:
                       f.write(content)
-                  print(f"spawn calls fixed in {file}")
+                  print(f"✅ spawn calls fixed in {os.path.basename(file)}")
           PY_END
 
       - name: 🔧 Replace copilot.ts
@@ -359,7 +409,7 @@ jobs:
               data['crashReporter']['disabled'] = True
               with open('product.json', 'w') as f:
                   json.dump(data, f, indent=2)
-              print("product.json modified")
+              print("✅ product.json modified")
           PY_JSON_END
 
           mkdir -p src/vs/platform/crash/common
@@ -376,7 +426,7 @@ jobs:
               constructor() { console.log('Crash service disabled for UOS build'); }
           }
           CRASH_EOF
-          echo "crashService.ts created"
+          echo "✅ crashService.ts created"
 
       - name: ⚙️ Set env
         run: |
@@ -387,7 +437,6 @@ jobs:
           echo "ELECTRON_DISABLE_CRASH_REPORTER=1" >> $GITHUB_ENV
           echo "ELECTRON_DISABLE_CRASH_REPORTING=1" >> $GITHUB_ENV
           echo "VSCODE_SKIP_VSIX_PACKAGING=1" >> $GITHUB_ENV
-          echo "NODE_OPTIONS=--max-old-space-size=8192" >> $GITHUB_ENV
 
       - name: 🔨 Build VSCode
         run: |
@@ -455,9 +504,6 @@ jobs:
 
           echo "✅ node_modules copied"
 
-      # ============================================================
-      # 后续步骤（保持不变）
-      # ============================================================
       - name: 🔥 Replace native modules and copy official extensions
         run: |
           set +e
@@ -470,7 +516,7 @@ jobs:
           VERSION="${{ github.event.inputs.version || '1.116.0' }}"
 
           echo ""
-          echo "📌 Step 1: Downloading official VSCode $VERSION for Linux x64..."
+          echo "📌 Step 1: Downloading official VSCode $VERSION..."
 
           rm -rf /tmp/official-vscode
           rm -f /tmp/official.tar.gz
@@ -478,7 +524,7 @@ jobs:
           wget -q --show-progress "https://update.code.visualstudio.com/$VERSION/linux-x64/stable" -O /tmp/official.tar.gz
 
           if [ $? -ne 0 ] || [ ! -s /tmp/official.tar.gz ]; then
-            echo "⚠️ Failed to download version $VERSION, trying latest..."
+            echo "⚠️ Failed to download $VERSION, trying latest..."
             wget -q --show-progress https://update.code.visualstudio.com/latest/linux-x64/stable -O /tmp/official.tar.gz
             if [ $? -ne 0 ] || [ ! -s /tmp/official.tar.gz ]; then
               echo "❌ Failed to download official VSCode!"
@@ -511,21 +557,7 @@ jobs:
           echo "✅ Official VSCode found at: $OFFICIAL_DIR"
 
           echo ""
-          echo "📌 Step 2: Replacing node_modules with official version..."
-
-          if [ -d "$OFFICIAL_DIR/resources/app/node_modules" ]; then
-            echo "   ✅ Found official node_modules"
-            if [ -d "$BUILD_DIR/resources/app/node_modules" ]; then
-              mv "$BUILD_DIR/resources/app/node_modules" "$BUILD_DIR/resources/app/node_modules.bak"
-            fi
-            cp -r "$OFFICIAL_DIR/resources/app/node_modules" "$BUILD_DIR/resources/app/"
-            if [ -d "$BUILD_DIR/resources/app/node_modules" ]; then
-              echo "   ✅ node_modules replaced successfully"
-            fi
-          fi
-
-          echo ""
-          echo "📌 Step 3: Copying official extensions to system directory..."
+          echo "📌 Step 2: Copying official extensions..."
 
           mkdir -p "$BUILD_DIR/resources/app/extensions"
           OFFICIAL_EXT_DIR="$OFFICIAL_DIR/resources/app/extensions"
@@ -535,26 +567,13 @@ jobs:
             exit 1
           fi
 
-          EXT_LIST_FILE="/tmp/ext_list.txt"
-          find "$OFFICIAL_EXT_DIR" -maxdepth 1 -type d ! -path "$OFFICIAL_EXT_DIR" -exec basename {} \; > "$EXT_LIST_FILE" 2>/dev/null
-
-          while IFS= read -r ext_name; do
-            [ -z "$ext_name" ] && continue
-            ext_path="$OFFICIAL_EXT_DIR/$ext_name"
-            if [ ! -d "$ext_path" ]; then
-              continue
+          find "$OFFICIAL_EXT_DIR" -maxdepth 1 -type d ! -path "$OFFICIAL_EXT_DIR" -exec basename {} \; | while read ext_name; do
+            if [ ! -d "$BUILD_DIR/resources/app/extensions/$ext_name" ]; then
+              echo "  Copying: $ext_name"
+              rsync -a --no-owner --no-group "$OFFICIAL_EXT_DIR/$ext_name/" "$BUILD_DIR/resources/app/extensions/$ext_name/" 2>/dev/null
             fi
-            if [ -d "$BUILD_DIR/resources/app/extensions/$ext_name" ]; then
-              continue
-            fi
-            echo "      Copying: $ext_name"
-            rsync -a --no-owner --no-group "$ext_path/" "$BUILD_DIR/resources/app/extensions/$ext_name/" 2>/dev/null
-          done < "$EXT_LIST_FILE"
+          done
 
-          rm -f "$EXT_LIST_FILE"
-
-          echo ""
-          echo "📌 Step 4: Cleaning up temporary files..."
           rm -f /tmp/official.tar.gz
           rm -rf /tmp/official-vscode
 
@@ -578,74 +597,51 @@ jobs:
             git clone --depth 1 --branch "$CUSTOM_BRANCH" "$CUSTOM_REPO" /tmp/custom-ext-temp 2>/dev/null || true
 
             if [ -d "/tmp/custom-ext-temp" ] && [ "$(ls -A /tmp/custom-ext-temp 2>/dev/null)" ]; then
-              VSIX_FILES=$(find /tmp/custom-ext-temp -name "*.vsix" -type f 2>/dev/null)
-              if [ -n "$VSIX_FILES" ]; then
-                for vsix_file in $VSIX_FILES; do
-                  vsix_name=$(basename "$vsix_file" .vsix)
-                  if [[ "$vsix_name" == *"darwin"* ]] || [[ "$vsix_name" == *"win32"* ]]; then
-                    continue
-                  fi
-                  echo "  Extracting: $vsix_name"
-                  mkdir -p /tmp/extract-vsix-$vsix_name
-                  unzip -q "$vsix_file" -d /tmp/extract-vsix-$vsix_name 2>/dev/null
-                  if [ -d "/tmp/extract-vsix-$vsix_name/extension" ]; then
-                    mkdir -p "$BUILD_DIR/resources/app/custom-extensions/$vsix_name"
-                    cp -r /tmp/extract-vsix-$vsix_name/extension/* "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/"
-                  elif [ -f "/tmp/extract-vsix-$vsix_name/package.json" ]; then
-                    mkdir -p "$BUILD_DIR/resources/app/custom-extensions/$vsix_name"
-                    cp -r /tmp/extract-vsix-$vsix_name/* "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/"
-                  fi
-                  rm -rf /tmp/extract-vsix-$vsix_name
-                done
-              fi
+              find /tmp/custom-ext-temp -name "*.vsix" -type f 2>/dev/null | while read vsix_file; do
+                vsix_name=$(basename "$vsix_file" .vsix)
+                if [[ "$vsix_name" == *"darwin"* ]] || [[ "$vsix_name" == *"win32"* ]]; then
+                  echo "  ⏭️ Skipping non-Linux: $vsix_name"
+                  continue
+                fi
+                echo "  📌 Extracting: $vsix_name"
+                mkdir -p /tmp/extract-vsix-$vsix_name
+                unzip -q "$vsix_file" -d /tmp/extract-vsix-$vsix_name 2>/dev/null
+                if [ -d "/tmp/extract-vsix-$vsix_name/extension" ]; then
+                  mkdir -p "$BUILD_DIR/resources/app/custom-extensions/$vsix_name"
+                  cp -r /tmp/extract-vsix-$vsix_name/extension/* "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/"
+                elif [ -f "/tmp/extract-vsix-$vsix_name/package.json" ]; then
+                  mkdir -p "$BUILD_DIR/resources/app/custom-extensions/$vsix_name"
+                  cp -r /tmp/extract-vsix-$vsix_name/* "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/"
+                fi
+                rm -rf /tmp/extract-vsix-$vsix_name
+              done
               rm -rf /tmp/custom-ext-temp
             fi
           fi
 
-      - name: 🧹 Deep cleanup (preserve runtime files)
+      - name: 🧹 Deep cleanup
         run: |
           echo "=========================================="
-          echo "🧹 Deep cleanup - preserving runtime files"
+          echo "🧹 Deep cleanup"
           echo "=========================================="
 
           BUILD_DIR="${BUILD_DIR:-./tscode}"
 
-          CORE_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features npm debug-auto-launch merge-conflict search-result @builtin"
+          # 移除不需要的扩展
+          rm -rf "$BUILD_DIR/resources/app/extensions/copilot" 2>/dev/null || true
+          rm -rf "$BUILD_DIR/resources/app/extensions"/testagent-nodejs-tscode-darwin-arm64 2>/dev/null || true
+          rm -rf "$BUILD_DIR/resources/app/extensions"/testagent-nodejs-tscode-win32-x64 2>/dev/null || true
 
-          mkdir -p /tmp/core-extensions-backup
-          for ext in $CORE_EXTS; do
-            if [ -d "$BUILD_DIR/resources/app/extensions/$ext" ]; then
-              mv "$BUILD_DIR/resources/app/extensions/$ext" /tmp/core-extensions-backup/ 2>/dev/null || true
-            fi
-          done
+          # 清理扩展源代码
+          find "$BUILD_DIR/resources/app/extensions" -name "*.ts" -type f ! -name "*.d.ts" -delete 2>/dev/null || true
+          find "$BUILD_DIR/resources/app/extensions" -name "*.map" -type f -delete 2>/dev/null || true
+          find "$BUILD_DIR/resources/app/extensions" -type d -name "src" -exec rm -rf {} + 2>/dev/null || true
+          find "$BUILD_DIR/resources/app/extensions" -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
 
-          cd "$BUILD_DIR/resources/app"
-
-          rm -rf extensions/testagent-nodejs-tscode-darwin-arm64 2>/dev/null || true
-          rm -rf extensions/testagent-nodejs-tscode-win32-x64 2>/dev/null || true
-          rm -rf extensions/copilot 2>/dev/null || true
-
-          for ext in extensions/*/; do
-            if [ -d "$ext" ]; then
-              rm -rf "$ext/src" 2>/dev/null || true
-              find "$ext" -name "*.ts" -type f ! -name "*.d.ts" -delete 2>/dev/null || true
-              find "$ext" -name "*.map" -type f -delete 2>/dev/null || true
-            fi
-          done
-
-          cd -
-
-          for ext in $CORE_EXTS; do
-            if [ -d "/tmp/core-extensions-backup/$ext" ]; then
-              mv "/tmp/core-extensions-backup/$ext" "$BUILD_DIR/resources/app/extensions/" 2>/dev/null || true
-            fi
-          done
-          rm -rf /tmp/core-extensions-backup
-
-      - name: 📄 Create launcher and fix all issues
+      - name: 📄 Create launcher
         run: |
           echo "=========================================="
-          echo "📄 Creating launcher and fixing all issues"
+          echo "📄 Creating launcher"
           echo "=========================================="
 
           BUILD_DIR="${BUILD_DIR:-./tscode}"
@@ -671,9 +667,7 @@ jobs:
             exit 1
           fi
 
-          if [ "$REAL_EXEC" != "tscode" ]; then
-            mv "$REAL_EXEC" "tscode"
-          fi
+          [ "$REAL_EXEC" != "tscode" ] && mv "$REAL_EXEC" "tscode"
 
           cat > run.sh << 'RUNEOF'
           #!/bin/bash
@@ -715,37 +709,10 @@ jobs:
           chmod +x tscode
           chmod +x chrome-sandbox 2>/dev/null || true
 
-      - name: 📄 Create desktop entry
-        run: |
-          BUILD_DIR="${BUILD_DIR:-./tscode}"
-          mkdir -p "$BUILD_DIR/usr/share/applications"
-          mkdir -p "$BUILD_DIR/usr/share/icons/hicolor/256x256/apps"
-
-          if [ -f "$BUILD_DIR/resources/app/resources/linux/code.png" ]; then
-            cp "$BUILD_DIR/resources/app/resources/linux/code.png" \
-               "$BUILD_DIR/usr/share/icons/hicolor/256x256/apps/tscode.png"
-          fi
-
-          cat > "$BUILD_DIR/usr/share/applications/tscode.desktop" << 'EOF'
-          [Desktop Entry]
-          Version=1.0
-          Type=Application
-          Name=TSCode
-          GenericName=Code Editor
-          Comment=Code Editing. Redefined.
-          Exec=/opt/tscode/run.sh %F
-          Icon=tscode
-          Terminal=false
-          Categories=Development;IDE;
-          MimeType=text/plain;inode/directory;
-          StartupNotify=true
-          StartupWMClass=Code
-          EOF
-
       - name: 📦 Build DEB package
         run: |
           echo "=========================================="
-          echo "📦 Building DEB package for Debian 10"
+          echo "📦 Building DEB package"
           echo "=========================================="
 
           BUILD_DIR="${BUILD_DIR:-./tscode}"
@@ -780,6 +747,22 @@ jobs:
             cp "$BUILD_DIR/resources/app/resources/linux/code.png" \
                "$DEB_ROOT/usr/share/icons/hicolor/256x256/apps/tscode.png"
           fi
+
+          cat > "$DEB_ROOT/usr/share/applications/tscode.desktop" << 'EOF'
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=TSCode
+          GenericName=Code Editor
+          Comment=Code Editing. Redefined.
+          Exec=/opt/tscode/run.sh %F
+          Icon=tscode
+          Terminal=false
+          Categories=Development;IDE;
+          MimeType=text/plain;inode/directory;
+          StartupNotify=true
+          StartupWMClass=Code
+          EOF
 
           cat > "$DEB_ROOT/DEBIAN/control" << 'CONTROLEOF'
           Package: tscode
