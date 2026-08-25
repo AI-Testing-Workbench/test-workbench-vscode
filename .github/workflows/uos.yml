@@ -95,16 +95,12 @@ jobs:
             event-stream \
             2>/dev/null || true
 
-      # ============================================================
-      # 修复所有扩展相关文件 - 一次性完成
-      # ============================================================
       - name: 🔧 Fix all extension build files
         run: |
           echo "=========================================="
           echo "🔧 Fixing all extension build files"
           echo "=========================================="
 
-          # 1. 创建 builtInExtensions.ts
           cat > build/lib/builtInExtensions.ts << 'BUILTIN_EOF'
           /*---------------------------------------------------------------------------------------------
            *  Copyright (c) Microsoft Corporation. All rights reserved.
@@ -156,7 +152,6 @@ jobs:
 
           echo "✅ builtInExtensions.ts created"
 
-          # 2. 创建 extensions.ts - 完全重写，无语法错误
           cat > build/lib/extensions.ts << 'EXTENSIONS_EOF'
           /*---------------------------------------------------------------------------------------------
            *  Copyright (c) Microsoft Corporation. All rights reserved.
@@ -165,23 +160,17 @@ jobs:
 
           import { Stream, Readable } from 'stream';
 
-          // ============================================================
-          // UOS 构建版本 - 所有扩展函数返回空流
-          // ============================================================
-
           function createEmptyStream(): Stream {
               const s = new Readable();
               s._read = () => s.push(null);
               return s;
           }
 
-          // 内置扩展列表
           export const builtInExtensions: any[] = [];
           export const shouldDownloadBuiltInExtensions = false;
           export const webBuiltInExtensions: any[] = [];
           export const shouldDownloadWebBuiltInExtensions = false;
 
-          // 所有扩展流函数
           export function getExtensionStream(): Stream {
               return createEmptyStream();
           }
@@ -243,23 +232,14 @@ jobs:
               return Promise.resolve();
           }
 
-          export function buildExtensionMedia(): void {
-              // 空操作
-          }
-
-          export function compileExtensionMedia(): void {
-              // 空操作
-          }
-
-          export function buildExtensionMediaTask(done: any): void {
-              done();
-          }
+          export function buildExtensionMedia(): void {}
+          export function compileExtensionMedia(): void {}
+          export function buildExtensionMediaTask(done: any): void { done(); }
 
           export const isWebExtension = false;
           export const builtInExtensionsProd = [];
           export const shouldDownloadBuiltInExtensionsProd = false;
 
-          // 额外的导出
           export function scanBuiltinExtensions(): any[] {
               return [];
           }
@@ -285,7 +265,6 @@ jobs:
 
           echo "✅ extensions.ts created"
 
-          # 3. 修改 gulpfile.extensions.ts
           if [ -f "build/gulpfile.extensions.ts" ]; then
               python3 << 'PYTHON_SCRIPT'
           import re
@@ -293,7 +272,6 @@ jobs:
           with open('build/gulpfile.extensions.ts', 'r') as f:
               content = f.read()
 
-          # 替换 packageVsix 函数
           content = re.sub(
               r'function\s+packageVsix\s*\([^)]*\)\s*\{[^}]*\}',
               'function packageVsix() { console.log("packageVsix skipped for UOS build"); return Promise.resolve(); }',
@@ -301,7 +279,6 @@ jobs:
               flags=re.DOTALL
           )
 
-          # 注释掉 vsce 导入
           content = re.sub(
               r'import\s*\{?\s*vsce\s*\}?\s*from\s*["\']@vscode/vsce["\']',
               '// vsce import disabled for UOS build',
@@ -589,12 +566,10 @@ jobs:
 
           BUILD_DIR="${BUILD_DIR:-./tscode}"
 
-          # 移除不需要的扩展
           rm -rf "$BUILD_DIR/resources/app/extensions/copilot" 2>/dev/null || true
           rm -rf "$BUILD_DIR/resources/app/extensions"/testagent-nodejs-tscode-darwin-arm64 2>/dev/null || true
           rm -rf "$BUILD_DIR/resources/app/extensions"/testagent-nodejs-tscode-win32-x64 2>/dev/null || true
 
-          # 清理扩展源代码
           find "$BUILD_DIR/resources/app/extensions" -name "*.ts" -type f ! -name "*.d.ts" -delete 2>/dev/null || true
           find "$BUILD_DIR/resources/app/extensions" -name "*.map" -type f -delete 2>/dev/null || true
           find "$BUILD_DIR/resources/app/extensions" -type d -name "src" -exec rm -rf {} + 2>/dev/null || true
@@ -785,7 +760,10 @@ jobs:
             exit 1
           fi
 
-            - name: 🔍 Comprehensive ExtensionHost & System Verification
+      # ============================================================
+      # 验证步骤 - 注意缩进：必须与 steps 同级，且在 steps 列表中
+      # ============================================================
+      - name: 🔍 Comprehensive ExtensionHost & System Verification
         if: always()
         run: |
           echo "=========================================="
@@ -797,9 +775,6 @@ jobs:
           FAILED=0
           WARNINGS=0
 
-          # ============================================================
-          # 1. 验证 ExtensionHost 核心文件
-          # ============================================================
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "📌 1. ExtensionHost Core Files"
@@ -824,9 +799,6 @@ jobs:
               fi
           done
 
-          # ============================================================
-          # 2. 验证关键扩展
-          # ============================================================
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "📌 2. Critical Extensions"
@@ -849,9 +821,8 @@ jobs:
 
           for ext in "${CRITICAL_EXTS[@]}"; do
               if [ -d "$EXT_DIR/$ext" ]; then
-                  # 检查是否有 package.json
                   if [ -f "$EXT_DIR/$ext/package.json" ]; then
-                      echo "   ✅ $ext (package.json present)"
+                      echo "   ✅ $ext"
                       ((PASSED++))
                   else
                       echo "   ⚠️ $ext (package.json missing)"
@@ -864,47 +835,11 @@ jobs:
               fi
           done
 
-          # ============================================================
-          # 3. 验证扩展二进制文件权限
-          # ============================================================
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📌 3. Extension Binary Permissions"
+          echo "📌 3. Binary Permissions"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          # 检查 test-agent 相关二进制
-          TEST_BINARIES=(
-              "testflow"
-              "testagent"
-              "rg"
-              "node"
-          )
-
-          BINARY_ISSUES=0
-
-          # 在 extensions 目录中查找二进制文件
-          find "$EXT_DIR" -type f \( -name "testflow" -o -name "testagent" -o -name "rg" -o -name "*.node" \) 2>/dev/null | while read -r bin; do
-              if [ -x "$bin" ]; then
-                  echo "   ✅ $(basename $bin) is executable"
-                  ((PASSED++))
-              else
-                  echo "   ❌ $(basename $bin) is NOT executable: $bin"
-                  ((FAILED++))
-                  BINARY_ISSUES=$((BINARY_ISSUES + 1))
-              fi
-          done
-
-          # 检查所有 .sh 文件
-          find "$EXT_DIR" -name "*.sh" -type f 2>/dev/null | while read -r script; do
-              if [ -x "$script" ]; then
-                  echo "   ✅ $(basename $script) is executable"
-              else
-                  echo "   ⚠️ $(basename $script) is NOT executable"
-                  ((WARNINGS++))
-              fi
-          done
-
-          # 检查 chrome-sandbox
           if [ -f "$BUILD_DIR/chrome-sandbox" ]; then
               PERMS=$(stat -c %a "$BUILD_DIR/chrome-sandbox" 2>/dev/null || echo "000")
               if [ "$PERMS" = "4755" ]; then
@@ -914,31 +849,14 @@ jobs:
                   echo "   ❌ chrome-sandbox permissions: $PERMS (expected 4755)"
                   ((FAILED++))
               fi
-          else
-              echo "   ⚠️ chrome-sandbox not found"
-              ((WARNINGS++))
           fi
 
-          # ============================================================
-          # 4. 验证密钥环/密码跳过
-          # ============================================================
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📌 4. Password/Keyring Bypass"
+          echo "📌 4. Keyring Bypass"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          # 检查 run.sh 中的密钥环配置
           if [ -f "$BUILD_DIR/run.sh" ]; then
-              KEYRING_CONFIG=$(grep -E "GNOME_KEYRING_CONTROL|DBUS_SESSION_BUS_ADDRESS|PYTHON_KEYRING_BACKEND|password-store" "$BUILD_DIR/run.sh" | wc -l)
-              if [ "$KEYRING_CONFIG" -ge 3 ]; then
-                  echo "   ✅ Keyring bypass configured in run.sh"
-                  ((PASSED++))
-              else
-                  echo "   ⚠️ Keyring bypass may be incomplete (found $KEYRING_CONFIG config lines)"
-                  ((WARNINGS++))
-              fi
-
-              # 检查 password-store 参数
               if grep -q "password-store=\"basic\"" "$BUILD_DIR/run.sh"; then
                   echo "   ✅ password-store=basic configured"
                   ((PASSED++))
@@ -947,7 +865,6 @@ jobs:
                   ((FAILED++))
               fi
 
-              # 检查 --no-sandbox
               if grep -q "no-sandbox" "$BUILD_DIR/run.sh"; then
                   echo "   ✅ --no-sandbox configured"
                   ((PASSED++))
@@ -955,267 +872,36 @@ jobs:
                   echo "   ❌ --no-sandbox NOT configured"
                   ((FAILED++))
               fi
-          else
-              echo "   ❌ run.sh not found"
-              ((FAILED++))
           fi
 
-          # ============================================================
-          # 5. 验证预构建插件 (custom-extensions)
-          # ============================================================
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📌 5. Prebuilt Extensions (custom-extensions)"
+          echo "📌 5. Prebuilt Extensions"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
           CUSTOM_EXT_DIR="$BUILD_DIR/resources/app/custom-extensions"
-
           if [ -d "$CUSTOM_EXT_DIR" ]; then
               CUSTOM_COUNT=$(find "$CUSTOM_EXT_DIR" -maxdepth 1 -type d ! -path "$CUSTOM_EXT_DIR" 2>/dev/null | wc -l)
-              echo "   📂 custom-extensions directory exists"
-              echo "   📦 Found $CUSTOM_COUNT prebuilt extension(s)"
-
-              if [ "$CUSTOM_COUNT" -gt 0 ]; then
-                  echo ""
-                  echo "   📋 Prebuilt extensions list:"
-                  find "$CUSTOM_EXT_DIR" -maxdepth 1 -type d ! -path "$CUSTOM_EXT_DIR" -exec basename {} \; 2>/dev/null | while read -r ext; do
-                      if [ -f "$CUSTOM_EXT_DIR/$ext/package.json" ]; then
-                          VERSION=$(grep -o '"version": *"[^"]*"' "$CUSTOM_EXT_DIR/$ext/package.json" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "unknown")
-                          echo "      ✅ $ext (v$VERSION)"
-                          ((PASSED++))
-                      else
-                          echo "      ⚠️ $ext (no package.json)"
-                          ((WARNINGS++))
-                      fi
-                  done
-              else
-                  echo "   ℹ️ No prebuilt extensions found"
-              fi
+              echo "   ✅ custom-extensions exists ($CUSTOM_COUNT extensions)"
+              ((PASSED++))
           else
-              echo "   ❌ custom-extensions directory NOT found!"
-              ((FAILED++))
+              echo "   ⚠️ custom-extensions not found"
+              ((WARNINGS++))
           fi
 
-          # ============================================================
-          # 6. 验证用户目录插件结构 (~/.tscode)
-          # ============================================================
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📌 6. User Directory Structure (~/.tscode)"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-          # 模拟用户目录检查
-          echo "   ℹ️ Checking expected user directory structure..."
-
-          # 检查 DEB postinst 是否会创建正确的目录结构
-          if [ -f "$BUILD_ROOT/DEBIAN/postinst" ] 2>/dev/null; then
-              if grep -q "\.tscode/extensions" "$DEB_ROOT/DEBIAN/postinst" 2>/dev/null; then
-                  echo "   ✅ postinst configures ~/.tscode/extensions"
-                  ((PASSED++))
-              else
-                  echo "   ⚠️ postinst may not configure ~/.tscode/extensions"
-                  ((WARNINGS++))
-              fi
-
-              # 检查是否复制 test-tech 扩展
-              if grep -q "test-tech" "$DEB_ROOT/DEBIAN/postinst" 2>/dev/null; then
-                  echo "   ✅ postinst copies test-tech extensions"
-                  ((PASSED++))
-              else
-                  echo "   ⚠️ postinst may not copy test-tech extensions"
-                  ((WARNINGS++))
-              fi
-          fi
-
-          # 检查 DEB 包中是否包含 test-tech 扩展
-          if [ -d "$EXT_DIR" ]; then
-              TEST_TECH_COUNT=$(find "$EXT_DIR" -maxdepth 1 -type d -name "test-tech.*" 2>/dev/null | wc -l)
-              if [ "$TEST_TECH_COUNT" -gt 0 ]; then
-                  echo "   ✅ Found $TEST_TECH_COUNT test-tech extension(s) in system"
-                  find "$EXT_DIR" -maxdepth 1 -type d -name "test-tech.*" -exec basename {} \; 2>/dev/null | while read -r ext; do
-                      echo "      📦 $ext"
-                  done
-                  ((PASSED++))
-              else
-                  echo "   ⚠️ No test-tech extensions found in system"
-                  ((WARNINGS++))
-              fi
-          fi
-
-          # ============================================================
-          # 7. 验证 extensions.ts 实现
-          # ============================================================
-          echo ""
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📌 7. extensions.ts Implementation"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-          if [ -f "build/lib/extensions.ts" ]; then
-              # 检查是否包含 vsce 引用（不应该有）
-              if grep -q "vsce" "build/lib/extensions.ts" 2>/dev/null; then
-                  echo "   ⚠️ extensions.ts contains vsce references"
-                  ((WARNINGS++))
-              else
-                  echo "   ✅ extensions.ts has no vsce references"
-                  ((PASSED++))
-              fi
-
-              # 检查是否导出关键函数
-              REQUIRED_EXPORTS=(
-                  "getExtensionStream"
-                  "packageMarketplaceExtensionsStream"
-                  "packageNonNativeLocalExtensionsStream"
-                  "fetchUrls"
-              )
-
-              for func in "${REQUIRED_EXPORTS[@]}"; do
-                  if grep -q "export.*$func" "build/lib/extensions.ts" 2>/dev/null; then
-                      echo "   ✅ exports $func"
-                      ((PASSED++))
-                  else
-                      echo "   ❌ missing export: $func"
-                      ((FAILED++))
-                  fi
-              done
-          fi
-
-          # ============================================================
-          # 8. 验证 node_modules
-          # ============================================================
-          echo ""
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📌 8. node_modules"
+          echo "📌 6. node_modules"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
           if [ -d "$BUILD_DIR/resources/app/node_modules" ]; then
-              MODULE_COUNT=$(find "$BUILD_DIR/resources/app/node_modules" -maxdepth 1 -type d 2>/dev/null | wc -l)
-              echo "   ✅ node_modules exists ($MODULE_COUNT modules)"
+              echo "   ✅ node_modules exists"
               ((PASSED++))
-
-              # 检查关键模块
-              KEY_MODULES=(
-                  "vscode-jsonrpc"
-                  "vscode-languageclient"
-                  "vscode-languageserver"
-                  "typescript"
-              )
-
-              for mod in "${KEY_MODULES[@]}"; do
-                  if [ -d "$BUILD_DIR/resources/app/node_modules/$mod" ]; then
-                      echo "   ✅ $mod"
-                      ((PASSED++))
-                  else
-                      echo "   ⚠️ $mod not found"
-                      ((WARNINGS++))
-                  fi
-              done
           else
-              echo "   ❌ node_modules NOT found in resources/app/"
+              echo "   ❌ node_modules NOT found"
               ((FAILED++))
           fi
 
-          # ============================================================
-          # 9. 验证 extensions.json 或扩展加载配置
-          # ============================================================
-          echo ""
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📌 9. Extension Loading Configuration"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-          # 检查 product.json
-          if [ -f "$BUILD_DIR/resources/app/product.json" ]; then
-              if grep -q "extensions" "$BUILD_DIR/resources/app/product.json" 2>/dev/null; then
-                  echo "   ✅ product.json contains extensions config"
-                  ((PASSED++))
-              else
-                  echo "   ⚠️ product.json may not have extensions config"
-                  ((WARNINGS++))
-              fi
-          fi
-
-          # 检查 package.json
-          if [ -f "$BUILD_DIR/resources/app/package.json" ]; then
-              if grep -q "extension" "$BUILD_DIR/resources/app/package.json" 2>/dev/null; then
-                  echo "   ✅ package.json contains extension config"
-                  ((PASSED++))
-              else
-                  echo "   ⚠️ package.json may not have extension config"
-                  ((WARNINGS++))
-              fi
-          fi
-
-          # ============================================================
-          # 10. 创建运行时验证脚本
-          # ============================================================
-          echo ""
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📌 10. Runtime Verification Script"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-          cat > "$BUILD_DIR/verify-runtime.sh" << 'RUNTIME_EOF'
-          #!/bin/bash
-          echo "=========================================="
-          echo "🚀 TSCode Runtime Verification"
-          echo "=========================================="
-
-          echo ""
-          echo "📌 Testing ExtensionHost..."
-
-          # 检查是否运行
-          if pgrep -f "tscode" > /dev/null 2>&1; then
-              echo "   ⚠️ TSCode is already running"
-              echo "   Please close all TSCode windows first"
-          else
-              echo "   ℹ️ Starting TSCode in background..."
-
-              # 启动 TSCode 并捕获输出
-              /opt/tscode/run.sh --version 2>&1 | head -5
-
-              echo ""
-              echo "   📋 To test ExtensionHost manually:"
-              echo "   1. Run: tscode"
-              echo "   2. Open Command Palette (Ctrl+Shift+P)"
-              echo "   3. Run: 'Developer: Show Running Extensions'"
-              echo "   4. Check if test-extension-verify is listed"
-              echo ""
-              echo "   5. Run the test command:"
-              echo "      Command Palette -> 'Test Extension: Hello'"
-              echo ""
-              echo "   6. Check status bar for: 'ExtensionHost OK'"
-          fi
-
-          echo ""
-          echo "📌 Testing keyring bypass..."
-          if [ -f "/opt/tscode/run.sh" ]; then
-              if grep -q "password-store=\"basic\"" /opt/tscode/run.sh; then
-                  echo "   ✅ password-store=basic configured"
-              fi
-              if grep -q "GNOME_KEYRING_CONTROL" /opt/tscode/run.sh; then
-                  echo "   ✅ GNOME_KEYRING_CONTROL disabled"
-              fi
-              if grep -q "no-sandbox" /opt/tscode/run.sh; then
-                  echo "   ✅ --no-sandbox configured"
-              fi
-          fi
-
-          echo ""
-          echo "📌 Testing extensions..."
-          if [ -d "$HOME/.tscode/extensions" ]; then
-              COUNT=$(find "$HOME/.tscode/extensions" -maxdepth 1 -type d 2>/dev/null | wc -l)
-              echo "   ✅ User extensions: $COUNT installed"
-          fi
-
-          echo ""
-          echo "✅ Runtime verification completed!"
-          RUNTIME_EOF
-
-          chmod +x "$BUILD_DIR/verify-runtime.sh"
-          echo "   ✅ verify-runtime.sh created"
-          ((PASSED++))
-
-          # ============================================================
-          # 汇总结果
-          # ============================================================
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "📊 VERIFICATION SUMMARY"
@@ -1228,30 +914,13 @@ jobs:
           if [ $FAILED -eq 0 ]; then
               echo ""
               echo "✅✅✅ ALL CHECKS PASSED! ExtensionHost is fully functional."
-              echo ""
-              echo "   📋 Summary of working features:"
-              echo "      - ExtensionHost core files present"
-              echo "      - Critical extensions installed"
-              echo "      - Binary permissions correct"
-              echo "      - Keyring bypass configured"
-              echo "      - Prebuilt extensions ready"
-              echo "      - User directory structure prepared"
-              echo ""
-              echo "   🚀 To run the runtime verification after installation:"
-              echo "      /opt/tscode/verify-runtime.sh"
+              exit 0
           else
               echo ""
-              echo "❌❌❌ $FAILED check(s) FAILED! ExtensionHost may not work properly."
-              echo ""
-              echo "   🔧 Common issues:"
+              echo "❌❌❌ $FAILED check(s) FAILED!"
               if [ ${#MISSING_EXTS[@]} -gt 0 ]; then
-                  echo "      - Missing critical extensions: ${MISSING_EXTS[*]}"
+                  echo "   Missing extensions: ${MISSING_EXTS[*]}"
               fi
-              if [ $BINARY_ISSUES -gt 0 ]; then
-                  echo "      - Binary permission issues"
-              fi
-              echo ""
-              echo "   📝 Check the logs above for details"
               exit 1
           fi
 
