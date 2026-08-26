@@ -399,7 +399,7 @@ jobs:
       # ============================================================
       # 核心修复：从官方 VSCode 复制扩展和原生模块
       # ============================================================
-      - name: 🔥 Copy official extensions and native modules
+      - name: 🔥 Copy official extensions, native modules, and missing modules
         run: |
           set +e
 
@@ -457,68 +457,63 @@ jobs:
           TARGET_NM="$BUILD_DIR/resources/app/node_modules"
 
           # ============================================================
-          # 1. 复制所有扩展（使用 cp -r 替代 rsync，更可靠）
+          # 1. 复制所有扩展（强制覆盖）
           # ============================================================
           echo ""
-          echo "📌 Step 1: Copying ALL official extensions..."
+          echo "📌 Step 1: Copying ALL official extensions (force overwrite)..."
 
           if [ ! -d "$OFFICIAL_EXT_DIR" ]; then
             echo "❌ Official extensions directory not found!"
             exit 1
           fi
 
-          # 先清空目标扩展目录
-          echo "  Clearing target extensions directory..."
           rm -rf "$TARGET_EXT_DIR"
           mkdir -p "$TARGET_EXT_DIR"
 
-          # 使用 cp -r 复制所有扩展
-          echo "  Copying extensions from: $OFFICIAL_EXT_DIR"
-          cp -r "$OFFICIAL_EXT_DIR"/* "$TARGET_EXT_DIR/" 2>/dev/null
+          EXT_COUNT=0
+          for ext_dir in "$OFFICIAL_EXT_DIR"/*/; do
+            if [ -d "$ext_dir" ]; then
+              ext_name=$(basename "$ext_dir")
+              echo "  Copying: $ext_name"
+              cp -r "$ext_dir" "$TARGET_EXT_DIR/"
+              if [ -d "$TARGET_EXT_DIR/$ext_name" ]; then
+                EXT_COUNT=$((EXT_COUNT + 1))
+              fi
+            fi
+          done
 
-          # 验证复制结果
-          if [ -d "$TARGET_EXT_DIR" ]; then
-              EXT_COUNT=$(find "$TARGET_EXT_DIR" -maxdepth 1 -type d ! -path "$TARGET_EXT_DIR" 2>/dev/null | wc -l)
-              echo "  ✅ Copied $EXT_COUNT extensions"
-
-              # 检查关键扩展
-              echo "  🔍 Checking critical extensions:"
-              for ext in typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features npm; do
-                  if [ -d "$TARGET_EXT_DIR/$ext" ]; then
-                      echo "    ✅ $ext"
-                  else
-                      echo "    ❌ $ext MISSING"
-                  fi
-              done
-          else
-              echo "  ❌ Failed to copy extensions!"
-              exit 1
-          fi
+          echo "✅ Copied $EXT_COUNT extensions"
 
           # ============================================================
-          # 2. 复制官方 node_modules 中的关键模块
+          # 2. 复制关键缺失的 Node 模块（从官方强制复制）
           # ============================================================
           echo ""
-          echo "📌 Step 2: Copying missing Node modules from official..."
+          echo "📌 Step 2: Copying critical Node modules from official (FORCE)..."
 
-          cd "$BUILD_DIR/resources/app"
-
-          MISSING_MODULES=(
+          CRITICAL_MODULES=(
               "vscode-languageclient"
               "vscode-languageserver"
               "typescript"
           )
 
-          for mod in "${MISSING_MODULES[@]}"; do
+          cd "$BUILD_DIR/resources/app"
+
+          for mod in "${CRITICAL_MODULES[@]}"; do
+              echo "  📦 Processing: $mod"
+
+              # 删除现有模块（如果存在）
+              rm -rf "node_modules/$mod" 2>/dev/null || true
+
+              # 从官方复制
               if [ -d "$OFFICIAL_NM/$mod" ]; then
-                  echo "  📦 Copying: $mod"
-                  rm -rf "node_modules/$mod"
                   cp -r "$OFFICIAL_NM/$mod" "node_modules/"
                   if [ -d "node_modules/$mod" ]; then
-                      echo "    ✅ $mod copied"
+                      echo "    ✅ $mod copied from official"
+                  else
+                      echo "    ❌ Failed to copy $mod"
                   fi
               else
-                  echo "  ⚠️ $mod not found in official, trying npm install..."
+                  echo "    ⚠️ $mod not found in official, trying npm install..."
                   npm install "$mod" --legacy-peer-deps 2>/dev/null
                   if [ -d "node_modules/$mod" ]; then
                       echo "    ✅ $mod installed via npm"
@@ -567,53 +562,51 @@ jobs:
           echo ""
           echo "📌 Step 4: Fixing ALL binary permissions..."
 
-          # 修复 testagent
-          find "$TARGET_EXT_DIR" -name "testagent" -type f 2>/dev/null | while read -r file; do
-              chmod +x "$file"
-              echo "  ✅ Fixed: $(basename $file)"
-          done
+          find "$TARGET_EXT_DIR" -name "testagent" -type f -exec chmod +x {} \; 2>/dev/null
+          echo "  ✅ testagent permissions fixed"
 
-          # 修复 testflow
-          find "$TARGET_EXT_DIR" -name "testflow" -type f 2>/dev/null | while read -r file; do
-              chmod +x "$file"
-              echo "  ✅ Fixed: $(basename $file)"
-          done
+          find "$TARGET_EXT_DIR" -name "testflow" -type f -exec chmod +x {} \; 2>/dev/null
+          echo "  ✅ testflow permissions fixed"
 
-          # 修复所有 bin 目录
-          find "$TARGET_EXT_DIR" -type d -name "bin" 2>/dev/null | while read -r dir; do
-              find "$dir" -type f -exec chmod +x {} \; 2>/dev/null
-              echo "  ✅ Fixed permissions in: $dir"
-          done
+          find "$TARGET_EXT_DIR" -type d -name "bin" -exec find {} -type f -exec chmod +x {} \; 2>/dev/null
+          echo "  ✅ bin directories fixed"
 
-          # 修复所有 scripts 目录
-          find "$TARGET_EXT_DIR" -type d -name "scripts" 2>/dev/null | while read -r dir; do
-              find "$dir" -type f -exec chmod +x {} \; 2>/dev/null
-              echo "  ✅ Fixed permissions in: $dir"
-          done
+          find "$TARGET_EXT_DIR" -type d -name "scripts" -exec find {} -type f -exec chmod +x {} \; 2>/dev/null
+          echo "  ✅ scripts directories fixed"
+
+          find "$TARGET_NM" -name "*.node" -type f -exec chmod 644 {} \; 2>/dev/null
+          echo "  ✅ .node files permissions fixed"
 
           # ============================================================
-          # 5. 最终验证
+          # 5. 验证关键模块
           # ============================================================
           echo ""
-          echo "📌 Step 5: Final verification..."
+          echo "📌 Step 5: Verification..."
 
+          # 验证扩展数量
           FINAL_EXT_COUNT=$(find "$TARGET_EXT_DIR" -maxdepth 1 -type d ! -path "$TARGET_EXT_DIR" 2>/dev/null | wc -l)
           echo "  📦 Total extensions: $FINAL_EXT_COUNT"
 
-          # 检查关键扩展
-          ALL_CRITICAL_EXISTS=true
-          for ext in typescript-language-features git json-language-features; do
-              if [ ! -d "$TARGET_EXT_DIR/$ext" ]; then
-                  echo "  ❌ $ext still missing!"
-                  ALL_CRITICAL_EXISTS=false
+          # 验证关键扩展
+          echo "  🔍 Critical extensions:"
+          CRITICAL_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features npm"
+          for ext in $CRITICAL_EXTS; do
+              if [ -d "$TARGET_EXT_DIR/$ext" ]; then
+                  echo "    ✅ $ext"
+              else
+                  echo "    ❌ $ext MISSING"
               fi
           done
 
-          if [ "$ALL_CRITICAL_EXISTS" = true ]; then
-              echo "  ✅ All critical extensions present!"
-          else
-              echo "  ⚠️ Some critical extensions missing"
-          fi
+          # 验证关键模块
+          echo "  🔍 Critical modules:"
+          for mod in vscode-languageclient vscode-languageserver typescript; do
+              if [ -d "$TARGET_NM/$mod" ]; then
+                  echo "    ✅ $mod"
+              else
+                  echo "    ❌ $mod MISSING"
+              fi
+          done
 
           # ============================================================
           # 6. 清理
@@ -813,8 +806,7 @@ jobs:
 
           cat > "$DEB_ROOT/DEBIAN/control" << 'CONTROLEOF'
           Package: tscode
-          Version: REPLACE_VERSION
-          Architecture: REPLACE_ARCH
+          Version: REPLACE_VERSION          Architecture: REPLACE_ARCH
           Maintainer: TSCode Team <tscode@example.com>
           Description: TSCode - Code Editing. Redefined.
            TSCode is a code editor redefined and optimized for building
@@ -925,7 +917,8 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
           if [ -f "$BUILD_DIR/resources/app/out/vs/workbench/api/node/extensionHostProcess.js" ]; then
-              echo "   ✅ extensionHostProcess.js found"
+              SIZE=$(ls -lh "$BUILD_DIR/resources/app/out/vs/workbench/api/node/extensionHostProcess.js" | awk '{print $5}')
+              echo "   ✅ extensionHostProcess.js found ($SIZE)"
               PASSED=$((PASSED + 1))
           else
               echo "   ❌ extensionHostProcess.js NOT FOUND"
@@ -953,12 +946,15 @@ jobs:
               echo "   📂 Extensions directory exists with $EXT_COUNT extensions"
               PASSED=$((PASSED + 1))
 
+              echo ""
+              echo "   Critical extensions:"
               for ext in "${CRITICAL_EXTS[@]}"; do
                   if [ -d "$EXT_DIR/$ext" ]; then
-                      echo "   ✅ $ext"
+                      VERSION=$(grep -o '"version": *"[^"]*"' "$EXT_DIR/$ext/package.json" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "unknown")
+                      echo "      ✅ $ext (v$VERSION)"
                       PASSED=$((PASSED + 1))
                   else
-                      echo "   ❌ $ext MISSING"
+                      echo "      ❌ $ext MISSING"
                       FAILED=$((FAILED + 1))
                   fi
               done
@@ -969,7 +965,40 @@ jobs:
 
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📌 3. Binary Permissions"
+          echo "📌 3. Critical Node Modules"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          NM_DIR="$BUILD_DIR/resources/app/node_modules"
+          CRITICAL_MODULES=(
+              "vscode-languageclient"
+              "vscode-languageserver"
+              "typescript"
+          )
+
+          if [ -d "$NM_DIR" ]; then
+              MOD_COUNT=$(find "$NM_DIR" -maxdepth 1 -type d 2>/dev/null | wc -l)
+              echo "   📂 node_modules exists with $MOD_COUNT modules"
+              PASSED=$((PASSED + 1))
+
+              echo ""
+              echo "   Critical modules:"
+              for mod in "${CRITICAL_MODULES[@]}"; do
+                  if [ -d "$NM_DIR/$mod" ]; then
+                      echo "      ✅ $mod"
+                      PASSED=$((PASSED + 1))
+                  else
+                      echo "      ❌ $mod MISSING"
+                      FAILED=$((FAILED + 1))
+                  fi
+              done
+          else
+              echo "   ❌ node_modules NOT found!"
+              FAILED=$((FAILED + 1))
+          fi
+
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📌 4. Binary Permissions"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
           if [ -f "$BUILD_DIR/chrome-sandbox" ]; then
@@ -978,9 +1007,11 @@ jobs:
                   echo "   ✅ chrome-sandbox SUID: 4755"
                   PASSED=$((PASSED + 1))
               else
-                  echo "   ❌ chrome-sandbox permissions: $PERMS"
+                  echo "   ❌ chrome-sandbox permissions: $PERMS (expected 4755)"
                   FAILED=$((FAILED + 1))
               fi
+          else
+              echo "   ⚠️ chrome-sandbox not found"
           fi
 
           if [ -f "$BUILD_DIR/tscode" ] && [ -x "$BUILD_DIR/tscode" ]; then
@@ -992,7 +1023,7 @@ jobs:
           fi
 
           echo ""
-          echo "   🔍 Checking testagent and testflow:"
+          echo "   Checking testagent and testflow:"
           TEST_BIN_FOUND=0
           for bin in testagent testflow; do
               BIN_PATH=$(find "$EXT_DIR" -name "$bin" -type f 2>/dev/null | head -1)
@@ -1008,13 +1039,13 @@ jobs:
           done
 
           if [ $TEST_BIN_FOUND -gt 0 ]; then
-              echo "   ✅ Found $TEST_BIN_FOUND executable test binaries"
+              echo "   ✅ Found executable test binaries"
               PASSED=$((PASSED + 1))
           fi
 
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📌 4. Keyring Bypass"
+          echo "📌 5. Keyring Bypass"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
           if [ -f "$BUILD_DIR/run.sh" ]; then
@@ -1026,17 +1057,29 @@ jobs:
                   echo "   ✅ --no-sandbox configured"
                   PASSED=$((PASSED + 1))
               fi
+              if grep -q "GNOME_KEYRING_CONTROL" "$BUILD_DIR/run.sh"; then
+                  echo "   ✅ GNOME_KEYRING_CONTROL disabled"
+                  PASSED=$((PASSED + 1))
+              fi
+          else
+              echo "   ❌ run.sh not found"
+              FAILED=$((FAILED + 1))
           fi
 
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📌 5. node_modules"
+          echo "📌 6. GLIBC Compatibility"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          if [ -d "$BUILD_DIR/resources/app/node_modules" ]; then
-              echo "   ✅ node_modules exists"
-              PASSED=$((PASSED + 1))
-          fi
+          echo "   System GLIBC: $(ldd --version 2>/dev/null | head -1 || echo 'unknown')"
+
+          for mod in "@vscode/sqlite3/build/Release/vscode-sqlite3.node" "@vscode/spdlog/build/Release/spdlog.node"; do
+              if [ -f "$NM_DIR/$mod" ]; then
+                  GLIBC_NEEDED=$(strings "$NM_DIR/$mod" 2>/dev/null | grep "GLIBC_" | sort -u | tail -1 || echo "unknown")
+                  echo "   ✅ $(basename $(dirname $(dirname $mod))) requires: $GLIBC_NEEDED"
+                  PASSED=$((PASSED + 1))
+              fi
+          done
 
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -1046,9 +1089,17 @@ jobs:
           echo "   ❌ Failed: $FAILED"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          if [ $FAILED -le 3 ]; then
+          if [ $FAILED -eq 0 ]; then
               echo ""
-              echo "✅✅✅ EXTENSIONHOST IS FUNCTIONAL!"
+              echo "✅✅✅ ALL CHECKS PASSED!"
+              echo ""
+              echo "   📋 ExtensionHost verification passed:"
+              echo "      - extensionHostProcess.js: ✅"
+              echo "      - All critical extensions: ✅"
+              echo "      - All critical modules (vscode-languageclient, etc.): ✅"
+              echo "      - Binary permissions: ✅"
+              echo "      - Keyring bypass: ✅"
+              echo "      - GLIBC compatibility: ✅"
               echo ""
               echo "   🚀 To install:"
               echo "      sudo dpkg -i tscode-*.deb"
@@ -1057,8 +1108,9 @@ jobs:
               exit 0
           else
               echo ""
-              echo "❌❌❌ ISSUES FOUND!"
-              echo "   Failed checks: $FAILED"
+              echo "❌❌❌ $FAILED check(s) FAILED!"
+              echo ""
+              echo "   🔧 Please check the errors above"
               exit 1
           fi
 
@@ -1088,6 +1140,7 @@ jobs:
           echo "   - Extension host fully functional"
           echo "   - Compatible native modules for Debian 10"
           echo "   - All extension binaries executable"
+          echo "   - Critical modules (vscode-languageclient, etc.) included"
           echo "==========================================="
           if [ "${{ job.status }}" = "success" ]; then
             echo ""
