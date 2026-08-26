@@ -200,7 +200,7 @@ jobs:
           echo "Done: $(date)"
 
       # ============================================================
-      # 新增：编译 ms-vscode.js-debug 扩展
+      # 编译 ms-vscode.js-debug 扩展（在构建目录中查找）
       # ============================================================
       - name: 🔧 Build ms-vscode.js-debug extension
         run: |
@@ -208,23 +208,45 @@ jobs:
           echo "🔧 Building ms-vscode.js-debug extension"
           echo "=========================================="
 
-          # 查找 ms-vscode.js-debug 扩展目录
+          # 查找 ms-vscode.js-debug 扩展目录 - 在多个可能的位置搜索
           EXT_DIR=""
-          for dir in "./extensions/ms-vscode.js-debug" "./vscode/extensions/ms-vscode.js-debug" "../extensions/ms-vscode.js-debug"; do
+          SEARCH_PATHS=(
+            "./extensions/ms-vscode.js-debug"
+            "./vscode/extensions/ms-vscode.js-debug"
+            "../extensions/ms-vscode.js-debug"
+            "./VSCode-linux-x64/resources/app/extensions/ms-vscode.js-debug"
+            "./vscode/VSCode-linux-x64/resources/app/extensions/ms-vscode.js-debug"
+            "./tscode/resources/app/extensions/ms-vscode.js-debug"
+          )
+
+          for dir in "${SEARCH_PATHS[@]}"; do
             if [ -d "$dir" ]; then
               EXT_DIR="$dir"
+              echo "📌 Found extension at: $EXT_DIR"
               break
             fi
           done
 
+          # 如果没找到，使用 find 搜索
           if [ -z "$EXT_DIR" ]; then
-            echo "❌ ms-vscode.js-debug extension not found!"
-            echo "   Searching in current directory..."
-            find . -type d -name "ms-vscode.js-debug" 2>/dev/null | head -5
-            exit 1
+            echo "🔍 Searching for ms-vscode.js-debug with find..."
+            EXT_DIR=$(find . -type d -name "ms-vscode.js-debug" 2>/dev/null | head -1)
+            if [ -n "$EXT_DIR" ]; then
+              echo "📌 Found extension at: $EXT_DIR"
+            fi
           fi
 
-          echo "📌 Found extension at: $EXT_DIR"
+          if [ -z "$EXT_DIR" ]; then
+            echo "❌ ms-vscode.js-debug extension not found!"
+            echo "   Directory contents:"
+            ls -la
+            echo ""
+            echo "   Searching in current directory..."
+            find . -type d -name "ms-vscode*" 2>/dev/null | head -10
+            echo ""
+            echo "   ⚠️ Skipping debug extension build (will use official version)"
+            exit 0
+          fi
 
           # 检查是否已经有编译输出
           if [ -d "$EXT_DIR/out" ]; then
@@ -270,12 +292,21 @@ jobs:
 
           # 也编译 ms-vscode.js-debug-companion
           COMPANION_DIR=""
-          for dir in "./extensions/ms-vscode.js-debug-companion" "./vscode/extensions/ms-vscode.js-debug-companion" "../extensions/ms-vscode.js-debug-companion"; do
-            if [ -d "$dir" ]; then
-              COMPANION_DIR="$dir"
+          for dir in "${SEARCH_PATHS[@]}"; do
+            companion_path=$(echo "$dir" | sed 's/ms-vscode.js-debug/ms-vscode.js-debug-companion/')
+            if [ -d "$companion_path" ]; then
+              COMPANION_DIR="$companion_path"
+              echo "📌 Found companion at: $COMPANION_DIR"
               break
             fi
           done
+
+          if [ -z "$COMPANION_DIR" ]; then
+            COMPANION_DIR=$(find . -type d -name "ms-vscode.js-debug-companion" 2>/dev/null | head -1)
+            if [ -n "$COMPANION_DIR" ]; then
+              echo "📌 Found companion at: $COMPANION_DIR"
+            fi
+          fi
 
           if [ -n "$COMPANION_DIR" ] && [ ! -d "$COMPANION_DIR/out" ]; then
             echo ""
@@ -464,17 +495,17 @@ jobs:
             echo "      Processing: $ext"
 
             # 先检查构建目录中是否有编译好的版本
-            BUILD_EXT_DIR="./extensions/$ext"
-            HAS_BUILD_OUT=false
-            if [ -d "$BUILD_EXT_DIR" ]; then
-              if [ -d "$BUILD_EXT_DIR/out" ] || [ -d "$BUILD_EXT_DIR/dist" ]; then
-                HAS_BUILD_OUT=true
-                echo "         📦 Found compiled version in build directory"
+            BUILD_EXT_DIR=""
+            for dir in "./extensions/$ext" "./vscode/extensions/$ext" "../extensions/$ext" "./VSCode-linux-x64/resources/app/extensions/$ext" "./tscode/resources/app/extensions/$ext"; do
+              if [ -d "$dir" ] && [ -d "$dir/out" ]; then
+                BUILD_EXT_DIR="$dir"
+                echo "         📦 Found compiled version in build directory: $dir"
+                break
               fi
-            fi
+            done
 
             # 如果构建目录有编译输出，从构建目录复制完整扩展
-            if [ "$HAS_BUILD_OUT" = true ] && [ -d "$BUILD_EXT_DIR" ]; then
+            if [ -n "$BUILD_EXT_DIR" ] && [ -d "$BUILD_EXT_DIR/out" ]; then
               echo "         ✅ Copying from build directory (with compiled output)"
               rm -rf "$BUILD_DIR/resources/app/extensions/$ext" 2>/dev/null || true
               cp -r "$BUILD_EXT_DIR" "$BUILD_DIR/resources/app/extensions/"
@@ -500,13 +531,13 @@ jobs:
               else
                 echo "         ⚠️ No compiled output in official, will try to copy from build"
                 # 尝试从构建目录复制编译输出
-                if [ -d "./extensions/$ext/out" ]; then
-                  echo "         📦 Copying out/ from build directory..."
-                  cp -r "./extensions/$ext/out" "$BUILD_DIR/resources/app/extensions/$ext/"
-                elif [ -d "./extensions/$ext/dist" ]; then
-                  echo "         📦 Copying dist/ from build directory..."
-                  cp -r "./extensions/$ext/dist" "$BUILD_DIR/resources/app/extensions/$ext/"
-                fi
+                for src_dir in "./extensions/$ext" "./vscode/extensions/$ext" "../extensions/$ext" "./VSCode-linux-x64/resources/app/extensions/$ext" "./tscode/resources/app/extensions/$ext"; do
+                  if [ -d "$src_dir/out" ]; then
+                    echo "         📦 Copying out/ from $src_dir..."
+                    cp -r "$src_dir/out" "$BUILD_DIR/resources/app/extensions/$ext/"
+                    break
+                  fi
+                done
               fi
             else
               echo "         ⚠️ Not found in official or build: $ext"
@@ -786,7 +817,8 @@ jobs:
           export ELECTRON_DISABLE_SANDBOX=1
           export GDK_BACKEND=x11
           export QT_QPA_PLATFORM=xcb
-          export ELECTRON_DISABLE_CRASH_REPORTER=1          export ELECTRON_DISABLE_CRASH_REPORTING=1
+          export ELECTRON_DISABLE_CRASH_REPORTER=1
+          export ELECTRON_DISABLE_CRASH_REPORTING=1
           export CRASHPAD_DISABLE=1
 
           export GNOME_KEYRING_CONTROL=
