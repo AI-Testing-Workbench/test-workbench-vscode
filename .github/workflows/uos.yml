@@ -723,7 +723,7 @@ jobs:
             echo "✅ Already named tscode"
           fi
 
-          # 创建启动脚本 - 包含 argv.json 自动修复
+          # 创建启动脚本 - 包含 argv.json 自动修复 (统一放在 ~/.tscode/)
           cat > run.sh << 'RUNEOF'
           #!/bin/bash
           SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -748,8 +748,8 @@ jobs:
           export VSCODE_PASSWORD_STORE=basic
           export ELECTRON_PASSWORD_STORE=basic
 
-          # 用户数据目录
-          export VSCODE_APPDATA="$HOME/.local/share/tscode"
+          # 用户数据目录 - 统一使用 ~/.tscode/
+          export VSCODE_APPDATA="$HOME/.tscode"
           export VSCODE_EXTENSIONS_DIR="$HOME/.tscode/extensions"
 
           # 创建目录
@@ -757,12 +757,11 @@ jobs:
           mkdir -p "$VSCODE_EXTENSIONS_DIR" 2>/dev/null || true
 
           # ============================================================
-          # 创建/修复 argv.json (在 VSCODE_APPDATA 目录)
+          # 创建/修复 argv.json (在 ~/.tscode/ 目录)
           # ============================================================
           ARGV_FILE="$VSCODE_APPDATA/argv.json"
           echo "🔧 Checking argv.json at $ARGV_FILE..."
 
-          # 检查文件是否存在且格式正确
           NEEDS_FIX=false
 
           if [ -f "$ARGV_FILE" ]; then
@@ -1125,7 +1124,7 @@ jobs:
           sed -i "s/REPLACE_ARCH/${DEB_ARCH}/g" "$DEB_ROOT/DEBIAN/control"
 
           # ============================================================
-          # 创建 postinst 脚本 - 包含 argv.json 修复
+          # 创建 postinst 脚本 - 统一使用 ~/.tscode/ 作为用户数据目录
           # ============================================================
           cat > "$DEB_ROOT/DEBIAN/postinst" << 'POSTINSTEOF'
           #!/bin/bash
@@ -1155,20 +1154,20 @@ jobs:
           fi
 
           # ============================================================
-          # 为所有用户创建 argv.json
+          # 为所有用户创建 ~/.tscode/ 目录和 argv.json
           # ============================================================
           echo ""
-          echo "🔧 Creating argv.json for all users..."
+          echo "🔧 Creating ~/.tscode/ directories and argv.json for all users..."
 
           for USER_HOME in /home/* /root; do
               if [ -d "$USER_HOME" ] && [ "$USER_HOME" != "/home/*" ]; then
                   USER_NAME=$(basename "$USER_HOME")
-                  USER_DATA_DIR="$USER_HOME/.local/share/tscode"
+                  TSC_DIR="$USER_HOME/.tscode"
+                  EXT_DIR="$TSC_DIR/extensions"
+                  ARGV_FILE="$TSC_DIR/argv.json"
 
-                  # 创建用户数据目录
-                  mkdir -p "$USER_DATA_DIR" 2>/dev/null || true
-
-                  ARGV_FILE="$USER_DATA_DIR/argv.json"
+                  # 创建目录
+                  mkdir -p "$EXT_DIR" 2>/dev/null || true
 
                   # 检查并创建/修复 argv.json
                   NEEDS_FIX=false
@@ -1203,30 +1202,25 @@ jobs:
                   if [ "$USER_HOME" != "/root" ]; then
                       USER_OWNER=$(stat -c '%u:%g' "$USER_HOME" 2>/dev/null || echo "")
                       if [ -n "$USER_OWNER" ]; then
-                          chown "$USER_OWNER" "$ARGV_FILE" 2>/dev/null || true
-                          chown "$USER_OWNER" "$USER_DATA_DIR" 2>/dev/null || true
+                          chown -R "$USER_OWNER" "$TSC_DIR" 2>/dev/null || true
                       fi
                   fi
               fi
           done
 
-          # 确保 ~/.tscode 目录只包含 extensions
+          # 清理旧的 ~/.local/share/tscode/ 数据（迁移警告）
           echo ""
-          echo "🧹 Cleaning up ~/.tscode directories..."
+          echo "🧹 Checking for old data directories..."
           for USER_HOME in /home/* /root; do
               if [ -d "$USER_HOME" ] && [ "$USER_HOME" != "/home/*" ]; then
-                  TSC_DIR="$USER_HOME/.tscode"
-                  if [ -d "$TSC_DIR" ]; then
-                      for item in "$TSC_DIR"/*; do
-                          if [ -d "$item" ]; then
-                              item_name=$(basename "$item")
-                              if [ "$item_name" != "extensions" ]; then
-                                  echo "    🗑️ Removing: $item_name from $TSC_DIR"
-                                  rm -rf "$item" 2>/dev/null || true
-                              fi
-                          fi
-                      done
-                      echo "    ✅ Cleaned: $TSC_DIR (only extensions/ preserved)"
+                  OLD_DATA_DIR="$USER_HOME/.local/share/tscode"
+                  if [ -d "$OLD_DATA_DIR" ]; then
+                      echo "    ℹ️ Old data found at $OLD_DATA_DIR"
+                      echo "       Please manually migrate or remove if no longer needed"
+                      if [ -f "$OLD_DATA_DIR/argv.json" ] && [ ! -f "$USER_HOME/.tscode/argv.json" ]; then
+                          echo "       Copying argv.json from old location..."
+                          cp "$OLD_DATA_DIR/argv.json" "$USER_HOME/.tscode/argv.json"
+                      fi
                   fi
               fi
           done
@@ -1241,9 +1235,9 @@ jobs:
           echo "✅ TSCode installed successfully!"
           echo ""
           echo "📁 System extensions: /opt/tscode/resources/app/extensions/"
-          echo "📂 User extensions:   ~/.tscode/extensions/"
-          echo "📂 User data:         ~/.local/share/tscode/"
-          echo "📄 Config file:       ~/.local/share/tscode/argv.json"
+          echo "📂 User directory:    ~/.tscode/"
+          echo "   ├── extensions/    (user extensions)"
+          echo "   └── argv.json      (configuration)"
           echo ""
           echo "🚀 Run 'tscode' to start"
           echo "=========================================="
@@ -1263,12 +1257,11 @@ jobs:
           echo "TSCode is being removed..."
           echo "=========================================="
           echo ""
-          echo "📁 User data preserved at: ~/.local/share/tscode/"
+          echo "📁 User data preserved at: ~/.tscode/"
           echo "📦 Extensions preserved at: ~/.tscode/extensions/"
           echo ""
           echo "To completely remove user data:"
           echo "  rm -rf ~/.tscode"
-          echo "  rm -rf ~/.local/share/tscode"
           echo "=========================================="
           exit 0
           PRERMEOF
@@ -1392,18 +1385,17 @@ jobs:
           echo "   - /usr/bin/tscode is a wrapper script"
           echo "   - ✅ Debug extensions included"
           echo "   - ✅ @vscode/debug packages included"
-          echo "   - ✅ argv.json auto-created for all users"
-          echo "   - ✅ ~/.tscode only contains extensions/"
+          echo "   - ✅ argv.json auto-created in ~/.tscode/"
+          echo "   - ✅ ~/.tscode/ contains extensions/ and argv.json"
           echo "   - ✅ node-pty replaced with official version"
           echo ""
           echo "📂 Directory structure:"
           echo "   System extensions: /opt/tscode/resources/app/extensions/"
-          echo "   User extensions:   ~/.tscode/extensions/"
-          echo "   User data:         ~/.local/share/tscode/"
-          echo "   Config file:       ~/.local/share/tscode/argv.json"
+          echo "   User directory:    ~/.tscode/"
+          echo "     ├── extensions/  (user extensions)"
+          echo "     └── argv.json    (configuration)"
           echo ""
           echo "💡 Extensions persist across reinstallation"
-          echo "💡 ~/.tscode/ only contains extensions directory"
           echo "==========================================="
 
           if [ "${{ job.status }}" = "success" ]; then
@@ -1420,6 +1412,6 @@ jobs:
             echo "🚀 After installation:"
             echo "  - Run: tscode (no password)"
             echo "  - Find in application menu: TSCode"
-            echo "  - Config: ~/.local/share/tscode/argv.json"
+            echo "  - Config: ~/.tscode/argv.json"
             echo "=========================================="
           fi
