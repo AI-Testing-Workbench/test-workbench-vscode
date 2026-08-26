@@ -252,9 +252,9 @@ jobs:
           echo "✅ node_modules copied"
 
       # ============================================================
-      # 核心修改：只替换 node-pty，不替换整个 node_modules
+      # 核心修改：只替换 node-pty，完整复制调试扩展（包括编译输出）
       # ============================================================
-      - name: 🔥 Replace node-pty only and copy official extensions
+      - name: 🔥 Replace node-pty and copy official extensions (with compiled debug)
         run: |
           set +e
 
@@ -342,10 +342,10 @@ jobs:
           fi
 
           # ============================================================
-          # 3. 复制官方扩展
+          # 3. 复制官方扩展（完整复制调试扩展，包括 out/ 目录）
           # ============================================================
           echo ""
-          echo "📌 Step 3: Copying official extensions..."
+          echo "📌 Step 3: Copying official extensions (including compiled debug)"
 
           mkdir -p "$BUILD_DIR/resources/app/extensions"
           OFFICIAL_EXT_DIR="$OFFICIAL_DIR/resources/app/extensions"
@@ -355,24 +355,41 @@ jobs:
             exit 1
           fi
 
-          # 必须从官方复制的调试扩展
-          REQUIRED_OFFICIAL_EXTS="ms-vscode.js-debug ms-vscode.js-debug-companion"
+          # 调试扩展列表（必须从官方完整复制，包括编译输出）
+          DEBUG_EXTS="ms-vscode.js-debug ms-vscode.js-debug-companion"
 
-          # 保留构建的扩展
+          # 保留构建的核心扩展
           KEEP_BUILT_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features npm debug-auto-launch merge-conflict search-result @builtin"
 
           EXT_COPIED=0
           EXT_KEPT=0
           EXT_SKIPPED=0
 
-          # 3a. 复制调试扩展
-          echo "   📦 Copying debug extensions from official..."
-          for ext in $REQUIRED_OFFICIAL_EXTS; do
+          # 3a. 完整复制调试扩展（包括 out/ 目录）
+          echo "   📦 Copying debug extensions from official (with compiled output)..."
+          for ext in $DEBUG_EXTS; do
             if [ -d "$OFFICIAL_EXT_DIR/$ext" ]; then
               echo "      ✅ Copying: $ext"
               rm -rf "$BUILD_DIR/resources/app/extensions/$ext" 2>/dev/null || true
-              cp -r "$OFFICIAL_EXT_DIR/$ext" "$BUILD_DIR/resources/app/extensions/"
+              # 使用 rsync 完整复制
+              rsync -a --no-owner --no-group \
+                "$OFFICIAL_EXT_DIR/$ext/" \
+                "$BUILD_DIR/resources/app/extensions/$ext/"
               EXT_COPIED=$((EXT_COPIED + 1))
+
+              # 验证编译输出
+              if [ -d "$BUILD_DIR/resources/app/extensions/$ext/out" ]; then
+                echo "         ✅ out/ directory copied"
+              elif [ -d "$BUILD_DIR/resources/app/extensions/$ext/dist" ]; then
+                echo "         ✅ dist/ directory copied"
+              else
+                echo "         ⚠️ No out/ or dist/ directory in official copy"
+                # 尝试从构建目录复制
+                if [ -d "./extensions/$ext/out" ]; then
+                  echo "         📦 Copying out/ from build directory..."
+                  cp -r "./extensions/$ext/out" "$BUILD_DIR/resources/app/extensions/$ext/"
+                fi
+              fi
             else
               echo "      ⚠️ Not found in official: $ext"
             fi
@@ -392,13 +409,14 @@ jobs:
             fi
           done
 
-          # 3c. 复制其他扩展
+          # 3c. 复制其他官方扩展（跳过已存在的）
           echo ""
           echo "   📦 Copying additional official extensions..."
           for ext_dir in "$OFFICIAL_EXT_DIR"/*/; do
             ext_name=$(basename "$ext_dir")
+            # 跳过已处理的
             case "$ext_name" in
-              *debug*|typescript-language-features|git|json-language-features|markdown-language-features|html-language-features|css-language-features|npm|@builtin)
+              ms-vscode.js-debug|ms-vscode.js-debug-companion|typescript-language-features|git|json-language-features|markdown-language-features|html-language-features|css-language-features|npm|@builtin)
                 continue
                 ;;
             esac
@@ -419,7 +437,37 @@ jobs:
           echo "      ⏭️ Skipped: $EXT_SKIPPED"
 
           # ============================================================
-          # 4. 清理临时文件
+          # 4. 复制 @vscode/debug 包从官方
+          # ============================================================
+          echo ""
+          echo "📌 Step 4: Copying @vscode/debug packages from official..."
+
+          NODE_MODULES="$BUILD_DIR/resources/app/node_modules"
+          OFFICIAL_NODE_MODULES="$OFFICIAL_DIR/resources/app/node_modules"
+
+          DEBUG_PKGS="@vscode/debug @vscode/debugadapter @vscode/debugprotocol"
+
+          for pkg in $DEBUG_PKGS; do
+            if [ -d "$NODE_MODULES/$pkg" ]; then
+              echo "   ✅ $pkg already exists"
+            elif [ -d "$OFFICIAL_NODE_MODULES/$pkg" ]; then
+              echo "   📦 Copying $pkg from official..."
+              mkdir -p "$NODE_MODULES/@vscode"
+              cp -r "$OFFICIAL_NODE_MODULES/$pkg" "$NODE_MODULES/@vscode/"
+            elif [ -d "./node_modules/$pkg" ]; then
+              echo "   📦 Copying $pkg from root node_modules..."
+              mkdir -p "$NODE_MODULES/@vscode"
+              cp -r "./node_modules/$pkg" "$NODE_MODULES/@vscode/"
+            else
+              echo "   ⚠️ $pkg not found, installing..."
+              cd "$NODE_MODULES"
+              npm install $pkg --no-save --legacy-peer-deps 2>/dev/null || true
+              cd - > /dev/null
+            fi
+          done
+
+          # ============================================================
+          # 5. 清理临时文件
           # ============================================================
           echo ""
           echo "📌 Cleaning up temporary files..."
@@ -427,160 +475,10 @@ jobs:
           rm -rf /tmp/official-vscode
           echo "   ✅ Cleanup completed"
 
-          set -e
-
-      # ============================================================
-      # 编译调试扩展（使用正确的构建方式）
-      # ============================================================
-      - name: 🔧 Compile debug extensions
-        run: |
-          echo "=========================================="
-          echo "🔧 Compiling debug extensions"
-          echo "=========================================="
-
-          BUILD_DIR="${BUILD_DIR:-./tscode}"
-          EXT_DIR="$BUILD_DIR/resources/app/extensions"
-
-          # 首先确保 gulp 已安装
-          npm install -g gulp 2>/dev/null || true
-
-          # ============================================================
-          # 编译 ms-vscode.js-debug
-          # ============================================================
-          if [ -d "$EXT_DIR/ms-vscode.js-debug" ]; then
-            echo ""
-            echo "📌 Compiling ms-vscode.js-debug..."
-            cd "$EXT_DIR/ms-vscode.js-debug"
-
-            if [ -f "package.json" ]; then
-              # 安装依赖
-              echo "   📦 Installing dependencies..."
-              npm install --legacy-peer-deps 2>&1 | tail -30 || true
-
-              # 运行 gulp 编译
-              echo "   🔨 Running gulp compile..."
-              if [ -f "node_modules/.bin/gulp" ]; then
-                ./node_modules/.bin/gulp compile 2>&1 || true
-              elif [ -f "../../node_modules/.bin/gulp" ]; then
-                ../../node_modules/.bin/gulp compile 2>&1 || true
-              else
-                npx gulp compile 2>&1 || true
-              fi
-
-              # 如果 gulp 失败，尝试使用 tsc
-              if [ ! -d "out" ] && [ ! -d "dist" ]; then
-                echo "   🔨 Trying tsc fallback..."
-                if [ -f "node_modules/.bin/tsc" ]; then
-                  ./node_modules/.bin/tsc -p tsconfig.json 2>&1 || true
-                else
-                  npx tsc -p tsconfig.json 2>&1 || true
-                fi
-              fi
-
-              # 检查编译输出
-              if [ -d "out" ]; then
-                echo "   ✅ Compilation successful (out/)"
-                echo "      📂 Contents:"
-                ls -la out/ | head -10
-                # 检查调试适配器
-                if [ -f "out/nodeDebug.js" ]; then
-                  echo "      ✅ Debug adapter: out/nodeDebug.js"
-                fi
-              elif [ -d "dist" ]; then
-                echo "   ✅ Compilation successful (dist/)"
-              else
-                echo "   ⚠️ No out/ or dist/ directory found"
-                echo "      Trying to copy from build..."
-                # 从构建目录复制已编译的输出
-                if [ -d "../../extensions/ms-vscode.js-debug/out" ]; then
-                  echo "      📦 Copying from build extensions..."
-                  cp -r "../../extensions/ms-vscode.js-debug/out" ./
-                  echo "      ✅ Copied out/ from build"
-                elif [ -d "/tmp/official-vscode/VSCode-linux-x64/resources/app/extensions/ms-vscode.js-debug/out" ]; then
-                  echo "      📦 Copying from official..."
-                  cp -r "/tmp/official-vscode/VSCode-linux-x64/resources/app/extensions/ms-vscode.js-debug/out" ./
-                  echo "      ✅ Copied out/ from official"
-                fi
-              fi
-            fi
-
-            cd - > /dev/null
-          fi
-
-          # ============================================================
-          # 编译 ms-vscode.js-debug-companion
-          # ============================================================
-          if [ -d "$EXT_DIR/ms-vscode.js-debug-companion" ]; then
-            echo ""
-            echo "📌 Compiling ms-vscode.js-debug-companion..."
-            cd "$EXT_DIR/ms-vscode.js-debug-companion"
-
-            if [ -f "package.json" ]; then
-              echo "   📦 Installing dependencies..."
-              npm install --legacy-peer-deps 2>&1 | tail -30 || true
-
-              echo "   🔨 Running gulp compile..."
-              if [ -f "node_modules/.bin/gulp" ]; then
-                ./node_modules/.bin/gulp compile 2>&1 || true
-              elif [ -f "../../node_modules/.bin/gulp" ]; then
-                ../../node_modules/.bin/gulp compile 2>&1 || true
-              else
-                npx gulp compile 2>&1 || true
-              fi
-
-              if [ ! -d "out" ] && [ ! -d "dist" ]; then
-                echo "   🔨 Trying tsc fallback..."
-                if [ -f "node_modules/.bin/tsc" ]; then
-                  ./node_modules/.bin/tsc -p tsconfig.json 2>&1 || true
-                else
-                  npx tsc -p tsconfig.json 2>&1 || true
-                fi
-              fi
-
-              if [ -d "out" ]; then
-                echo "   ✅ Compilation successful (out/)"
-              elif [ -d "dist" ]; then
-                echo "   ✅ Compilation successful (dist/)"
-              else
-                echo "   ⚠️ No out/ or dist/ directory found"
-                if [ -d "../../extensions/ms-vscode.js-debug-companion/out" ]; then
-                  echo "      📦 Copying from build extensions..."
-                  cp -r "../../extensions/ms-vscode.js-debug-companion/out" ./
-                  echo "      ✅ Copied out/ from build"
-                fi
-              fi
-            fi
-
-            cd - > /dev/null
-          fi
-
-          # ============================================================
-          # 复制 @vscode/debug 相关包
-          # ============================================================
           echo ""
-          echo "📌 Copying @vscode/debug packages from node_modules..."
+          echo "✅ All replacements completed!"
 
-          NODE_MODULES="$BUILD_DIR/resources/app/node_modules"
-          DEBUG_PKGS="@vscode/debug @vscode/debugadapter @vscode/debugprotocol"
-
-          for pkg in $DEBUG_PKGS; do
-            if [ -d "$NODE_MODULES/$pkg" ]; then
-              echo "   ✅ $pkg already exists"
-            elif [ -d "./node_modules/$pkg" ]; then
-              echo "   📦 Copying $pkg from root node_modules..."
-              mkdir -p "$NODE_MODULES/@vscode"
-              cp -r "./node_modules/$pkg" "$NODE_MODULES/@vscode/"
-            elif [ -d "$BUILD_DIR/resources/app/node_modules/$pkg" ]; then
-              echo "   ✅ $pkg already in build"
-            else
-              echo "   ⚠️ $pkg not found, trying to install..."
-              cd "$NODE_MODULES"
-              npm install $pkg --no-save --legacy-peer-deps 2>/dev/null || true
-              cd - > /dev/null
-            fi
-          done
-
-          echo "✅ Debug extensions compilation completed"
+          set -e
 
       # ============================================================
       # 深度清理：保留调试依赖
@@ -596,7 +494,7 @@ jobs:
 
           # 保护调试相关的包
           echo "📌 Protecting debug-related packages..."
-          PROTECTED_PKGS="node-pty @vscode/debug @vscode/ripgrep typescript @types"
+          PROTECTED_PKGS="node-pty @vscode/debug @vscode/debugadapter @vscode/debugprotocol @vscode/ripgrep typescript @types"
 
           for pkg in $PROTECTED_PKGS; do
             if [ -d "node_modules/$pkg" ]; then
@@ -682,7 +580,6 @@ jobs:
               echo "   ✅ $ext/dist/ exists"
             else
               echo "   ⚠️ $ext: No out/ or dist/ directory"
-              # 列出目录内容以帮助调试
               echo "      📂 Contents:"
               ls -la "$EXT_DIR/$ext/" 2>/dev/null | head -15
             fi
@@ -960,6 +857,18 @@ jobs:
             else
               echo "   ❌ $ext missing"
               ((FAILED++))
+            fi
+          done
+
+          echo ""
+          echo "7️⃣ Checking @vscode/debug packages..."
+          NODE_MODULES="$SCRIPT_DIR/resources/app/node_modules"
+          for pkg in "@vscode/debug" "@vscode/debugadapter" "@vscode/debugprotocol"; do
+            if [ -d "$NODE_MODULES/$pkg" ]; then
+              echo "   ✅ $pkg"
+              ((PASSED++))
+            else
+              echo "   ⚠️ $pkg not found"
             fi
           done
 
@@ -1267,6 +1176,17 @@ jobs:
             fi
           done
 
+          echo ""
+          echo "🔍 Checking @vscode/debug packages in DEB:"
+          NODE_MODULES="./opt/tscode/resources/app/node_modules"
+          for pkg in "@vscode/debug" "@vscode/debugadapter" "@vscode/debugprotocol"; do
+            if [ -d "$NODE_MODULES/$pkg" ]; then
+              echo "   ✅ $pkg"
+            else
+              echo "   ⚠️ $pkg not found"
+            fi
+          done
+
           cd "$GITHUB_WORKSPACE"
           rm -rf /tmp/deb-verify
 
@@ -1294,9 +1214,10 @@ jobs:
           echo "   - No sandbox password prompt"
           echo "   - Desktop entry in application menu"
           echo "   - /usr/bin/tscode is a wrapper script"
-          echo "   - ✅ Debug extensions compiled"
+          echo "   - ✅ Debug extensions copied from official (compiled)"
           echo "   - ✅ @vscode/debug packages included"
           echo "   - ✅ argv.json auto-fixed for all users"
+          echo "   - ✅ node-pty replaced with official version"
           echo ""
           echo "📂 Directory structure:"
           echo "   System extensions: /opt/tscode/resources/app/extensions/"
