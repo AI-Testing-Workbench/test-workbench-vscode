@@ -208,7 +208,7 @@ jobs:
           echo "🔧 Building ms-vscode.js-debug extension"
           echo "=========================================="
 
-          # 查找 ms-vscode.js-debug 扩展目录 - 在多个可能的位置搜索
+          # 查找 ms-vscode.js-debug 扩展目录
           EXT_DIR=""
           SEARCH_PATHS=(
             "./extensions/ms-vscode.js-debug"
@@ -217,6 +217,7 @@ jobs:
             "./VSCode-linux-x64/resources/app/extensions/ms-vscode.js-debug"
             "./vscode/VSCode-linux-x64/resources/app/extensions/ms-vscode.js-debug"
             "./tscode/resources/app/extensions/ms-vscode.js-debug"
+            "./prebuilt-extensions/ms-vscode.js-debug"
           )
 
           for dir in "${SEARCH_PATHS[@]}"; do
@@ -227,9 +228,8 @@ jobs:
             fi
           done
 
-          # 如果没找到，使用 find 搜索
           if [ -z "$EXT_DIR" ]; then
-            echo "🔍 Searching for ms-vscode.js-debug with find..."
+            echo "🔍 Searching with find..."
             EXT_DIR=$(find . -type d -name "ms-vscode.js-debug" 2>/dev/null | head -1)
             if [ -n "$EXT_DIR" ]; then
               echo "📌 Found extension at: $EXT_DIR"
@@ -237,16 +237,13 @@ jobs:
           fi
 
           if [ -z "$EXT_DIR" ]; then
-            echo "❌ ms-vscode.js-debug extension not found!"
-            echo "   Directory contents:"
-            ls -la
-            echo ""
-            echo "   Searching in current directory..."
-            find . -type d -name "ms-vscode*" 2>/dev/null | head -10
-            echo ""
-            echo "   ⚠️ Skipping debug extension build (will use official version)"
+            echo "⚠️ ms-vscode.js-debug extension not found!"
+            echo "   This is expected if the extension is built differently."
+            echo "   Will use official version from downloaded VSCode."
             exit 0
           fi
+
+          echo "📌 Building extension at: $EXT_DIR"
 
           # 检查是否已经有编译输出
           if [ -d "$EXT_DIR/out" ]; then
@@ -260,17 +257,15 @@ jobs:
             echo "   📦 Installing dependencies..."
             npm install --legacy-peer-deps 2>&1 | tail -20 || true
 
-            # 使用 gulp 编译
-            echo "   🔨 Running gulp compile..."
-            if [ -f "node_modules/.bin/gulp" ]; then
+            # 检查是否有编译脚本
+            if grep -q '"compile"' package.json; then
+              echo "   🔨 Running npm run compile..."
+              npm run compile 2>&1 || true
+            elif [ -f "node_modules/.bin/gulp" ]; then
+              echo "   🔨 Running gulp compile..."
               ./node_modules/.bin/gulp compile 2>&1 || true
             else
-              npx gulp compile 2>&1 || true
-            fi
-
-            # 如果 gulp 失败，尝试 tsc
-            if [ ! -d "out" ]; then
-              echo "   🔨 Trying tsc fallback..."
+              echo "   🔨 Trying tsc..."
               if [ -f "node_modules/.bin/tsc" ]; then
                 ./node_modules/.bin/tsc -p tsconfig.json 2>&1 || true
               else
@@ -278,50 +273,16 @@ jobs:
               fi
             fi
 
-            # 检查结果
             if [ -d "out" ]; then
-              echo "   ✅ Build successful! out/ directory created"
-              echo "      📂 Contents:"
-              ls -la "out/" | head -10
+              echo "   ✅ Build successful!"
             else
-              echo "   ⚠️ Build failed or no out/ directory"
+              echo "   ⚠️ Build did not produce out/ directory"
             fi
 
             cd - > /dev/null
           fi
 
-          # 也编译 ms-vscode.js-debug-companion
-          COMPANION_DIR=""
-          for dir in "${SEARCH_PATHS[@]}"; do
-            companion_path=$(echo "$dir" | sed 's/ms-vscode.js-debug/ms-vscode.js-debug-companion/')
-            if [ -d "$companion_path" ]; then
-              COMPANION_DIR="$companion_path"
-              echo "📌 Found companion at: $COMPANION_DIR"
-              break
-            fi
-          done
-
-          if [ -z "$COMPANION_DIR" ]; then
-            COMPANION_DIR=$(find . -type d -name "ms-vscode.js-debug-companion" 2>/dev/null | head -1)
-            if [ -n "$COMPANION_DIR" ]; then
-              echo "📌 Found companion at: $COMPANION_DIR"
-            fi
-          fi
-
-          if [ -n "$COMPANION_DIR" ] && [ ! -d "$COMPANION_DIR/out" ]; then
-            echo ""
-            echo "📌 Building ms-vscode.js-debug-companion..."
-            cd "$COMPANION_DIR"
-            npm install --legacy-peer-deps 2>&1 | tail -10 || true
-            if [ -f "node_modules/.bin/gulp" ]; then
-              ./node_modules/.bin/gulp compile 2>&1 || true
-            else
-              npx gulp compile 2>&1 || true
-            fi
-            cd - > /dev/null
-          fi
-
-          echo "✅ Debug extensions build completed"
+          echo "✅ Debug extension build completed"
 
       - name: 🔍 Verify build contents
         run: |
