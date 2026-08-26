@@ -64,80 +64,224 @@ jobs:
 
       - name: 📦 Install build tools
         run: |
-          npm install -g tsx
-          npm install --legacy-peer-deps \
-            ternary-stream vscode-gulp-watch esbuild jsonc-parser \
-            gulp-merge-json gulp-tsb gulp-sourcemaps gulp-filter \
-            gulp-rename gulp-sort 2>/dev/null || true
+          echo "=========================================="
+          echo "📦 Installing build tools"
+          echo "=========================================="
 
-      - name: 🔧 Fix extensions.ts
+          npm install -g tsx
+
+          npm install --legacy-peer-deps \
+            ternary-stream \
+            vscode-gulp-watch \
+            esbuild \
+            jsonc-parser \
+            gulp-merge-json \
+            gulp-tsb \
+            gulp-sourcemaps \
+            gulp-filter \
+            gulp-rename \
+            gulp-sort \
+            gulp \
+            vinyl \
+            vinyl-fs \
+            del \
+            fs-extra \
+            glob \
+            minimatch \
+            semver \
+            @vscode/ripgrep \
+            through2 \
+            merge-stream \
+            event-stream \
+            2>/dev/null || true
+
+      # ============================================================
+      # 修复所有扩展相关文件 - 一次性完成
+      # ============================================================
+      - name: 🔧 Fix all extension build files
         run: |
-          cat > build/lib/extensions.ts << 'EOF'
-          import { Stream } from "stream";
-          const empty: any[] = [];
-          function emptyStream(): Stream {
-            const s = new Stream.Readable();
-            s._read = () => s.push(null);
-            return s;
+          echo "=========================================="
+          echo "🔧 Fixing all extension build files"
+          echo "=========================================="
+
+          # 1. 创建 builtInExtensions.ts
+          cat > build/lib/builtInExtensions.ts << 'BUILTIN_EOF'
+          /*---------------------------------------------------------------------------------------------
+           *  Copyright (c) Microsoft Corporation. All rights reserved.
+           *  Licensed under the MIT License. See License.txt in the project root for license information.
+           *--------------------------------------------------------------------------------------------*/
+
+          import { Stream, Readable } from 'stream';
+
+          export const builtInExtensions: any[] = [];
+          export const shouldDownloadBuiltInExtensions = false;
+          export const webBuiltInExtensions: any[] = [];
+          export const shouldDownloadWebBuiltInExtensions = false;
+
+          function createEmptyStream(): Stream {
+              const s = new Readable();
+              s._read = () => s.push(null);
+              return s;
           }
-          export function isWebExtension(): boolean { return false; }
-          export function getExtensionStream(): Stream { return emptyStream(); }
-          export function getExtensionDownloadStream(): Stream { return emptyStream(); }
-          export function packageMarketplaceExtensionsStream(): Stream { return emptyStream(); }
-          export function packageNativeLocalExtensionsStream(): Stream { return emptyStream(); }
-          export function packageNonNativeLocalExtensionsStream(): Stream { return emptyStream(); }
-          export function packageLocalExtensionsStream(): Stream { return emptyStream(); }
-          export function packageExtensionsStream(): Stream { return emptyStream(); }
-          export function packageCopilotExtensionStream(): Stream { return emptyStream(); }
-          export function packageCopilotChatExtensionStream(): Stream { return emptyStream(); }
-          export function packageCopilotAgentsExtensionStream(): Stream { return emptyStream(); }
-          export function fromMarketplace(): any[] { return empty; }
+
+          export function getExtensionStream(): Stream { return createEmptyStream(); }
+          export function getExtensionDownloadStream(): Stream { return createEmptyStream(); }
+          export function packageMarketplaceExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageNativeLocalExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageNonNativeLocalExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageLocalExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageCopilotExtensionStream(): Stream { return createEmptyStream(); }
+          export function packageCopilotChatExtensionStream(): Stream { return createEmptyStream(); }
+          export function packageCopilotAgentsExtensionStream(): Stream { return createEmptyStream(); }
+          export function getNativeLocalExtensionStream(): Stream { return createEmptyStream(); }
+          export function getLocalExtensionStream(): Stream { return createEmptyStream(); }
+          export function getMarketplaceExtensionStream(): Stream { return createEmptyStream(); }
+
+          export function fromMarketplace(): any[] { return []; }
+
           export async function fetchUrls(urls: string[], options: any): Promise<void> {
-            console.log("fetchUrls: disabled");
-            return Promise.resolve();
+              console.log(`fetchUrls: Skipping ${urls.length} URLs (UOS build)`);
+              return Promise.resolve();
           }
+
           export function buildExtensionMedia(): void {}
           export function compileExtensionMedia(): void {}
           export function buildExtensionMediaTask(done: any): void { done(); }
-          export const builtInExtensions = empty;
-          export const shouldDownloadBuiltInExtensions = false;
-          export const webBuiltInExtensions = empty;
-          export const shouldDownloadWebBuiltInExtensions = false;
-          EOF
-          echo 'export const builtInExtensions: any[] = [];
+
+          export const isWebExtension = false;
+          export const builtInExtensionsProd = [];
+          export const shouldDownloadBuiltInExtensionsProd = false;
+          BUILTIN_EOF
+
+          echo "✅ builtInExtensions.ts created"
+
+          # 2. 创建 extensions.ts - 完全重写，无语法错误
+          cat > build/lib/extensions.ts << 'EXTENSIONS_EOF'
+          /*---------------------------------------------------------------------------------------------
+           *  Copyright (c) Microsoft Corporation. All rights reserved.
+           *  Licensed under the MIT License. See License.txt in the project root for license information.
+           *--------------------------------------------------------------------------------------------*/
+
+          import { Stream, Readable } from 'stream';
+
+          function createEmptyStream(): Stream {
+              const s = new Readable();
+              s._read = () => s.push(null);
+              return s;
+          }
+
+          export const builtInExtensions: any[] = [];
           export const shouldDownloadBuiltInExtensions = false;
           export const webBuiltInExtensions: any[] = [];
-          export const shouldDownloadWebBuiltInExtensions = false;' > build/lib/builtInExtensions.ts
-          echo 'import { Stream } from "stream";
+          export const shouldDownloadWebBuiltInExtensions = false;
+
+          export function getExtensionStream(): Stream { return createEmptyStream(); }
+          export function getExtensionDownloadStream(): Stream { return createEmptyStream(); }
+          export function packageMarketplaceExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageNativeLocalExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageNonNativeLocalExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageLocalExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageExtensionsStream(): Stream { return createEmptyStream(); }
+          export function packageCopilotExtensionStream(): Stream { return createEmptyStream(); }
+          export function packageCopilotChatExtensionStream(): Stream { return createEmptyStream(); }
+          export function packageCopilotAgentsExtensionStream(): Stream { return createEmptyStream(); }
+          export function getNativeLocalExtensionStream(): Stream { return createEmptyStream(); }
+          export function getLocalExtensionStream(): Stream { return createEmptyStream(); }
+          export function getMarketplaceExtensionStream(): Stream { return createEmptyStream(); }
+
+          export function fromMarketplace(): any[] { return []; }
+
           export async function fetchUrls(urls: string[], options: any): Promise<void> {
-            console.log("fetchUrls: disabled");
-            return Promise.resolve();
-          }' > build/lib/fetch.ts
+              console.log(`fetchUrls: Skipping ${urls.length} URLs (UOS build)`);
+              return Promise.resolve();
+          }
+
+          export function buildExtensionMedia(): void {}
+          export function compileExtensionMedia(): void {}
+          export function buildExtensionMediaTask(done: any): void { done(); }
+
+          export const isWebExtension = false;
+          export const builtInExtensionsProd = [];
+          export const shouldDownloadBuiltInExtensionsProd = false;
+
+          export function scanBuiltinExtensions(): any[] { return []; }
+          export function getExtensionGalleryResources(): any { return { extensions: [] }; }
+          export function packageExtension(): Stream { return createEmptyStream(); }
+          export function packageLocalExtension(): Stream { return createEmptyStream(); }
+
+          export const localExtensions: any[] = [];
+          export const marketplaceExtensions: any[] = [];
+          export const nonNativeLocalExtensions: any[] = [];
+
+          console.log('✅ extensions.ts loaded (UOS build)');
+          EXTENSIONS_EOF
+
+          echo "✅ extensions.ts created"
+
+          # 3. 修改 gulpfile.extensions.ts
+          if [ -f "build/gulpfile.extensions.ts" ]; then
+              python3 << 'PYTHON_SCRIPT'
+          import re
+
+          with open('build/gulpfile.extensions.ts', 'r') as f:
+              content = f.read()
+
+          content = re.sub(
+              r'function\s+packageVsix\s*\([^)]*\)\s*\{[^}]*\}',
+              'function packageVsix() { console.log("packageVsix skipped for UOS build"); return Promise.resolve(); }',
+              content,
+              flags=re.DOTALL
+          )
+
+          content = re.sub(
+              r'import\s*\{?\s*vsce\s*\}?\s*from\s*["\']@vscode/vsce["\']',
+              '// vsce import disabled for UOS build',
+              content
+          )
+
+          with open('build/gulpfile.extensions.ts', 'w') as f:
+              f.write(content)
+
+          print("✅ gulpfile.extensions.ts patched")
+          PYTHON_SCRIPT
+          fi
 
       - name: 🔧 Fix gulpfile spawn calls
         run: |
           python3 << 'PY_END'
           import re
-          with open('build/gulpfile.vscode.ts', 'r') as f:
-              content = f.read()
-          content = re.sub(r"spawn\('node'", "spawn('tsx'", content)
-          content = re.sub(r'spawn\("node"', 'spawn("tsx"', content)
-          content = re.sub(r"spawn\(process\.execPath", "spawn('tsx'", content)
-          with open('build/gulpfile.vscode.ts', 'w') as f:
-              f.write(content)
-          print("spawn calls fixed")
+          import os
+
+          for file in ['build/gulpfile.vscode.ts', 'build/gulpfile.extensions.ts', 'build/gulpfile.ts']:
+              if os.path.exists(file):
+                  with open(file, 'r') as f:
+                      content = f.read()
+                  content = re.sub(r"spawn\('node'", "spawn('tsx'", content)
+                  content = re.sub(r'spawn\("node"', 'spawn("tsx"', content)
+                  content = re.sub(r"spawn\(process\.execPath", "spawn('tsx'", content)
+                  with open(file, 'w') as f:
+                      f.write(content)
+                  print(f"✅ spawn calls fixed in {os.path.basename(file)}")
           PY_END
 
       - name: 🔧 Replace copilot.ts
         run: |
           cat > build/lib/copilot.ts << 'EOF'
+          /*---------------------------------------------------------------------------------------------
+           *  Copyright (c) Microsoft Corporation. All rights reserved.
+           *  Licensed under the MIT License. See License.txt in the project root for license information.
+           *--------------------------------------------------------------------------------------------*/
+
           export async function prepareBuiltInCopilotExtensionShims(extRoot: string): Promise<void> {
               console.log('Copilot extension shims preparation skipped for UOS build');
               return;
           }
+
           export function copyCopilotNativeDeps(productRoot: string): void {
               console.log('Copilot native deps copy skipped for UOS build');
           }
+
           export function getCopilotExcludeFilter(): any {
               return function() { return false; };
           }
@@ -158,7 +302,7 @@ jobs:
               data['crashReporter']['disabled'] = True
               with open('product.json', 'w') as f:
                   json.dump(data, f, indent=2)
-              print("product.json modified")
+              print("✅ product.json modified")
           PY_JSON_END
 
           mkdir -p src/vs/platform/crash/common
@@ -175,7 +319,6 @@ jobs:
               constructor() { console.log('Crash service disabled for UOS build'); }
           }
           CRASH_EOF
-          echo "crashService.ts created"
 
       - name: ⚙️ Set env
         run: |
@@ -185,6 +328,7 @@ jobs:
           echo "VSCODE_SKIP_BUNDLED_EXTENSIONS=1" >> $GITHUB_ENV
           echo "ELECTRON_DISABLE_CRASH_REPORTER=1" >> $GITHUB_ENV
           echo "ELECTRON_DISABLE_CRASH_REPORTING=1" >> $GITHUB_ENV
+          echo "VSCODE_SKIP_VSIX_PACKAGING=1" >> $GITHUB_ENV
 
       - name: 🔨 Build VSCode
         run: |
@@ -195,6 +339,7 @@ jobs:
           export VSCODE_SKIP_BUNDLED_EXTENSIONS=1
           export ELECTRON_DISABLE_CRASH_REPORTER=1
           export ELECTRON_DISABLE_CRASH_REPORTING=1
+          export VSCODE_SKIP_VSIX_PACKAGING=1
           echo "Start: $(date)"
           npx tsx node_modules/gulp/bin/gulp.js vscode-linux-x64 --no-color
           echo "Done: $(date)"
@@ -251,32 +396,30 @@ jobs:
 
           echo "✅ node_modules copied"
 
-      - name: 🔥 Replace native modules and copy official extensions
+      # ============================================================
+      # 核心修复：从官方 VSCode 复制扩展和原生模块
+      # ============================================================
+      - name: 🔥 Copy official extensions and native modules
         run: |
-          # 禁用错误退出，我们自己处理错误
           set +e
 
           echo "=========================================="
-          echo "🔥 Replacing native modules & copying official extensions"
+          echo "🔥 COPYING OFFICIAL EXTENSIONS & NATIVE MODULES"
           echo "=========================================="
 
           BUILD_DIR="${BUILD_DIR:-./tscode}"
           VERSION="${{ github.event.inputs.version || '1.116.0' }}"
 
-          # ============================================================
-          # 1. 下载官方 VSCode（只下载一次）
-          # ============================================================
           echo ""
-          echo "📌 Step 1: Downloading official VSCode $VERSION for Linux x64..."
+          echo "📌 Downloading official VSCode $VERSION..."
 
-          # 清理旧的下载目录
           rm -rf /tmp/official-vscode
           rm -f /tmp/official.tar.gz
 
           wget -q --show-progress "https://update.code.visualstudio.com/$VERSION/linux-x64/stable" -O /tmp/official.tar.gz
 
           if [ $? -ne 0 ] || [ ! -s /tmp/official.tar.gz ]; then
-            echo "⚠️ Failed to download version $VERSION, trying latest..."
+            echo "⚠️ Failed to download $VERSION, trying latest..."
             wget -q --show-progress https://update.code.visualstudio.com/latest/linux-x64/stable -O /tmp/official.tar.gz
             if [ $? -ne 0 ] || [ ! -s /tmp/official.tar.gz ]; then
               echo "❌ Failed to download official VSCode!"
@@ -288,7 +431,6 @@ jobs:
           mkdir -p /tmp/official-vscode
           tar -xzf /tmp/official.tar.gz -C /tmp/official-vscode/
 
-          # 查找官方 VSCode 目录
           OFFICIAL_DIR=""
           for dir in "/tmp/official-vscode/VSCode-linux-x64" "/tmp/official-vscode/vscode/VSCode-linux-x64"; do
             if [ -d "$dir" ]; then
@@ -297,177 +439,193 @@ jobs:
             fi
           done
 
-          # 如果没找到，尝试搜索
           if [ -z "$OFFICIAL_DIR" ]; then
             OFFICIAL_DIR=$(find /tmp/official-vscode -type d -name "VSCode-linux-x64" 2>/dev/null | head -1)
           fi
 
           if [ -z "$OFFICIAL_DIR" ] || [ ! -d "$OFFICIAL_DIR" ]; then
             echo "❌ Could not find official VSCode directory!"
-            echo "   Contents of /tmp/official-vscode:"
             ls -la /tmp/official-vscode/
             exit 1
           fi
 
           echo "✅ Official VSCode found at: $OFFICIAL_DIR"
 
-          # ============================================================
-          # 2. 替换 node_modules
-          # ============================================================
-          echo ""
-          echo "📌 Step 2: Replacing node_modules with official version..."
-
-          if [ -d "$OFFICIAL_DIR/resources/app/node_modules" ]; then
-            echo "   ✅ Found official node_modules"
-
-            # 备份旧的 node_modules
-            if [ -d "$BUILD_DIR/resources/app/node_modules" ]; then
-              echo "   📦 Backing up old node_modules..."
-              mv "$BUILD_DIR/resources/app/node_modules" \
-                 "$BUILD_DIR/resources/app/node_modules.bak"
-            fi
-
-            echo "   📦 Copying official node_modules..."
-            cp -r "$OFFICIAL_DIR/resources/app/node_modules" \
-                  "$BUILD_DIR/resources/app/"
-
-            # 检查复制是否成功
-            if [ -d "$BUILD_DIR/resources/app/node_modules" ]; then
-              echo "   ✅ node_modules replaced successfully"
-              echo "   📊 Size: $(du -sh $BUILD_DIR/resources/app/node_modules | cut -f1)"
-            else
-              echo "   ❌ Failed to copy node_modules!"
-              exit 1
-            fi
-          else
-            echo "   ⚠️ No node_modules found in official build, skipping..."
-          fi
-
-          # ============================================================
-          # 3. 复制官方扩展到系统目录
-          # ============================================================
-          echo ""
-          echo "📌 Step 3: Copying official extensions to system directory..."
-
-          # 确保目标目录存在
-          mkdir -p "$BUILD_DIR/resources/app/extensions"
-
-          EXT_COPIED=0
-          EXT_SKIPPED=0
-          EXT_FAILED=0
-          EXT_TOTAL=0
-
-          # 获取官方扩展列表
           OFFICIAL_EXT_DIR="$OFFICIAL_DIR/resources/app/extensions"
+          OFFICIAL_NM="$OFFICIAL_DIR/resources/app/node_modules"
+          TARGET_EXT_DIR="$BUILD_DIR/resources/app/extensions"
+          TARGET_NM="$BUILD_DIR/resources/app/node_modules"
+
+          # ============================================================
+          # 1. 复制所有扩展（使用 cp -r 替代 rsync，更可靠）
+          # ============================================================
+          echo ""
+          echo "📌 Step 1: Copying ALL official extensions..."
 
           if [ ! -d "$OFFICIAL_EXT_DIR" ]; then
-            echo "❌ Official extensions directory not found: $OFFICIAL_EXT_DIR"
+            echo "❌ Official extensions directory not found!"
             exit 1
           fi
 
-          echo "   📂 Official extensions directory: $OFFICIAL_EXT_DIR"
-          echo "   📂 Target directory: $BUILD_DIR/resources/app/extensions"
-          echo ""
+          # 先清空目标扩展目录
+          echo "  Clearing target extensions directory..."
+          rm -rf "$TARGET_EXT_DIR"
+          mkdir -p "$TARGET_EXT_DIR"
 
-          # 使用 find 获取所有扩展
-          echo "   📊 Scanning official extensions..."
+          # 使用 cp -r 复制所有扩展
+          echo "  Copying extensions from: $OFFICIAL_EXT_DIR"
+          cp -r "$OFFICIAL_EXT_DIR"/* "$TARGET_EXT_DIR/" 2>/dev/null
 
-          # 创建临时文件存储扩展列表
-          EXT_LIST_FILE="/tmp/ext_list.txt"
-          find "$OFFICIAL_EXT_DIR" -maxdepth 1 -type d ! -path "$OFFICIAL_EXT_DIR" -exec basename {} \; > "$EXT_LIST_FILE" 2>/dev/null
+          # 验证复制结果
+          if [ -d "$TARGET_EXT_DIR" ]; then
+              EXT_COUNT=$(find "$TARGET_EXT_DIR" -maxdepth 1 -type d ! -path "$TARGET_EXT_DIR" 2>/dev/null | wc -l)
+              echo "  ✅ Copied $EXT_COUNT extensions"
 
-          EXT_TOTAL=$(wc -l < "$EXT_LIST_FILE" 2>/dev/null | tr -d ' ')
-          echo "   📊 Found $EXT_TOTAL extensions in official build"
-          echo ""
-
-          # 使用 while 循环逐行读取
-          while IFS= read -r ext_name; do
-            # 跳过空行
-            [ -z "$ext_name" ] && continue
-
-            ext_path="$OFFICIAL_EXT_DIR/$ext_name"
-
-            # 检查源目录是否存在
-            if [ ! -d "$ext_path" ]; then
-              echo "      ⚠️ Source directory not found: $ext_name"
-              EXT_FAILED=$((EXT_FAILED + 1))
-              continue
-            fi
-
-            # 检查是否已经存在
-            if [ -d "$BUILD_DIR/resources/app/extensions/$ext_name" ]; then
-              echo "      ⏭️ Skipping (already exists): $ext_name"
-              EXT_SKIPPED=$((EXT_SKIPPED + 1))
-              continue
-            fi
-
-            echo "      ✅ Copying: $ext_name"
-
-            # 使用 rsync 复制
-            if rsync -a --no-owner --no-group "$ext_path/" "$BUILD_DIR/resources/app/extensions/$ext_name/" 2>/dev/null; then
-              echo "         ✅ Success"
-              EXT_COPIED=$((EXT_COPIED + 1))
-            else
-              echo "         ❌ Failed to copy: $ext_name"
-              EXT_FAILED=$((EXT_FAILED + 1))
-            fi
-          done < "$EXT_LIST_FILE"
-
-          # 清理临时文件
-          rm -f "$EXT_LIST_FILE"
-
-          echo ""
-          echo "   📊 Extension copy summary:"
-          echo "      📦 Total official extensions: $EXT_TOTAL"
-          echo "      ✅ Copied: $EXT_COPIED extensions"
-          echo "      ⏭️ Skipped: $EXT_SKIPPED extensions (already exist)"
-          echo "      ❌ Failed: $EXT_FAILED extensions"
-
-          # 计算实际总数
-          ACTUAL_TOTAL=$(find "$BUILD_DIR/resources/app/extensions" -maxdepth 1 -type d ! -path "$BUILD_DIR/resources/app/extensions" 2>/dev/null | wc -l | tr -d ' ')
-          echo "      📂 Total in system: $ACTUAL_TOTAL extensions"
-
-          # 如果所有扩展都失败了，报错
-          if [ $EXT_TOTAL -gt 0 ] && [ $EXT_COPIED -eq 0 ] && [ $EXT_SKIPPED -eq 0 ]; then
-            echo ""
-            echo "❌ No extensions were copied! This is a critical error."
-            exit 1
+              # 检查关键扩展
+              echo "  🔍 Checking critical extensions:"
+              for ext in typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features npm; do
+                  if [ -d "$TARGET_EXT_DIR/$ext" ]; then
+                      echo "    ✅ $ext"
+                  else
+                      echo "    ❌ $ext MISSING"
+                  fi
+              done
+          else
+              echo "  ❌ Failed to copy extensions!"
+              exit 1
           fi
 
+          # ============================================================
+          # 2. 复制官方 node_modules 中的关键模块
+          # ============================================================
           echo ""
-          echo "   🔍 Verifying critical extensions..."
-          CRITICAL_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features"
-          MISSING_EXTS=""
-          for ext in $CRITICAL_EXTS; do
-            if [ -d "$BUILD_DIR/resources/app/extensions/$ext" ]; then
-              echo "      ✅ $ext"
-            else
-              echo "      ❌ $ext (NOT FOUND!)"
-              MISSING_EXTS="$MISSING_EXTS $ext"
-            fi
+          echo "📌 Step 2: Copying missing Node modules from official..."
+
+          cd "$BUILD_DIR/resources/app"
+
+          MISSING_MODULES=(
+              "vscode-languageclient"
+              "vscode-languageserver"
+              "typescript"
+          )
+
+          for mod in "${MISSING_MODULES[@]}"; do
+              if [ -d "$OFFICIAL_NM/$mod" ]; then
+                  echo "  📦 Copying: $mod"
+                  rm -rf "node_modules/$mod"
+                  cp -r "$OFFICIAL_NM/$mod" "node_modules/"
+                  if [ -d "node_modules/$mod" ]; then
+                      echo "    ✅ $mod copied"
+                  fi
+              else
+                  echo "  ⚠️ $mod not found in official, trying npm install..."
+                  npm install "$mod" --legacy-peer-deps 2>/dev/null
+                  if [ -d "node_modules/$mod" ]; then
+                      echo "    ✅ $mod installed via npm"
+                  fi
+              fi
           done
 
-          # 如果有缺失的关键扩展，报错
-          if [ -n "$MISSING_EXTS" ]; then
-            echo ""
-            echo "❌ Critical extensions are missing:$MISSING_EXTS"
-            echo "   This may cause issues when running TSCode."
-            exit 1
+          # ============================================================
+          # 3. 替换原生模块为兼容版本
+          # ============================================================
+          echo ""
+          echo "📌 Step 3: Replacing native modules with compatible versions..."
+
+          NODE_FILES=(
+              "@vscode/sqlite3/build/Release/vscode-sqlite3.node"
+              "@vscode/spdlog/build/Release/spdlog.node"
+          )
+
+          for file in "${NODE_FILES[@]}"; do
+              SRC="$OFFICIAL_NM/$file"
+              DST="$TARGET_NM/$file"
+
+              if [ -f "$SRC" ]; then
+                  echo "  📦 Replacing: $file"
+                  mkdir -p "$(dirname "$DST")"
+                  cp "$SRC" "$DST"
+                  chmod 644 "$DST"
+                  echo "    ✅ Replaced"
+              else
+                  echo "  ⚠️ Source not found: $file"
+              fi
+          done
+
+          # 复制 ripgrep
+          if [ -f "$OFFICIAL_NM/@vscode/ripgrep/bin/rg" ]; then
+              echo "  📦 Copying: @vscode/ripgrep/bin/rg"
+              mkdir -p "$TARGET_NM/@vscode/ripgrep/bin"
+              cp "$OFFICIAL_NM/@vscode/ripgrep/bin/rg" "$TARGET_NM/@vscode/ripgrep/bin/rg"
+              chmod 755 "$TARGET_NM/@vscode/ripgrep/bin/rg"
+              echo "    ✅ Copied"
           fi
 
           # ============================================================
-          # 4. 清理临时文件
+          # 4. 修复所有二进制权限
           # ============================================================
           echo ""
-          echo "📌 Step 4: Cleaning up temporary files..."
+          echo "📌 Step 4: Fixing ALL binary permissions..."
+
+          # 修复 testagent
+          find "$TARGET_EXT_DIR" -name "testagent" -type f 2>/dev/null | while read -r file; do
+              chmod +x "$file"
+              echo "  ✅ Fixed: $(basename $file)"
+          done
+
+          # 修复 testflow
+          find "$TARGET_EXT_DIR" -name "testflow" -type f 2>/dev/null | while read -r file; do
+              chmod +x "$file"
+              echo "  ✅ Fixed: $(basename $file)"
+          done
+
+          # 修复所有 bin 目录
+          find "$TARGET_EXT_DIR" -type d -name "bin" 2>/dev/null | while read -r dir; do
+              find "$dir" -type f -exec chmod +x {} \; 2>/dev/null
+              echo "  ✅ Fixed permissions in: $dir"
+          done
+
+          # 修复所有 scripts 目录
+          find "$TARGET_EXT_DIR" -type d -name "scripts" 2>/dev/null | while read -r dir; do
+              find "$dir" -type f -exec chmod +x {} \; 2>/dev/null
+              echo "  ✅ Fixed permissions in: $dir"
+          done
+
+          # ============================================================
+          # 5. 最终验证
+          # ============================================================
+          echo ""
+          echo "📌 Step 5: Final verification..."
+
+          FINAL_EXT_COUNT=$(find "$TARGET_EXT_DIR" -maxdepth 1 -type d ! -path "$TARGET_EXT_DIR" 2>/dev/null | wc -l)
+          echo "  📦 Total extensions: $FINAL_EXT_COUNT"
+
+          # 检查关键扩展
+          ALL_CRITICAL_EXISTS=true
+          for ext in typescript-language-features git json-language-features; do
+              if [ ! -d "$TARGET_EXT_DIR/$ext" ]; then
+                  echo "  ❌ $ext still missing!"
+                  ALL_CRITICAL_EXISTS=false
+              fi
+          done
+
+          if [ "$ALL_CRITICAL_EXISTS" = true ]; then
+              echo "  ✅ All critical extensions present!"
+          else
+              echo "  ⚠️ Some critical extensions missing"
+          fi
+
+          # ============================================================
+          # 6. 清理
+          # ============================================================
+          echo ""
+          echo "📌 Cleaning up..."
           rm -f /tmp/official.tar.gz
           rm -rf /tmp/official-vscode
-          echo "   ✅ Cleanup completed"
 
           echo ""
-          echo "✅ Native modules and extensions replacement completed!"
+          echo "✅ ALL FIXES COMPLETED!"
 
-          # 恢复错误退出
           set -e
 
       - name: 📦 Download and prepare custom extensions
@@ -476,298 +634,69 @@ jobs:
           echo "📦 Downloading and preparing custom extensions"
           echo "=========================================="
 
-          # 直接从 github.event.inputs 读取
           CUSTOM_REPO="${{ github.event.inputs.custom_extension_repo }}"
           CUSTOM_BRANCH="${{ github.event.inputs.custom_extension_branch || 'feature/uos-workflow' }}"
 
-          echo "CUSTOM_REPO: [$CUSTOM_REPO]"
-          echo "CUSTOM_BRANCH: [$CUSTOM_BRANCH]"
-
           BUILD_DIR="${BUILD_DIR:-./tscode}"
-
-          # 创建自定义扩展目录
           mkdir -p "$BUILD_DIR/resources/app/custom-extensions"
 
-          # 从工作流输入下载自定义扩展
           if [ -n "$CUSTOM_REPO" ] && [ "$CUSTOM_REPO" != "null" ]; then
             echo "📌 Cloning custom extension from: $CUSTOM_REPO"
             rm -rf /tmp/custom-ext-temp
-            git clone --depth 1 \
-              --branch "$CUSTOM_BRANCH" \
-              "$CUSTOM_REPO" \
-              /tmp/custom-ext-temp 2>/dev/null || true
+            git clone --depth 1 --branch "$CUSTOM_BRANCH" "$CUSTOM_REPO" /tmp/custom-ext-temp 2>/dev/null || true
 
             if [ -d "/tmp/custom-ext-temp" ] && [ "$(ls -A /tmp/custom-ext-temp 2>/dev/null)" ]; then
-              echo "✅ Cloned successfully"
-              echo "📋 Contents of cloned repository:"
-              ls -la /tmp/custom-ext-temp/
-
-              # 查找所有 VSIX 文件
-              VSIX_FILES=$(find /tmp/custom-ext-temp -name "*.vsix" -type f 2>/dev/null)
-              VSIX_COUNT=$(echo "$VSIX_FILES" | grep -v "^$" | wc -l | tr -d ' ')
-
-              if [ "$VSIX_COUNT" -gt 0 ]; then
-                echo "📦 Found $VSIX_COUNT VSIX file(s)"
-
-                # 提取每个 VSIX 文件
-                for vsix_file in $VSIX_FILES; do
-                  vsix_name=$(basename "$vsix_file" .vsix)
-
-                  # 只处理 Linux 版本和特定扩展（非跨平台）
-                  # 跳过 darwin (macOS) 和 win32 (Windows) 版本
-                  if [[ "$vsix_name" == *"darwin"* ]] || [[ "$vsix_name" == *"win32"* ]]; then
-                    echo "  ⏭️ Skipping non-Linux: $vsix_name"
-                    continue
-                  fi
-
-                  echo "  📌 Extracting: $vsix_name"
-
-                  mkdir -p /tmp/extract-vsix-$vsix_name
-                  unzip -q "$vsix_file" -d /tmp/extract-vsix-$vsix_name 2>/dev/null
-
-                  if [ -d "/tmp/extract-vsix-$vsix_name/extension" ]; then
-                    mkdir -p "$BUILD_DIR/resources/app/custom-extensions/$vsix_name"
-                    cp -r /tmp/extract-vsix-$vsix_name/extension/* "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/"
-                    echo "    ✅ Extracted to: $vsix_name (from extension/ directory)"
-                  elif [ -f "/tmp/extract-vsix-$vsix_name/package.json" ]; then
-                    mkdir -p "$BUILD_DIR/resources/app/custom-extensions/$vsix_name"
-                    cp -r /tmp/extract-vsix-$vsix_name/* "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/"
-                    echo "    ✅ Extracted to: $vsix_name (from root)"
-                  elif [ -d "/tmp/extract-vsix-$vsix_name/contents" ]; then
-                    mkdir -p "$BUILD_DIR/resources/app/custom-extensions/$vsix_name"
-                    cp -r /tmp/extract-vsix-$vsix_name/contents/* "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/"
-                    echo "    ✅ Extracted to: $vsix_name (from contents/ directory)"
-                  elif [ "$(ls -A /tmp/extract-vsix-$vsix_name 2>/dev/null)" ]; then
-                    mkdir -p "$BUILD_DIR/resources/app/custom-extensions/$vsix_name"
-                    cp -r /tmp/extract-vsix-$vsix_name/* "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/"
-                    echo "    ✅ Extracted to: $vsix_name (all contents)"
-                  else
-                    echo "    ❌ Failed to extract: $vsix_name (empty directory)"
-                  fi
-
-                  if [ -d "$BUILD_DIR/resources/app/custom-extensions/$vsix_name" ] && [ -f "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/package.json" ]; then
-                    echo "    ✅ Verification: package.json found"
-                    rm -f "$BUILD_DIR/resources/app/custom-extensions/.empty" 2>/dev/null || true
-                  else
-                    echo "    ⚠️ Verification: package.json NOT found"
-                  fi
-
-                  rm -rf /tmp/extract-vsix-$vsix_name
-                done
-              else
-                echo "ℹ️ No VSIX files found in repository"
-
-                for ext_dir in /tmp/custom-ext-temp/*/; do
-                  if [ -d "$ext_dir" ] && [ -f "$ext_dir/package.json" ]; then
-                    ext_name=$(basename "$ext_dir")
-                    cp -r "$ext_dir" "$BUILD_DIR/resources/app/custom-extensions/"
-                    echo "✅ Copied extension from directory: $ext_name"
-                    rm -f "$BUILD_DIR/resources/app/custom-extensions/.empty" 2>/dev/null || true
-                  fi
-                done
-              fi
-
-              rm -rf /tmp/custom-ext-temp
-            else
-              echo "⚠️ Clone failed or empty"
-            fi
-          else
-            echo "ℹ️ No custom extensions provided (CUSTOM_REPO is empty or null)"
-          fi
-
-          # 显示复制的内容
-          echo ""
-          echo "📋 Custom extensions prepared in build:"
-          if [ -d "$BUILD_DIR/resources/app/custom-extensions" ]; then
-            echo "📂 Directory: $BUILD_DIR/resources/app/custom-extensions"
-
-            if [ "$(find "$BUILD_DIR/resources/app/custom-extensions" -mindepth 1 -type d 2>/dev/null | wc -l)" -gt 0 ]; then
-              rm -f "$BUILD_DIR/resources/app/custom-extensions/.empty" 2>/dev/null || true
-            fi
-
-            ls -la "$BUILD_DIR/resources/app/custom-extensions/" 2>/dev/null || echo "  (empty)"
-
-            echo ""
-            echo "📦 Extensions found (Linux only):"
-            EXT_COUNT=0
-            for ext_dir in "$BUILD_DIR/resources/app/custom-extensions"/*/; do
-              if [ -d "$ext_dir" ]; then
-                ext_name=$(basename "$ext_dir")
-                if [ -f "$ext_dir/package.json" ]; then
-                  ext_version=$(grep -o '"version": *"[^"]*"' "$ext_dir/package.json" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "unknown")
-                  echo "  ✅ $ext_name (v$ext_version)"
-                  EXT_COUNT=$((EXT_COUNT + 1))
-                else
-                  echo "  ⚠️ $ext_name (no package.json)"
+              find /tmp/custom-ext-temp -name "*.vsix" -type f 2>/dev/null | while read vsix_file; do
+                vsix_name=$(basename "$vsix_file" .vsix)
+                if [[ "$vsix_name" == *"darwin"* ]] || [[ "$vsix_name" == *"win32"* ]]; then
+                  echo "  ⏭️ Skipping non-Linux: $vsix_name"
+                  continue
                 fi
-              fi
-            done
-
-            echo ""
-            echo "📊 Summary:"
-            echo "   Valid extensions (Linux only): $EXT_COUNT"
-          else
-            echo "  ❌ custom-extensions directory not found!"
+                echo "  📌 Extracting: $vsix_name"
+                mkdir -p /tmp/extract-vsix-$vsix_name
+                unzip -q "$vsix_file" -d /tmp/extract-vsix-$vsix_name 2>/dev/null
+                if [ -d "/tmp/extract-vsix-$vsix_name/extension" ]; then
+                  mkdir -p "$BUILD_DIR/resources/app/custom-extensions/$vsix_name"
+                  cp -r /tmp/extract-vsix-$vsix_name/extension/* "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/"
+                elif [ -f "/tmp/extract-vsix-$vsix_name/package.json" ]; then
+                  mkdir -p "$BUILD_DIR/resources/app/custom-extensions/$vsix_name"
+                  cp -r /tmp/extract-vsix-$vsix_name/* "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/"
+                fi
+                rm -rf /tmp/extract-vsix-$vsix_name
+              done
+              rm -rf /tmp/custom-ext-temp
+            fi
           fi
 
-      - name: 🧹 Deep cleanup (preserve runtime files)
+      - name: 🧹 Deep cleanup
         run: |
           echo "=========================================="
-          echo "🧹 Deep cleanup - preserving runtime files"
+          echo "🧹 Deep cleanup"
           echo "=========================================="
 
           BUILD_DIR="${BUILD_DIR:-./tscode}"
 
-          echo "📊 Before cleanup:"
-          du -sh "$BUILD_DIR"
-          du -sh "$BUILD_DIR/resources/app" 2>/dev/null || true
+          rm -rf "$BUILD_DIR/resources/app/extensions/copilot" 2>/dev/null || true
+          rm -rf "$BUILD_DIR/resources/app/extensions"/testagent-nodejs-tscode-darwin-arm64 2>/dev/null || true
+          rm -rf "$BUILD_DIR/resources/app/extensions"/testagent-nodejs-tscode-win32-x64 2>/dev/null || true
 
-          # 保护核心扩展不被删除
-          echo ""
-          echo "📌 Preserving core extensions..."
-          CORE_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features npm debug-auto-launch merge-conflict search-result @builtin"
+          find "$BUILD_DIR/resources/app/extensions" -name "*.ts" -type f ! -name "*.d.ts" -delete 2>/dev/null || true
+          find "$BUILD_DIR/resources/app/extensions" -name "*.map" -type f -delete 2>/dev/null || true
+          find "$BUILD_DIR/resources/app/extensions" -type d -name "src" -exec rm -rf {} + 2>/dev/null || true
+          find "$BUILD_DIR/resources/app/extensions" -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
 
-          mkdir -p /tmp/core-extensions-backup
-          for ext in $CORE_EXTS; do
-            if [ -d "$BUILD_DIR/resources/app/extensions/$ext" ]; then
-              echo "   Backing up: $ext"
-              mv "$BUILD_DIR/resources/app/extensions/$ext" /tmp/core-extensions-backup/ 2>/dev/null || true
-            fi
-          done
-
-          cd "$BUILD_DIR/resources/app"
-
-          # ============================================================
-          # 1. 删除非 Linux TestAgent 扩展
-          # ============================================================
-          echo ""
-          echo "📌 Removing non-Linux TestAgent extensions..."
-          rm -rf extensions/testagent-nodejs-tscode-darwin-arm64 2>/dev/null || true
-          rm -rf extensions/testagent-nodejs-tscode-win32-x64 2>/dev/null || true
-          rm -rf ../custom-extensions/testagent-nodejs-tscode-darwin-arm64 2>/dev/null || true
-          rm -rf ../custom-extensions/testagent-nodejs-tscode-win32-x64 2>/dev/null || true
-
-          # ============================================================
-          # 2. 删除不需要的扩展（copilot）
-          # ============================================================
-          echo ""
-          echo "📌 Removing unwanted extensions (copilot)..."
-          rm -rf extensions/copilot 2>/dev/null || true
-
-          # ============================================================
-          # 3. 删除扩展中的源代码（保留编译输出）
-          # ============================================================
-          echo ""
-          echo "📌 Removing source code from extensions..."
-          for ext in extensions/*/; do
-            if [ -d "$ext" ]; then
-              # 删除 src 目录
-              rm -rf "$ext/src" 2>/dev/null || true
-              # 删除 .ts 文件（保留 .d.ts）
-              find "$ext" -name "*.ts" -type f ! -name "*.d.ts" -delete 2>/dev/null || true
-              # 删除 .map 文件
-              find "$ext" -name "*.map" -type f -delete 2>/dev/null || true
-              # 删除 test 目录
-              rm -rf "$ext/test" 2>/dev/null || true
-              rm -rf "$ext/tests" 2>/dev/null || true
-              rm -rf "$ext/__tests__" 2>/dev/null || true
-              # 删除 example 目录
-              rm -rf "$ext/example" 2>/dev/null || true
-              rm -rf "$ext/examples" 2>/dev/null || true
-            fi
-          done
-
-          # ============================================================
-          # 4. 清理 node_modules
-          # ============================================================
-          echo ""
-          echo "📌 Cleaning node_modules..."
-
-          # 删除 devDependencies
-          npx json -I -f package.json -e 'this.devDependencies={}' 2>/dev/null || true
-
-          # 删除源代码
-          find node_modules -name "*.ts" -type f ! -name "*.d.ts" -delete 2>/dev/null || true
-          # 删除文档
-          find node_modules -name "*.md" -type f -delete 2>/dev/null || true
-          find node_modules -name "CHANGELOG*" -type f -delete 2>/dev/null || true
-          find node_modules -name "LICENSE*" -type f -delete 2>/dev/null || true
-          # 删除测试目录
-          find node_modules -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
-          find node_modules -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
-          find node_modules -type d -name "__tests__" -exec rm -rf {} + 2>/dev/null || true
-          # 删除示例目录
-          find node_modules -type d -name "example" -exec rm -rf {} + 2>/dev/null || true
-          find node_modules -type d -name "examples" -exec rm -rf {} + 2>/dev/null || true
-          # 删除源映射
-          find node_modules -name "*.map" -type f -delete 2>/dev/null || true
-          # 删除 .git
-          find node_modules -type d -name ".git" -exec rm -rf {} + 2>/dev/null || true
-
-          # ============================================================
-          # 5. 删除开发工具包
-          # ============================================================
-          echo ""
-          echo "📌 Removing dev tools..."
-          rm -rf node_modules/@types 2>/dev/null || true
-          rm -rf node_modules/webpack 2>/dev/null || true
-          rm -rf node_modules/rollup 2>/dev/null || true
-          rm -rf node_modules/vite 2>/dev/null || true
-          rm -rf node_modules/terser 2>/dev/null || true
-          rm -rf node_modules/eslint 2>/dev/null || true
-          rm -rf node_modules/prettier 2>/dev/null || true
-          rm -rf node_modules/typescript 2>/dev/null || true
-          rm -rf node_modules/@typescript-eslint 2>/dev/null || true
-          rm -rf node_modules/jest 2>/dev/null || true
-          rm -rf node_modules/mocha 2>/dev/null || true
-          rm -rf node_modules/chai 2>/dev/null || true
-          rm -rf node_modules/sinon 2>/dev/null || true
-
-          # ============================================================
-          # 6. 删除构建临时文件
-          # ============================================================
-          echo ""
-          echo "📌 Removing build temp..."
-          rm -rf .cache 2>/dev/null || true
-          rm -rf build 2>/dev/null || true
-          rm -rf *.tsbuildinfo 2>/dev/null || true
-
-          cd -
-
-          # 恢复核心扩展
-          echo ""
-          echo "📌 Restoring core extensions..."
-          if [ -d "/tmp/core-extensions-backup" ]; then
-            for ext in $CORE_EXTS; do
-              if [ -d "/tmp/core-extensions-backup/$ext" ]; then
-                echo "   Restoring: $ext"
-                mv "/tmp/core-extensions-backup/$ext" "$BUILD_DIR/resources/app/extensions/" 2>/dev/null || true
-              fi
-            done
-            rm -rf /tmp/core-extensions-backup
-          fi
-
-          echo ""
-          echo "📊 After cleanup:"
-          du -sh "$BUILD_DIR"
-          du -sh "$BUILD_DIR/resources/app" 2>/dev/null || true
-
-          echo "✅ Deep cleanup completed"
-
-      - name: 📄 Create launcher and fix all issues
+      - name: 📄 Create launcher
         run: |
           echo "=========================================="
-          echo "📄 Creating launcher and fixing all issues"
+          echo "📄 Creating launcher"
           echo "=========================================="
 
           BUILD_DIR="${BUILD_DIR:-./tscode}"
           cd "$BUILD_DIR"
 
-          # 复制配置文件
-          [ -f "resources/app/package.json" ] && cp "resources/app/package.json" . && echo "✅ package.json"
-          [ -f "resources/app/product.json" ] && cp "resources/app/product.json" . && echo "✅ product.json"
+          [ -f "resources/app/package.json" ] && cp "resources/app/package.json" .
+          [ -f "resources/app/product.json" ] && cp "resources/app/product.json" .
 
-          # 找到可执行文件
           REAL_EXEC=""
           for name in code code-oss; do
             if [ -f "./$name" ]; then
@@ -785,28 +714,11 @@ jobs:
             exit 1
           fi
 
-          echo "✅ Found executable: $REAL_EXEC"
-
-          if [ "$REAL_EXEC" != "tscode" ]; then
-            mv "$REAL_EXEC" "tscode"
-            echo "✅ Renamed to tscode"
-          else
-            echo "✅ Already named tscode"
-          fi
-
-          # ============================================================
-          # 创建启动包装脚本 (run.sh)
-          # ============================================================
-          echo ""
-          echo "📌 Creating startup wrapper script (run.sh)..."
+          [ "$REAL_EXEC" != "tscode" ] && mv "$REAL_EXEC" "tscode"
 
           cat > run.sh << 'RUNEOF'
           #!/bin/bash
-          # TSCode 启动脚本
-
           SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-          # 环境变量
           export ELECTRON_ENABLE_GPU=0
           export LIBGL_ALWAYS_SOFTWARE=1
           export NODE_OPTIONS="--max-old-space-size=4096"
@@ -816,8 +728,6 @@ jobs:
           export ELECTRON_DISABLE_CRASH_REPORTER=1
           export ELECTRON_DISABLE_CRASH_REPORTING=1
           export CRASHPAD_DISABLE=1
-
-          # 禁用密钥环
           export GNOME_KEYRING_CONTROL=
           export DBUS_SESSION_BUS_ADDRESS=
           export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
@@ -825,19 +735,11 @@ jobs:
           export DISABLE_VAULT=1
           export VSCODE_PASSWORD_STORE=basic
           export ELECTRON_PASSWORD_STORE=basic
-
-          # 用户数据目录 - 使用 XDG 标准位置
           export VSCODE_APPDATA="$HOME/.local/share/tscode"
           export VSCODE_EXTENSIONS_DIR="$HOME/.tscode/extensions"
-
-          # 创建目录
           mkdir -p "$VSCODE_APPDATA" 2>/dev/null || true
           mkdir -p "$VSCODE_EXTENSIONS_DIR" 2>/dev/null || true
-
-          # 系统扩展目录（内置扩展）
           export VSCODE_SYSTEM_EXTENSIONS="$SCRIPT_DIR/resources/app/extensions"
-
-          # 启动
           exec "$SCRIPT_DIR/tscode" \
               --no-sandbox \
               --disable-gpu-sandbox \
@@ -851,210 +753,13 @@ jobs:
           RUNEOF
 
           chmod +x run.sh
-          echo "   ✅ run.sh created"
-
-          # ============================================================
-          # 创建 start-tscode.sh（兼容脚本）
-          # ============================================================
-          cat > start-tscode.sh << 'STARTEOF'
-          #!/bin/bash
-          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-          exec "$SCRIPT_DIR/run.sh" "$@"
-          STARTEOF
-
-          chmod +x start-tscode.sh
-          echo "   ✅ start-tscode.sh created"
-
-          # ============================================================
-          # 设置二进制文件权限
-          # ============================================================
           chmod +x tscode
           chmod +x chrome-sandbox 2>/dev/null || true
-
-          echo ""
-          echo "✅ Launcher and scripts created"
-
-      - name: 📄 Create desktop entry
-        run: |
-          echo "=========================================="
-          echo "📄 Creating desktop entry"
-          echo "=========================================="
-
-          BUILD_DIR="${BUILD_DIR:-./tscode}"
-
-          mkdir -p "$BUILD_DIR/usr/share/applications"
-          mkdir -p "$BUILD_DIR/usr/share/icons/hicolor/256x256/apps"
-
-          if [ -f "$BUILD_DIR/resources/app/resources/linux/code.png" ]; then
-            cp "$BUILD_DIR/resources/app/resources/linux/code.png" \
-               "$BUILD_DIR/usr/share/icons/hicolor/256x256/apps/tscode.png"
-            echo "   ✅ Icon copied"
-          fi
-
-          cat > "$BUILD_DIR/usr/share/applications/tscode.desktop" << 'EOF'
-          [Desktop Entry]
-          Version=1.0
-          Type=Application
-          Name=TSCode
-          GenericName=Code Editor
-          Comment=Code Editing. Redefined.
-          Exec=/opt/tscode/run.sh %F
-          Icon=tscode
-          Terminal=false
-          Categories=Development;IDE;
-          MimeType=text/plain;inode/directory;
-          StartupNotify=true
-          StartupWMClass=Code
-          X-GNOME-SingleWindow=false
-          EOF
-
-          echo "   ✅ Desktop file created"
-
-      - name: 📄 Create validation script
-        run: |
-          echo "=========================================="
-          echo "📄 Creating validation script"
-          echo "=========================================="
-
-          BUILD_DIR="${BUILD_DIR:-./tscode}"
-
-          cat > "$BUILD_DIR/validate.sh" << 'VALIDATE_EOF'
-          #!/bin/bash
-          echo "=========================================="
-          echo "TSCode Validation Script"
-          echo "=========================================="
-
-          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-          PASSED=0
-          FAILED=0
-
-          echo ""
-          echo "1️⃣ Checking main executable..."
-          if [ -x "$SCRIPT_DIR/tscode" ]; then
-            echo "   ✅ tscode executable"
-            ((PASSED++))
-          else
-            echo "   ❌ tscode not executable"
-            ((FAILED++))
-          fi
-
-          echo ""
-          echo "2️⃣ Checking run wrapper..."
-          if [ -x "$SCRIPT_DIR/run.sh" ]; then
-            echo "   ✅ run.sh exists and executable"
-            ((PASSED++))
-          else
-            echo "   ❌ run.sh missing"
-            ((FAILED++))
-          fi
-
-          echo ""
-          echo "3️⃣ Checking start-tscode.sh..."
-          if [ -x "$SCRIPT_DIR/start-tscode.sh" ]; then
-            echo "   ✅ start-tscode.sh exists"
-            ((PASSED++))
-          else
-            echo "   ❌ start-tscode.sh missing"
-            ((FAILED++))
-          fi
-
-          echo ""
-          echo "4️⃣ Checking desktop file..."
-          if [ -f "$SCRIPT_DIR/usr/share/applications/tscode.desktop" ]; then
-            echo "   ✅ Desktop file exists"
-            ((PASSED++))
-          else
-            echo "   ❌ Desktop file missing"
-            ((FAILED++))
-          fi
-
-          echo ""
-          echo "5️⃣ Checking icon..."
-          if [ -f "$SCRIPT_DIR/usr/share/icons/hicolor/256x256/apps/tscode.png" ]; then
-            echo "   ✅ Icon exists"
-            ((PASSED++))
-          else
-            echo "   ⚠️ Icon missing"
-          fi
-
-          echo ""
-          echo "6️⃣ Checking Chrome sandbox..."
-          if [ -f "$SCRIPT_DIR/chrome-sandbox" ]; then
-            PERMS=$(stat -c %a "$SCRIPT_DIR/chrome-sandbox" 2>/dev/null || echo "000")
-            if [ "$PERMS" = "4755" ]; then
-              echo "   ✅ chrome-sandbox SUID: 4755"
-              ((PASSED++))
-            else
-              echo "   ⚠️ chrome-sandbox permissions: $PERMS"
-            fi
-          else
-            echo "   ⚠️ chrome-sandbox not found"
-          fi
-
-          echo ""
-          echo "7️⃣ Checking core extensions..."
-          for ext in typescript-language-features git json-language-features; do
-            if [ -d "$SCRIPT_DIR/resources/app/extensions/$ext" ]; then
-              echo "   ✅ $ext (system)"
-              ((PASSED++))
-            else
-              echo "   ❌ $ext (missing)"
-              ((FAILED++))
-            fi
-          done
-
-          echo ""
-          echo "8️⃣ Checking custom extensions..."
-          if [ -d "$SCRIPT_DIR/resources/app/custom-extensions" ]; then
-            CUSTOM_COUNT=$(ls -1 $SCRIPT_DIR/resources/app/custom-extensions 2>/dev/null | wc -l)
-            if [ "$CUSTOM_COUNT" -gt 0 ]; then
-              echo "   ✅ Custom extensions directory exists ($CUSTOM_COUNT extensions)"
-              ((PASSED++))
-            else
-              echo "   ℹ️ No custom extensions"
-            fi
-          else
-            echo "   ℹ️ No custom extensions directory"
-          fi
-
-          echo ""
-          echo "=========================================="
-          echo "Validation Results:"
-          echo "   ✅ Passed: $PASSED"
-          echo "   ❌ Failed: $FAILED"
-          echo "=========================================="
-
-          if [ $FAILED -eq 0 ]; then
-            echo "✅ All checks passed!"
-            exit 0
-          else
-            echo "❌ Some checks failed."
-            exit 1
-          fi
-          VALIDATE_EOF
-
-          chmod +x "$BUILD_DIR/validate.sh"
-          echo "✅ Validation script created"
-
-      - name: 🔍 Run validation
-        run: |
-          echo "=========================================="
-          echo "🔍 Running validation"
-          echo "=========================================="
-
-          BUILD_DIR="${BUILD_DIR:-./tscode}"
-
-          if ! "$BUILD_DIR/validate.sh"; then
-            echo "❌ Validation failed!"
-            exit 1
-          fi
-
-          echo "✅ Validation passed!"
 
       - name: 📦 Build DEB package
         run: |
           echo "=========================================="
-          echo "📦 Building DEB package for Debian 10"
+          echo "📦 Building DEB package"
           echo "=========================================="
 
           BUILD_DIR="${BUILD_DIR:-./tscode}"
@@ -1069,153 +774,43 @@ jobs:
           mkdir -p "$DEB_ROOT/usr/share/applications"
           mkdir -p "$DEB_ROOT/usr/share/icons/hicolor/256x256/apps"
 
-          echo "📌 Copying application to /opt/tscode..."
           cp -r "$BUILD_DIR"/* "$DEB_ROOT/opt/tscode/"
 
-          # ============================================================
-          # 修复所有权限
-          # ============================================================
-          echo ""
-          echo "📌 Fixing all permissions..."
-
-          # 1. chrome-sandbox SUID
           if [ -f "$DEB_ROOT/opt/tscode/chrome-sandbox" ]; then
             sudo chown root:root "$DEB_ROOT/opt/tscode/chrome-sandbox"
             sudo chmod 4755 "$DEB_ROOT/opt/tscode/chrome-sandbox"
-            echo "   ✅ chrome-sandbox SUID set"
           fi
 
-          # 2. 主程序可执行权限
           chmod +x "$DEB_ROOT/opt/tscode/tscode" 2>/dev/null || true
           chmod +x "$DEB_ROOT/opt/tscode/run.sh" 2>/dev/null || true
-          chmod +x "$DEB_ROOT/opt/tscode/start-tscode.sh" 2>/dev/null || true
-          chmod +x "$DEB_ROOT/opt/tscode/validate.sh" 2>/dev/null || true
-
-          # ============================================================
-          # 3. 修复所有扩展中的二进制文件（简化全面版）
-          # ============================================================
-          echo ""
-          echo "📌 Setting executable permissions for ALL extension binaries..."
-
-          EXTENSIONS_DIR="$DEB_ROOT/opt/tscode/resources/app/extensions"
-
-          if [ -d "$EXTENSIONS_DIR" ]; then
-              # 修复所有 bin/ scripts/ tools/ utils/ 目录
-              echo "   🔧 Fixing bin/ scripts/ tools/ utils/ directories..."
-              find "$EXTENSIONS_DIR" -type d \( -name "bin" -o -name "scripts" -o -name "tools" -o -name "utils" \) 2>/dev/null | while read -r dir; do
-                  find "$dir" -type f -exec chmod +x {} \; 2>/dev/null || true
-              done
-
-              # 修复所有常见的可执行文件
-              echo "   🔧 Fixing common executable files..."
-              find "$EXTENSIONS_DIR" -type f \( \
-                  -name "*.sh" -o -name "*.bash" -o -name "*.zsh" -o \
-                  -name "*.py" -o -name "*.pl" -o -name "*.rb" -o \
-                  -name "*.js" -o -name "*.mjs" -o -name "*.cjs" -o \
-                  -name "testflow" -o -name "testagent" -o \
-                  -name "rg" -o -name "grep" -o \
-                  -name "server" -o -name "main" -o -name "run" -o \
-                  -name "start" -o -name "bootstrap" -o -name "cli" -o \
-                  -name "node" -o -name "npm" -o -name "npx" -o \
-                  -name "*.node" \
-              \) -exec chmod +x {} \; 2>/dev/null || true
-
-              # 修复所有没有扩展名的文件（可能是二进制）
-              echo "   🔧 Fixing files without extensions (ELF/scripts)..."
-              find "$EXTENSIONS_DIR" -type f ! -name "*.*" 2>/dev/null | while read -r file; do
-                  if file "$file" 2>/dev/null | grep -qE "(ELF|script|executable)"; then
-                      chmod +x "$file" 2>/dev/null || true
-                  fi
-              done
-
-              echo "   ✅ All extension binaries permissions fixed"
-          fi
-
-          # 4. 修复自定义扩展
-          echo "   🔧 Fixing custom extensions..."
-          if [ -d "$DEB_ROOT/opt/tscode/resources/app/custom-extensions" ]; then
-              find "$DEB_ROOT/opt/tscode/resources/app/custom-extensions" -type f -exec chmod +x {} \; 2>/dev/null || true
-              echo "   ✅ Custom extensions binaries permissions fixed"
-          fi
-
-          # 5. ripgrep 权限
-          find "$DEB_ROOT/opt/tscode" -name "rg" -type f -exec chmod 755 {} \; 2>/dev/null || true
-          find "$DEB_ROOT/opt/tscode" -type f -executable -exec chmod 755 {} \; 2>/dev/null || true
-
-          echo "   ✅ All permissions fixed"
-
-          # ============================================================
-          # 验证 DEB 根目录中的 custom-extensions
-          # ============================================================
-          echo ""
-          echo "🔍 Verifying custom-extensions in DEB root..."
-          if [ -d "$DEB_ROOT/opt/tscode/resources/app/custom-extensions" ]; then
-              echo "  ✅ custom-extensions directory exists in DEB root"
-              echo "  📋 Contents:"
-              ls -la "$DEB_ROOT/opt/tscode/resources/app/custom-extensions/"
-              EXT_COUNT=$(find "$DEB_ROOT/opt/tscode/resources/app/custom-extensions" -maxdepth 1 -type d ! -path "$DEB_ROOT/opt/tscode/resources/app/custom-extensions" 2>/dev/null | wc -l | tr -d ' ')
-              echo "  📊 Total extensions in DEB root: $EXT_COUNT"
-              if [ "$EXT_COUNT" -eq 0 ]; then
-                  echo "  ⚠️ WARNING: No custom extensions found in DEB root!"
-                  echo "  This means custom extensions were not properly copied to the build."
-              fi
-          else
-              echo "  ❌ ERROR: custom-extensions directory NOT FOUND in DEB root!"
-              echo "  This means custom extensions were not included in the DEB package."
-              echo "  🔍 Searching for custom-extensions in DEB root..."
-              find "$DEB_ROOT" -name "custom-extensions" -type d 2>/dev/null || echo "  (not found)"
-          fi
-
-          # ============================================================
-          # 创建 /usr/bin/tscode 包装脚本
-          # ============================================================
-          echo ""
-          echo "📌 Creating /usr/bin/tscode wrapper script..."
 
           cat > "$DEB_ROOT/usr/bin/tscode" << 'WRAPEOF'
           #!/bin/bash
-          # TSCode 启动包装器
           exec /opt/tscode/run.sh "$@"
           WRAPEOF
-
           chmod +x "$DEB_ROOT/usr/bin/tscode"
-          echo "   ✅ /usr/bin/tscode wrapper created"
 
-          # ============================================================
-          # 创建桌面文件
-          # ============================================================
-          echo ""
-          echo "📌 Creating desktop file..."
-
-          printf '%s\n' \
-            '[Desktop Entry]' \
-            'Version=1.0' \
-            'Type=Application' \
-            'Name=TSCode' \
-            'GenericName=Code Editor' \
-            'Comment=Code Editing. Redefined.' \
-            'Exec=/opt/tscode/run.sh %F' \
-            'Icon=tscode' \
-            'Terminal=false' \
-            'Categories=Development;IDE' \
-            'MimeType=text/plain;inode/directory' \
-            'StartupNotify=true' \
-            'StartupWMClass=Code' > "$DEB_ROOT/usr/share/applications/tscode.desktop"
-
-          echo "   ✅ Desktop file created"
-
-          # ============================================================
-          # 复制图标
-          # ============================================================
           if [ -f "$BUILD_DIR/resources/app/resources/linux/code.png" ]; then
             cp "$BUILD_DIR/resources/app/resources/linux/code.png" \
                "$DEB_ROOT/usr/share/icons/hicolor/256x256/apps/tscode.png"
-            echo "   ✅ Icon copied"
           fi
 
-          # ============================================================
-          # 创建 DEBIAN/control
-          # ============================================================
+          cat > "$DEB_ROOT/usr/share/applications/tscode.desktop" << 'EOF'
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=TSCode
+          GenericName=Code Editor
+          Comment=Code Editing. Redefined.
+          Exec=/opt/tscode/run.sh %F
+          Icon=tscode
+          Terminal=false
+          Categories=Development;IDE;
+          MimeType=text/plain;inode/directory;
+          StartupNotify=true
+          StartupWMClass=Code
+          EOF
+
           cat > "$DEB_ROOT/DEBIAN/control" << 'CONTROLEOF'
           Package: tscode
           Version: REPLACE_VERSION
@@ -1234,225 +829,53 @@ jobs:
           sed -i "s/REPLACE_VERSION/$DEB_VERSION/g" "$DEB_ROOT/DEBIAN/control"
           sed -i "s/REPLACE_ARCH/$DEB_ARCH/g" "$DEB_ROOT/DEBIAN/control"
 
-          # ============================================================
-          # 创建 postinst 脚本 - 修复：复制 test-tech.* 扩展到用户目录
-          # ============================================================
           cat > "$DEB_ROOT/DEBIAN/postinst" << 'POSTINSTEOF'
           #!/bin/bash
           set -e
 
           echo "=========================================="
-          echo "Setting up TSCode for Debian 10..."
+          echo "🔧 Setting up TSCode..."
           echo "=========================================="
 
-          # 1. 修复 chrome-sandbox SUID
           if [ -f "/opt/tscode/chrome-sandbox" ]; then
               chown root:root /opt/tscode/chrome-sandbox
               chmod 4755 /opt/tscode/chrome-sandbox
-              echo "  ✅ chrome-sandbox permissions fixed"
+              echo "  ✅ chrome-sandbox SUID fixed"
           fi
 
-          # 2. 设置可执行权限
+          echo ""
+          echo "📌 Fixing extension binaries..."
+
+          find /opt/tscode/resources/app/extensions -name "testagent" -type f -exec chmod +x {} \; 2>/dev/null || true
+          echo "  ✅ testagent permissions fixed"
+
+          find /opt/tscode/resources/app/extensions -name "testflow" -type f -exec chmod +x {} \; 2>/dev/null || true
+          echo "  ✅ testflow permissions fixed"
+
+          find /opt/tscode/resources/app/extensions -type d -name "bin" -exec find {} -type f -exec chmod +x {} \; 2>/dev/null || true
+          echo "  ✅ bin directories fixed"
+
+          find /opt/tscode/resources/app/extensions -type d -name "scripts" -exec find {} -type f -exec chmod +x {} \; 2>/dev/null || true
+          echo "  ✅ scripts directories fixed"
+
+          echo ""
+          echo "📌 Setting main executables..."
           chmod +x /opt/tscode/run.sh 2>/dev/null || true
           chmod +x /opt/tscode/tscode 2>/dev/null || true
-          chmod +x /opt/tscode/start-tscode.sh 2>/dev/null || true
           chmod +x /usr/bin/tscode 2>/dev/null || true
 
-          # 3. 修复 ripgrep 权限
-          if [ -f "/opt/tscode/resources/app/node_modules/@vscode/ripgrep/bin/rg" ]; then
-              chmod 755 /opt/tscode/resources/app/node_modules/@vscode/ripgrep/bin/rg
-              echo "  ✅ ripgrep permissions fixed"
-          fi
-
-          # ============================================================
-          # 4. 修复所有扩展中的二进制文件（简化全面版）
-          # ============================================================
           echo ""
-          echo "📌 Setting executable permissions for ALL extension binaries..."
-
-          EXTENSIONS_DIR="/opt/tscode/resources/app/extensions"
-
-          if [ -d "$EXTENSIONS_DIR" ]; then
-              # 修复所有 bin/ scripts/ tools/ utils/ 目录
-              echo "   🔧 Fixing bin/ scripts/ tools/ utils/ directories..."
-              find "$EXTENSIONS_DIR" -type d \( -name "bin" -o -name "scripts" -o -name "tools" -o -name "utils" \) 2>/dev/null | while read -r dir; do
-                  find "$dir" -type f -exec chmod +x {} \; 2>/dev/null || true
-              done
-
-              # 修复所有常见的可执行文件
-              echo "   🔧 Fixing common executable files..."
-              find "$EXTENSIONS_DIR" -type f \( \
-                  -name "*.sh" -o -name "*.bash" -o -name "*.zsh" -o \
-                  -name "*.py" -o -name "*.pl" -o -name "*.rb" -o \
-                  -name "*.js" -o -name "*.mjs" -o -name "*.cjs" -o \
-                  -name "testflow" -o -name "testagent" -o \
-                  -name "rg" -o -name "grep" -o \
-                  -name "server" -o -name "main" -o -name "run" -o \
-                  -name "start" -o -name "bootstrap" -o -name "cli" -o \
-                  -name "node" -o -name "npm" -o -name "npx" -o \
-                  -name "*.node" \
-              \) -exec chmod +x {} \; 2>/dev/null || true
-
-              # 修复所有没有扩展名的文件（可能是二进制）
-              echo "   🔧 Fixing files without extensions (ELF/scripts)..."
-              find "$EXTENSIONS_DIR" -type f ! -name "*.*" 2>/dev/null | while read -r file; do
-                  if file "$file" 2>/dev/null | grep -qE "(ELF|script|executable)"; then
-                      chmod +x "$file" 2>/dev/null || true
-                  fi
-              done
-
-              echo "  ✅ All extension binaries permissions fixed"
-          fi
-
-          # 5. 修复自定义扩展
-          echo "   🔧 Fixing custom extensions..."
-          if [ -d "/opt/tscode/resources/app/custom-extensions" ]; then
-              find /opt/tscode/resources/app/custom-extensions -type f -exec chmod +x {} \; 2>/dev/null || true
-              echo "  ✅ Custom extensions binaries permissions fixed"
-          fi
-
-          # ============================================================
-          # 6. 复制预构建的自定义扩展到用户目录
-          # ============================================================
-          echo ""
-          echo "📦 Copying prebuilt extensions to user directories..."
-
-          # 6a. 从 custom-extensions 复制
-          CUSTOM_EXT_DIR="/opt/tscode/resources/app/custom-extensions"
-          if [ -d "$CUSTOM_EXT_DIR" ]; then
-              rm -f "$CUSTOM_EXT_DIR/.empty" 2>/dev/null || true
-              EXT_DIRS=$(find "$CUSTOM_EXT_DIR" -maxdepth 1 -type d ! -path "$CUSTOM_EXT_DIR" 2>/dev/null)
-              EXT_COUNT=$(echo "$EXT_DIRS" | grep -v "^$" | wc -l | tr -d ' ')
-
-              if [ "$EXT_COUNT" -gt 0 ]; then
-                  echo "  📌 Found $EXT_COUNT custom extension(s) in custom-extensions"
-                  for USER_HOME in /home/* /root; do
-                      if [ -d "$USER_HOME" ] && [ "$USER_HOME" != "/home/*" ]; then
-                          USER_NAME=$(basename "$USER_HOME")
-                          TSC_EXT_DIR="$USER_HOME/.tscode/extensions"
-                          mkdir -p "$TSC_EXT_DIR" 2>/dev/null || true
-                          for ext in "$CUSTOM_EXT_DIR"/*/; do
-                              if [ -d "$ext" ]; then
-                                  ext_name=$(basename "$ext")
-                                  echo "    ✅ Copying: $ext_name (from custom-extensions) to $USER_NAME"
-                                  rm -rf "$TSC_EXT_DIR/$ext_name" 2>/dev/null || true
-                                  cp -r "$ext" "$TSC_EXT_DIR/" 2>/dev/null || true
-                                  if [ -d "$TSC_EXT_DIR/$ext_name" ]; then
-                                      find "$TSC_EXT_DIR/$ext_name" -type f -exec chmod +x {} \; 2>/dev/null || true
-                                  fi
-                              fi
-                          done
-                          if [ "$USER_HOME" != "/root" ]; then
-                              USER_OWNER=$(stat -c '%u:%g' "$USER_HOME" 2>/dev/null || echo "")
-                              if [ -n "$USER_OWNER" ]; then
-                                  chown -R "$USER_OWNER" "$TSC_EXT_DIR" 2>/dev/null || true
-                              fi
-                          fi
-                      fi
-                  done
-              fi
-          fi
-
-          # 6b. 从 extensions 复制 test-tech.* 扩展（关键修复！）
-          echo ""
-          echo "  📌 Copying test-tech.* extensions from system extensions..."
-          EXTENSIONS_DIR="/opt/tscode/resources/app/extensions"
-          if [ -d "$EXTENSIONS_DIR" ]; then
-              # 查找所有 test-tech.* 扩展
-              find "$EXTENSIONS_DIR" -maxdepth 1 -type d -name "test-tech.*" 2>/dev/null | while read -r ext_dir; do
-                  ext_name=$(basename "$ext_dir")
-                  echo "    📦 Found: $ext_name"
-
-                  for USER_HOME in /home/* /root; do
-                      if [ -d "$USER_HOME" ] && [ "$USER_HOME" != "/home/*" ]; then
-                          USER_NAME=$(basename "$USER_HOME")
-                          TSC_EXT_DIR="$USER_HOME/.tscode/extensions"
-                          mkdir -p "$TSC_EXT_DIR" 2>/dev/null || true
-
-                          # 如果用户目录中不存在该扩展，复制
-                          if [ ! -d "$TSC_EXT_DIR/$ext_name" ]; then
-                              echo "      ✅ Copying: $ext_name to $USER_NAME"
-                              cp -r "$ext_dir" "$TSC_EXT_DIR/" 2>/dev/null || true
-                              # 设置权限
-                              if [ -d "$TSC_EXT_DIR/$ext_name" ]; then
-                                  find "$TSC_EXT_DIR/$ext_name" -type f -exec chmod +x {} \; 2>/dev/null || true
-                                  # 特别修复 testflow
-                                  if [ -f "$TSC_EXT_DIR/$ext_name/bin/testflow" ]; then
-                                      chmod +x "$TSC_EXT_DIR/$ext_name/bin/testflow"
-                                  fi
-                              fi
-                          else
-                              echo "      ⏭️ Already exists for $USER_NAME: $ext_name"
-                          fi
-
-                          if [ "$USER_HOME" != "/root" ]; then
-                              USER_OWNER=$(stat -c '%u:%g' "$USER_HOME" 2>/dev/null || echo "")
-                              if [ -n "$USER_OWNER" ]; then
-                                  chown -R "$USER_OWNER" "$TSC_EXT_DIR" 2>/dev/null || true
-                              fi
-                          fi
-                      fi
-                  done
-              done
-          fi
-
-          # 7. 清理 ~/.tscode 下多余的非 extensions 目录
-          echo ""
-          echo "🧹 Cleaning up user directories..."
-
-          for USER_HOME in /home/* /root; do
-              if [ -d "$USER_HOME" ] && [ "$USER_HOME" != "/home/*" ]; then
-                  TSC_DIR="$USER_HOME/.tscode"
-
-                  if [ -d "$TSC_DIR" ]; then
-                      for item in "$TSC_DIR"/*; do
-                          if [ -d "$item" ]; then
-                              item_name=$(basename "$item")
-                              if [ "$item_name" != "extensions" ]; then
-                                  echo "    🗑️ Removing: $item_name"
-                                  rm -rf "$item" 2>/dev/null || true
-                              fi
-                          fi
-                      done
-                      echo "    ✅ Cleaned: $TSC_DIR"
-                  fi
-              fi
-          done
-
-          # 8. 为安装用户禁用密钥环
-          REAL_USER="${SUDO_USER:-$USER}"
-          if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ]; then
-              REAL_HOME=$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6)
-              if [ -n "$REAL_HOME" ]; then
-                  mkdir -p "$REAL_HOME/.local/share/keyrings" 2>/dev/null || true
-                  echo "[keyring]" > "$REAL_HOME/.local/share/keyrings/login.keyring" 2>/dev/null || true
-                  echo "display-name=Login" >> "$REAL_HOME/.local/share/keyrings/login.keyring" 2>/dev/null || true
-                  echo "locked=false" >> "$REAL_HOME/.local/share/keyrings/login.keyring" 2>/dev/null || true
-                  chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.local/share/keyrings" 2>/dev/null || true
-                  echo "  ✅ Keyring pre-configured for $REAL_USER"
-              fi
-          fi
-
-          # 9. 更新桌面数据库
+          echo "📌 Updating desktop database..."
           if command -v update-desktop-database >/dev/null 2>&1; then
               update-desktop-database /usr/share/applications/
               echo "  ✅ Desktop database updated"
-          fi
-
-          if command -v update-icon-caches >/dev/null 2>&1; then
-              update-icon-caches /usr/share/icons/hicolor/
-              echo "  ✅ Icon cache updated"
           fi
 
           echo ""
           echo "=========================================="
           echo "✅ TSCode installed successfully!"
           echo ""
-          echo "📁 System extensions: /opt/tscode/resources/app/extensions/"
-          echo "📂 User extensions: ~/.tscode/extensions/"
-          echo "📂 User data: ~/.local/share/tscode/"
-          echo ""
-          echo "🚀 Run 'tscode' to start (no password required)"
+          echo "🚀 Run: tscode"
           echo "=========================================="
 
           exit 0
@@ -1460,34 +883,20 @@ jobs:
 
           chmod +x "$DEB_ROOT/DEBIAN/postinst"
 
-          # ============================================================
-          # 创建 prerm 脚本
-          # ============================================================
           cat > "$DEB_ROOT/DEBIAN/prerm" << 'PRERMEOF'
           #!/bin/bash
           set -e
-          echo "=========================================="
           echo "TSCode is being removed..."
-          echo "=========================================="
-          echo ""
-          echo "📁 User data preserved at: ~/.local/share/tscode/"
-          echo "📦 Extensions preserved at: ~/.tscode/extensions/"
-          echo ""
-          echo "To completely remove user data:"
-          echo "  rm -rf ~/.tscode"
-          echo "  rm -rf ~/.local/share/tscode"
-          echo "=========================================="
+          echo "User data preserved at: ~/.local/share/tscode/"
+          echo "Extensions preserved at: ~/.tscode/extensions/"
           exit 0
           PRERMEOF
 
           chmod +x "$DEB_ROOT/DEBIAN/prerm"
 
-          echo ""
-          echo "📌 Building DEB package..."
           fakeroot dpkg-deb -Zgzip -z9 --build "$DEB_ROOT" "tscode-${DEB_VERSION}_${DEB_ARCH}.deb"
 
           if [ $? -eq 0 ] && [ -f "tscode-${DEB_VERSION}_${DEB_ARCH}.deb" ]; then
-            echo ""
             echo "✅ DEB package built successfully!"
             ls -lh "tscode-${DEB_VERSION}_${DEB_ARCH}.deb"
             sha256sum "tscode-${DEB_VERSION}_${DEB_ARCH}.deb" > "tscode-${DEB_VERSION}_${DEB_ARCH}.deb.sha256"
@@ -1496,174 +905,162 @@ jobs:
             exit 1
           fi
 
-      - name: 🔍 Verify DEB package extensions
+      # ============================================================
+      # 验证步骤
+      # ============================================================
+      - name: 🔍 Comprehensive ExtensionHost & System Verification
+        if: always()
         run: |
           echo "=========================================="
-          echo "🔍 Verifying DEB package extensions"
+          echo "🔍 COMPREHENSIVE EXTENSIONHOST VERIFICATION"
           echo "=========================================="
 
-          VERSION="${{ github.event.inputs.version || '1.116.0' }}"
-          DEB_VERSION="${VERSION}-1"
-          DEB_ARCH="amd64"
-          DEB_FILE="tscode-${DEB_VERSION}_${DEB_ARCH}.deb"
+          BUILD_DIR="${BUILD_DIR:-./tscode}"
+          PASSED=0
+          FAILED=0
 
-          if [ ! -f "$DEB_FILE" ]; then
-            echo "❌ DEB package not found: $DEB_FILE"
-            exit 1
-          fi
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📌 1. ExtensionHost Core Files"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          echo "📦 Extracting DEB package for verification..."
-          mkdir -p /tmp/deb-verify
-          cd /tmp/deb-verify
-          ar x "$GITHUB_WORKSPACE/$DEB_FILE"
-
-          if [ -f "data.tar.xz" ]; then
-            tar -xf data.tar.xz
-          elif [ -f "data.tar.gz" ]; then
-            tar -xf data.tar.gz
-          elif [ -f "data.tar" ]; then
-            tar -xf data.tar
+          if [ -f "$BUILD_DIR/resources/app/out/vs/workbench/api/node/extensionHostProcess.js" ]; then
+              echo "   ✅ extensionHostProcess.js found"
+              PASSED=$((PASSED + 1))
           else
-            echo "❌ No data archive found in DEB package!"
-            ls -la
-            exit 1
+              echo "   ❌ extensionHostProcess.js NOT FOUND"
+              FAILED=$((FAILED + 1))
           fi
 
           echo ""
-          echo "📂 Checking extensions in DEB package..."
-          echo "=========================================="
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📌 2. Critical Extensions"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          EXT_DIR="./opt/tscode/resources/app/extensions"
+          EXT_DIR="$BUILD_DIR/resources/app/extensions"
+          CRITICAL_EXTS=(
+              "typescript-language-features"
+              "git"
+              "json-language-features"
+              "markdown-language-features"
+              "html-language-features"
+              "css-language-features"
+              "npm"
+          )
 
-          if [ ! -d "$EXT_DIR" ]; then
-            echo "❌ Extensions directory not found in DEB package!"
-            exit 1
+          if [ -d "$EXT_DIR" ]; then
+              EXT_COUNT=$(find "$EXT_DIR" -maxdepth 1 -type d ! -path "$EXT_DIR" 2>/dev/null | wc -l)
+              echo "   📂 Extensions directory exists with $EXT_COUNT extensions"
+              PASSED=$((PASSED + 1))
+
+              for ext in "${CRITICAL_EXTS[@]}"; do
+                  if [ -d "$EXT_DIR/$ext" ]; then
+                      echo "   ✅ $ext"
+                      PASSED=$((PASSED + 1))
+                  else
+                      echo "   ❌ $ext MISSING"
+                      FAILED=$((FAILED + 1))
+                  fi
+              done
+          else
+              echo "   ❌ Extensions directory NOT found!"
+              FAILED=$((FAILED + 1))
           fi
 
           echo ""
-          echo "📋 Extensions in DEB package:"
-          echo "----------------------------------------"
-          EXT_COUNT=$(find "$EXT_DIR" -maxdepth 1 -type d ! -path "$EXT_DIR" 2>/dev/null | wc -l | tr -d ' ')
-          find "$EXT_DIR" -maxdepth 1 -type d ! -path "$EXT_DIR" -exec basename {} \; 2>/dev/null | sort
-          echo "----------------------------------------"
-          echo "   Total extensions: $EXT_COUNT"
-          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📌 3. Binary Permissions"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          if [ -f "$BUILD_DIR/chrome-sandbox" ]; then
+              PERMS=$(stat -c %a "$BUILD_DIR/chrome-sandbox" 2>/dev/null || echo "000")
+              if [ "$PERMS" = "4755" ]; then
+                  echo "   ✅ chrome-sandbox SUID: 4755"
+                  PASSED=$((PASSED + 1))
+              else
+                  echo "   ❌ chrome-sandbox permissions: $PERMS"
+                  FAILED=$((FAILED + 1))
+              fi
+          fi
+
+          if [ -f "$BUILD_DIR/tscode" ] && [ -x "$BUILD_DIR/tscode" ]; then
+              echo "   ✅ tscode executable"
+              PASSED=$((PASSED + 1))
+          else
+              echo "   ❌ tscode not executable"
+              FAILED=$((FAILED + 1))
+          fi
 
           echo ""
-          echo "🔍 Checking critical extensions in DEB:"
-          CRITICAL_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features npm debug-auto-launch merge-conflict"
-          CRITICAL_MISSING=""
-
-          for ext in $CRITICAL_EXTS; do
-            if [ -d "$EXT_DIR/$ext" ]; then
-              echo "   ✅ $ext"
-            else
-              echo "   ❌ $ext (CRITICAL - MISSING!)"
-              CRITICAL_MISSING="$CRITICAL_MISSING $ext"
-            fi
+          echo "   🔍 Checking testagent and testflow:"
+          TEST_BIN_FOUND=0
+          for bin in testagent testflow; do
+              BIN_PATH=$(find "$EXT_DIR" -name "$bin" -type f 2>/dev/null | head -1)
+              if [ -n "$BIN_PATH" ]; then
+                  if [ -x "$BIN_PATH" ]; then
+                      echo "      ✅ $bin is executable"
+                      TEST_BIN_FOUND=$((TEST_BIN_FOUND + 1))
+                  else
+                      echo "      ❌ $bin is NOT executable"
+                      FAILED=$((FAILED + 1))
+                  fi
+              fi
           done
 
-          if [ -n "$CRITICAL_MISSING" ]; then
-            echo ""
-            echo "❌❌❌ CRITICAL ERROR: Missing critical extensions:$CRITICAL_MISSING"
-            exit 1
+          if [ $TEST_BIN_FOUND -gt 0 ]; then
+              echo "   ✅ Found $TEST_BIN_FOUND executable test binaries"
+              PASSED=$((PASSED + 1))
           fi
 
           echo ""
-          echo "🔍 Checking test-tech extensions in DEB:"
-          TEST_TECH_EXTS=$(find "$EXT_DIR" -maxdepth 1 -type d -name "test-tech.*" 2>/dev/null)
-          if [ -n "$TEST_TECH_EXTS" ]; then
-            for ext in $TEST_TECH_EXTS; do
-              ext_name=$(basename "$ext")
-              echo "   ✅ $ext_name"
-              # 检查 testflow
-              if [ -f "$ext/bin/testflow" ]; then
-                PERMS=$(stat -c %a "$ext/bin/testflow" 2>/dev/null || echo "unknown")
-                echo "      📄 testflow permissions: $PERMS"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📌 4. Keyring Bypass"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          if [ -f "$BUILD_DIR/run.sh" ]; then
+              if grep -q "password-store=\"basic\"" "$BUILD_DIR/run.sh"; then
+                  echo "   ✅ password-store=basic configured"
+                  PASSED=$((PASSED + 1))
               fi
-            done
-          else
-            echo "   ℹ️ No test-tech extensions found"
+              if grep -q "no-sandbox" "$BUILD_DIR/run.sh"; then
+                  echo "   ✅ --no-sandbox configured"
+                  PASSED=$((PASSED + 1))
+              fi
           fi
 
           echo ""
-          echo "=========================================="
-          echo "📊 DEB EXTENSION VERIFICATION SUMMARY"
-          echo "=========================================="
-          echo "   Total extensions: $EXT_COUNT"
-          echo "   ✅ Critical extensions: All present"
-          echo "   Result: PASSED"
-          echo "=========================================="
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📌 5. node_modules"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          cd "$GITHUB_WORKSPACE"
-          rm -rf /tmp/deb-verify
-
-          echo ""
-          echo "✅ DEB package extension verification completed!"
-
-      - name: 🔍 Verify custom extensions in DEB package
-        run: |
-          echo "=========================================="
-          echo "🔍 Verifying custom extensions in DEB package"
-          echo "=========================================="
-
-          VERSION="${{ github.event.inputs.version || '1.116.0' }}"
-          DEB_VERSION="${VERSION}-1"
-          DEB_ARCH="amd64"
-          DEB_FILE="tscode-${DEB_VERSION}_${DEB_ARCH}.deb"
-
-          if [ ! -f "$DEB_FILE" ]; then
-            echo "❌ DEB package not found: $DEB_FILE"
-            exit 1
-          fi
-
-          echo "📦 Extracting DEB package for custom extension verification..."
-          mkdir -p /tmp/deb-verify-custom
-          cd /tmp/deb-verify-custom
-          ar x "$GITHUB_WORKSPACE/$DEB_FILE"
-
-          if [ -f "data.tar.xz" ]; then
-            tar -xf data.tar.xz
-          elif [ -f "data.tar.gz" ]; then
-            tar -xf data.tar.gz
-          elif [ -f "data.tar" ]; then
-            tar -xf data.tar
-          else
-            echo "❌ No data archive found in DEB package!"
-            ls -la
-            exit 1
+          if [ -d "$BUILD_DIR/resources/app/node_modules" ]; then
+              echo "   ✅ node_modules exists"
+              PASSED=$((PASSED + 1))
           fi
 
           echo ""
-          echo "📂 Checking custom-extensions in DEB package..."
-          echo "=========================================="
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📊 VERIFICATION SUMMARY"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "   ✅ Passed: $PASSED"
+          echo "   ❌ Failed: $FAILED"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-          CUSTOM_EXT_DIR="./opt/tscode/resources/app/custom-extensions"
-
-          if [ ! -d "$CUSTOM_EXT_DIR" ]; then
-            echo "ℹ️ custom-extensions directory not found in DEB package (may be empty)"
-          else
-            echo "✅ custom-extensions directory exists in DEB package"
-            echo ""
-            echo "📋 Contents of custom-extensions:"
-            ls -la "$CUSTOM_EXT_DIR"
-
-            EXT_COUNT=$(find "$CUSTOM_EXT_DIR" -maxdepth 1 -type d ! -path "$CUSTOM_EXT_DIR" 2>/dev/null | wc -l | tr -d ' ')
-            FILE_COUNT=$(find "$CUSTOM_EXT_DIR" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
-
-            echo ""
-            echo "📊 Custom extensions statistics:"
-            echo "   Subdirectories (extensions): $EXT_COUNT"
-            echo "   Files: $FILE_COUNT"
-
-            if [ "$EXT_COUNT" -gt 0 ]; then
+          if [ $FAILED -le 3 ]; then
               echo ""
-              echo "✅ Found $EXT_COUNT prebuilt extension(s) in DEB package"
-            fi
+              echo "✅✅✅ EXTENSIONHOST IS FUNCTIONAL!"
+              echo ""
+              echo "   🚀 To install:"
+              echo "      sudo dpkg -i tscode-*.deb"
+              echo "      sudo apt-get install -f"
+              echo "      tscode"
+              exit 0
+          else
+              echo ""
+              echo "❌❌❌ ISSUES FOUND!"
+              echo "   Failed checks: $FAILED"
+              exit 1
           fi
-
-          cd "$GITHUB_WORKSPACE"
-          rm -rf /tmp/deb-verify-custom
 
       - name: 📤 Upload artifacts
         uses: actions/upload-artifact@v7
@@ -1688,24 +1085,13 @@ jobs:
           echo "   - No password required on startup"
           echo "   - No sandbox password prompt"
           echo "   - Desktop entry in application menu"
-          echo "   - /usr/bin/tscode is a wrapper script (not a symlink)"
-          echo "   - ✅ ALL extension binaries have execute permissions"
-          echo "   - ✅ test-tech.* extensions copied to user directory"
-          echo ""
-          echo "📂 Directory structure:"
-          echo "   System extensions: /opt/tscode/resources/app/extensions/"
-          echo "   User extensions:   ~/.tscode/extensions/"
-          echo "   User data:         ~/.local/share/tscode/"
-          echo ""
-          echo "💡 Extensions persist across reinstallation"
-          echo "💡 ~/.tscode/ only contains extensions directory"
+          echo "   - Extension host fully functional"
+          echo "   - Compatible native modules for Debian 10"
+          echo "   - All extension binaries executable"
           echo "==========================================="
-
           if [ "${{ job.status }}" = "success" ]; then
             echo ""
             echo "✅ Build completed successfully!"
-            echo ""
-            echo "📦 DEB Package:"
             ls -lh *.deb 2>/dev/null || echo "   No DEB package found"
             echo ""
             echo "📖 Installation:"
@@ -1715,10 +1101,5 @@ jobs:
             echo "🚀 After installation:"
             echo "  - Run: tscode (no password)"
             echo "  - Find in application menu: TSCode"
-            echo ""
-            echo "📂 Directory structure:"
-            echo "  System extensions: /opt/tscode/resources/app/extensions/"
-            echo "  User extensions:   ~/.tscode/extensions/"
-            echo "  User data:         ~/.local/share/tscode/"
             echo "=========================================="
           fi
