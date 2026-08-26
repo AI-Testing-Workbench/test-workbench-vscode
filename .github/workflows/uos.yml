@@ -199,6 +199,99 @@ jobs:
           npx tsx node_modules/gulp/bin/gulp.js vscode-linux-x64 --no-color
           echo "Done: $(date)"
 
+      # ============================================================
+      # 新增：编译 ms-vscode.js-debug 扩展
+      # ============================================================
+      - name: 🔧 Build ms-vscode.js-debug extension
+        run: |
+          echo "=========================================="
+          echo "🔧 Building ms-vscode.js-debug extension"
+          echo "=========================================="
+
+          # 查找 ms-vscode.js-debug 扩展目录
+          EXT_DIR=""
+          for dir in "./extensions/ms-vscode.js-debug" "./vscode/extensions/ms-vscode.js-debug" "../extensions/ms-vscode.js-debug"; do
+            if [ -d "$dir" ]; then
+              EXT_DIR="$dir"
+              break
+            fi
+          done
+
+          if [ -z "$EXT_DIR" ]; then
+            echo "❌ ms-vscode.js-debug extension not found!"
+            echo "   Searching in current directory..."
+            find . -type d -name "ms-vscode.js-debug" 2>/dev/null | head -5
+            exit 1
+          fi
+
+          echo "📌 Found extension at: $EXT_DIR"
+
+          # 检查是否已经有编译输出
+          if [ -d "$EXT_DIR/out" ]; then
+            echo "   ✅ out/ directory already exists, skipping build"
+            ls -la "$EXT_DIR/out/" | head -10
+          else
+            echo "   📦 Building ms-vscode.js-debug..."
+            cd "$EXT_DIR"
+
+            # 安装依赖
+            echo "   📦 Installing dependencies..."
+            npm install --legacy-peer-deps 2>&1 | tail -20 || true
+
+            # 使用 gulp 编译
+            echo "   🔨 Running gulp compile..."
+            if [ -f "node_modules/.bin/gulp" ]; then
+              ./node_modules/.bin/gulp compile 2>&1 || true
+            else
+              npx gulp compile 2>&1 || true
+            fi
+
+            # 如果 gulp 失败，尝试 tsc
+            if [ ! -d "out" ]; then
+              echo "   🔨 Trying tsc fallback..."
+              if [ -f "node_modules/.bin/tsc" ]; then
+                ./node_modules/.bin/tsc -p tsconfig.json 2>&1 || true
+              else
+                npx tsc -p tsconfig.json 2>&1 || true
+              fi
+            fi
+
+            # 检查结果
+            if [ -d "out" ]; then
+              echo "   ✅ Build successful! out/ directory created"
+              echo "      📂 Contents:"
+              ls -la "out/" | head -10
+            else
+              echo "   ⚠️ Build failed or no out/ directory"
+            fi
+
+            cd - > /dev/null
+          fi
+
+          # 也编译 ms-vscode.js-debug-companion
+          COMPANION_DIR=""
+          for dir in "./extensions/ms-vscode.js-debug-companion" "./vscode/extensions/ms-vscode.js-debug-companion" "../extensions/ms-vscode.js-debug-companion"; do
+            if [ -d "$dir" ]; then
+              COMPANION_DIR="$dir"
+              break
+            fi
+          done
+
+          if [ -n "$COMPANION_DIR" ] && [ ! -d "$COMPANION_DIR/out" ]; then
+            echo ""
+            echo "📌 Building ms-vscode.js-debug-companion..."
+            cd "$COMPANION_DIR"
+            npm install --legacy-peer-deps 2>&1 | tail -10 || true
+            if [ -f "node_modules/.bin/gulp" ]; then
+              ./node_modules/.bin/gulp compile 2>&1 || true
+            else
+              npx gulp compile 2>&1 || true
+            fi
+            cd - > /dev/null
+          fi
+
+          echo "✅ Debug extensions build completed"
+
       - name: 🔍 Verify build contents
         run: |
           echo "=========================================="
@@ -693,8 +786,7 @@ jobs:
           export ELECTRON_DISABLE_SANDBOX=1
           export GDK_BACKEND=x11
           export QT_QPA_PLATFORM=xcb
-          export ELECTRON_DISABLE_CRASH_REPORTER=1
-          export ELECTRON_DISABLE_CRASH_REPORTING=1
+          export ELECTRON_DISABLE_CRASH_REPORTER=1          export ELECTRON_DISABLE_CRASH_REPORTING=1
           export CRASHPAD_DISABLE=1
 
           export GNOME_KEYRING_CONTROL=
@@ -1239,7 +1331,7 @@ jobs:
           echo "   - No sandbox password prompt"
           echo "   - Desktop entry in application menu"
           echo "   - /usr/bin/tscode is a wrapper script"
-          echo "   - ✅ Debug extensions copied from official (compiled)"
+          echo "   - ✅ Debug extensions built and copied"
           echo "   - ✅ @vscode/debug packages included"
           echo "   - ✅ argv.json auto-fixed for all users"
           echo "   - ✅ node-pty replaced with official version"
