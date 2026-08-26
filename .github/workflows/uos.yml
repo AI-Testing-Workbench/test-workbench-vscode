@@ -713,6 +713,253 @@ jobs:
 
           echo "✅ Deep cleanup completed"
 
+      # ============================================================
+      # 验证调试功能（在打包前）
+      # ============================================================
+      - name: 🔍 Verify debug functionality in build
+        run: |
+          echo "=========================================="
+          echo "🔍 Verifying debug functionality in build"
+          echo "=========================================="
+
+          BUILD_DIR="${BUILD_DIR:-./tscode}"
+
+          # ============================================================
+          # 1. 检查调试扩展是否存在
+          # ============================================================
+          echo ""
+          echo "1️⃣ Checking debug extensions..."
+
+          EXT_DIR="$BUILD_DIR/resources/app/extensions"
+          DEBUG_EXTS="ms-vscode.js-debug ms-vscode.js-debug-companion"
+          MISSING_DEBUG=""
+
+          for ext in $DEBUG_EXTS; do
+            if [ -d "$EXT_DIR/$ext" ]; then
+              echo "   ✅ $ext"
+              # 检查扩展的 package.json
+              if [ -f "$EXT_DIR/$ext/package.json" ]; then
+                VERSION=$(grep -o '"version": *"[^"]*"' "$EXT_DIR/$ext/package.json" | head -1 | cut -d'"' -f4)
+                echo "      Version: $VERSION"
+              fi
+            else
+              echo "   ❌ $ext (MISSING!)"
+              MISSING_DEBUG="$MISSING_DEBUG $ext"
+            fi
+          done
+
+          if [ -n "$MISSING_DEBUG" ]; then
+            echo ""
+            echo "❌ ERROR: Missing debug extensions:$MISSING_DEBUG"
+            exit 1
+          fi
+
+          # ============================================================
+          # 2. 检查 node-pty 是否存在且可执行
+          # ============================================================
+          echo ""
+          echo "2️⃣ Checking node-pty native module..."
+
+          NODE_PTY_DIR="$BUILD_DIR/resources/app/node_modules/node-pty"
+
+          if [ -d "$NODE_PTY_DIR" ]; then
+            echo "   ✅ node-pty directory exists"
+
+            # 检查是否有 .node 文件（原生模块）
+            NODE_FILES=$(find "$NODE_PTY_DIR" -name "*.node" -type f 2>/dev/null)
+            if [ -n "$NODE_FILES" ]; then
+              echo "   ✅ Native modules found:"
+              for f in $NODE_FILES; do
+                echo "      📄 $(basename $f)"
+                # 检查文件类型
+                file_type=$(file "$f" 2>/dev/null | grep -o "ELF.*" | head -1)
+                if [ -n "$file_type" ]; then
+                  echo "         Type: $file_type"
+                fi
+              done
+            else
+              echo "   ⚠️ No .node files found (may be ok if pre-built)"
+            fi
+          else
+            echo "   ❌ node-pty directory not found!"
+            exit 1
+          fi
+
+          # ============================================================
+          # 3. 检查 TypeScript 和调试相关依赖
+          # ============================================================
+          echo ""
+          echo "3️⃣ Checking TypeScript and debug dependencies..."
+
+          # 检查 TypeScript
+          if [ -d "$BUILD_DIR/resources/app/node_modules/typescript" ]; then
+            TS_VERSION=$(grep -o '"version": *"[^"]*"' "$BUILD_DIR/resources/app/node_modules/typescript/package.json" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "unknown")
+            echo "   ✅ TypeScript (v$TS_VERSION)"
+          else
+            echo "   ⚠️ TypeScript not found in node_modules"
+          fi
+
+          # 检查 @vscode/debug 相关包
+          for pkg in "@vscode/debug" "@vscode/debugadapter" "@vscode/debugprotocol"; do
+            if [ -d "$BUILD_DIR/resources/app/node_modules/$pkg" ]; then
+              echo "   ✅ $pkg"
+            else
+              echo "   ⚠️ $pkg not found"
+            fi
+          done
+
+          # ============================================================
+          # 4. 检查 ripgrep (搜索和调试依赖)
+          # ============================================================
+          echo ""
+          echo "4️⃣ Checking ripgrep..."
+
+          RG_PATHS=$(find "$BUILD_DIR/resources/app" -name "rg" -type f 2>/dev/null)
+          if [ -n "$RG_PATHS" ]; then
+            for rg in $RG_PATHS; do
+              if [ -x "$rg" ]; then
+                echo "   ✅ $(basename $(dirname $rg))/rg (executable)"
+                # 尝试运行 --version
+                if "$rg" --version 2>/dev/null | head -1; then
+                  echo "      ✅ Works"
+                else
+                  echo "      ⚠️ May not be compatible"
+                fi
+              else
+                echo "   ⚠️ $rg (not executable)"
+              fi
+            done
+          else
+            echo "   ⚠️ ripgrep not found"
+          fi
+
+          # ============================================================
+          # 5. 验证 Node.js 调试适配器
+          # ============================================================
+          echo ""
+          echo "5️⃣ Checking Node.js debug adapter..."
+
+          NODE_DEBUG_EXT="$EXT_DIR/ms-vscode.js-debug"
+          if [ -d "$NODE_DEBUG_EXT" ]; then
+            # 检查调试适配器脚本
+            ADAPTER_SCRIPT=""
+            if [ -f "$NODE_DEBUG_EXT/out/nodeDebug.js" ]; then
+              ADAPTER_SCRIPT="out/nodeDebug.js"
+            elif [ -f "$NODE_DEBUG_EXT/dist/nodeDebug.js" ]; then
+              ADAPTER_SCRIPT="dist/nodeDebug.js"
+            elif [ -f "$NODE_DEBUG_EXT/src/nodeDebug.js" ]; then
+              ADAPTER_SCRIPT="src/nodeDebug.js"
+            fi
+
+            if [ -n "$ADAPTER_SCRIPT" ]; then
+              echo "   ✅ Debug adapter: $ADAPTER_SCRIPT"
+            else
+              echo "   ⚠️ Debug adapter script not found"
+            fi
+          fi
+
+          # ============================================================
+          # 6. 模拟运行测试（使用 Node.js 的 --inspect 标志）
+          # ============================================================
+          echo ""
+          echo "6️⃣ Testing debug infrastructure..."
+
+          # 创建一个简单的测试脚本
+          cat > /tmp/test-debug.js << 'JSEND'
+          const fs = require('fs');
+          const path = require('path');
+
+          console.log('Testing debug infrastructure...');
+
+          // 检查是否需要调试相关的功能
+          try {
+            // 检查 inspector 是否可用
+            const inspector = require('inspector');
+            console.log('✅ Node.js inspector available');
+
+            // 检查是否支持调试
+            const session = new inspector.Session();
+            session.connect();
+            console.log('✅ Inspector session can connect');
+            session.disconnect();
+          } catch (e) {
+            console.log('⚠️ Inspector may be limited:', e.message);
+          }
+
+          console.log('Debug test completed');
+          JSEND
+
+          # 尝试运行测试（使用 Node.js 的调试功能）
+          echo "   📌 Running debug test with Node.js..."
+          if node --inspect-brk=0 /tmp/test-debug.js 2>&1 | grep -q "Debugger listening"; then
+            echo "   ✅ Node.js debugger works"
+          else
+            echo "   ⚠️ Node.js debugger may have issues"
+          fi
+
+          # ============================================================
+          # 7. 检查调试适配器协议文件
+          # ============================================================
+          echo ""
+          echo "7️⃣ Checking debug adapter protocol..."
+
+          if [ -d "$BUILD_DIR/resources/app/node_modules/@vscode/debugprotocol" ]; then
+            echo "   ✅ Debug protocol found"
+          fi
+
+          # ============================================================
+          # 8. 创建调试功能验证报告
+          # ============================================================
+          echo ""
+          echo "=========================================="
+          echo "📊 DEBUG FUNCTIONALITY VERIFICATION SUMMARY"
+          echo "=========================================="
+
+          # 检查所有关键组件
+          PASSED=0
+          FAILED=0
+
+          # 检查调试扩展
+          if [ -z "$MISSING_DEBUG" ]; then
+            echo "   ✅ Debug extensions: Present"
+            PASSED=$((PASSED + 1))
+          else
+            echo "   ❌ Debug extensions: Missing"
+            FAILED=$((FAILED + 1))
+          fi
+
+          # 检查 node-pty
+          if [ -d "$NODE_PTY_DIR" ]; then
+            echo "   ✅ node-pty: Present"
+            PASSED=$((PASSED + 1))
+          else
+            echo "   ❌ node-pty: Missing"
+            FAILED=$((FAILED + 1))
+          fi
+
+          # 检查 TypeScript
+          if [ -d "$BUILD_DIR/resources/app/node_modules/typescript" ]; then
+            echo "   ✅ TypeScript: Present"
+            PASSED=$((PASSED + 1))
+          else
+            echo "   ⚠️ TypeScript: Not found (non-critical)"
+          fi
+
+          echo "=========================================="
+          echo "   ✅ Passed: $PASSED"
+          echo "   ❌ Failed: $FAILED"
+          echo "=========================================="
+
+          if [ $FAILED -eq 0 ]; then
+            echo "✅ Debug functionality validation passed!"
+          else
+            echo "❌ Debug functionality validation failed!"
+            exit 1
+          fi
+
+          # 清理
+          rm -f /tmp/test-debug.js
+
       - name: 📄 Create launcher and fix all issues
         run: |
           echo "=========================================="
@@ -1798,6 +2045,7 @@ jobs:
           echo "   - ✅ test-tech.* extensions copied to user directory"
           echo "   - ✅ argv.json auto-fixed for all users"
           echo "   - ✅ Debug extensions included (ms-vscode.js-debug)"
+          echo "   - ✅ Debug functionality validated before packaging"
           echo ""
           echo "📂 Directory structure:"
           echo "   System extensions: /opt/tscode/resources/app/extensions/"
