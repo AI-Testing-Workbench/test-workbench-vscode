@@ -304,12 +304,12 @@
 		"cweijan.vscode-office",
 		"test-tech.beeeyes"
 	],
-	"tsCodeAuthMockEnabled": true,
+	"tsCodeAuthMockEnabled": false,
 	"tsCodeBaseUrl": "aHR0cHM6Ly90ZXN0aHViLnBhYXMuY21iY2hpbmEuY24=",
 	"tsCodeGatewayBaseUrl": "aHR0cHM6Ly90ZXN0aHViLWdhdGV3YXkucGFhcy5jbWJjaGluYS5jbg==",
 	"defaultColorTheme": "Light 2026",
 	"defaultIconTheme": "office-material-icon-theme",
-	"gitVersion": "1.0.0",
+	"gitVersion": "1.4.1",
 	"commit": "12934b91e86ec2d0537879d544ee923f6a8e1b75",
 	"date": "2026-05-08T15:23:12+08:00",
 	"extensionsGallery": {
