@@ -342,10 +342,10 @@ jobs:
           fi
 
           # ============================================================
-          # 3. 复制官方扩展（完整复制调试扩展，包括 out/ 目录）
+          # 3. 复制官方扩展（优先从构建目录获取编译输出）
           # ============================================================
           echo ""
-          echo "📌 Step 3: Copying official extensions (including compiled debug)"
+          echo "📌 Step 3: Copying official extensions (with compiled debug from build)"
 
           mkdir -p "$BUILD_DIR/resources/app/extensions"
           OFFICIAL_EXT_DIR="$OFFICIAL_DIR/resources/app/extensions"
@@ -355,7 +355,7 @@ jobs:
             exit 1
           fi
 
-          # 调试扩展列表（必须从官方完整复制，包括编译输出）
+          # 调试扩展列表（优先从构建目录复制）
           DEBUG_EXTS="ms-vscode.js-debug ms-vscode.js-debug-companion"
 
           # 保留构建的核心扩展
@@ -365,33 +365,58 @@ jobs:
           EXT_KEPT=0
           EXT_SKIPPED=0
 
-          # 3a. 完整复制调试扩展（包括 out/ 目录）
-          echo "   📦 Copying debug extensions from official (with compiled output)..."
+          # 3a. 复制调试扩展 - 优先使用构建目录中的编译输出
+          echo "   📦 Copying debug extensions..."
           for ext in $DEBUG_EXTS; do
-            if [ -d "$OFFICIAL_EXT_DIR/$ext" ]; then
-              echo "      ✅ Copying: $ext"
+            echo "      Processing: $ext"
+
+            # 先检查构建目录中是否有编译好的版本
+            BUILD_EXT_DIR="./extensions/$ext"
+            HAS_BUILD_OUT=false
+            if [ -d "$BUILD_EXT_DIR" ]; then
+              if [ -d "$BUILD_EXT_DIR/out" ] || [ -d "$BUILD_EXT_DIR/dist" ]; then
+                HAS_BUILD_OUT=true
+                echo "         📦 Found compiled version in build directory"
+              fi
+            fi
+
+            # 如果构建目录有编译输出，从构建目录复制完整扩展
+            if [ "$HAS_BUILD_OUT" = true ] && [ -d "$BUILD_EXT_DIR" ]; then
+              echo "         ✅ Copying from build directory (with compiled output)"
               rm -rf "$BUILD_DIR/resources/app/extensions/$ext" 2>/dev/null || true
-              # 使用 rsync 完整复制
-              rsync -a --no-owner --no-group \
-                "$OFFICIAL_EXT_DIR/$ext/" \
-                "$BUILD_DIR/resources/app/extensions/$ext/"
+              cp -r "$BUILD_EXT_DIR" "$BUILD_DIR/resources/app/extensions/"
               EXT_COPIED=$((EXT_COPIED + 1))
 
-              # 验证编译输出
               if [ -d "$BUILD_DIR/resources/app/extensions/$ext/out" ]; then
-                echo "         ✅ out/ directory copied"
+                echo "         ✅ out/ directory copied from build"
               elif [ -d "$BUILD_DIR/resources/app/extensions/$ext/dist" ]; then
-                echo "         ✅ dist/ directory copied"
+                echo "         ✅ dist/ directory copied from build"
+              fi
+            elif [ -d "$OFFICIAL_EXT_DIR/$ext" ]; then
+              # 否则从官方复制
+              echo "         📦 Copying from official (no compiled output)"
+              rm -rf "$BUILD_DIR/resources/app/extensions/$ext" 2>/dev/null || true
+              cp -r "$OFFICIAL_EXT_DIR/$ext" "$BUILD_DIR/resources/app/extensions/"
+              EXT_COPIED=$((EXT_COPIED + 1))
+
+              # 检查官方是否有编译输出
+              if [ -d "$BUILD_DIR/resources/app/extensions/$ext/out" ]; then
+                echo "         ✅ out/ directory found in official"
+              elif [ -d "$BUILD_DIR/resources/app/extensions/$ext/dist" ]; then
+                echo "         ✅ dist/ directory found in official"
               else
-                echo "         ⚠️ No out/ or dist/ directory in official copy"
-                # 尝试从构建目录复制
+                echo "         ⚠️ No compiled output in official, will try to copy from build"
+                # 尝试从构建目录复制编译输出
                 if [ -d "./extensions/$ext/out" ]; then
                   echo "         📦 Copying out/ from build directory..."
                   cp -r "./extensions/$ext/out" "$BUILD_DIR/resources/app/extensions/$ext/"
+                elif [ -d "./extensions/$ext/dist" ]; then
+                  echo "         📦 Copying dist/ from build directory..."
+                  cp -r "./extensions/$ext/dist" "$BUILD_DIR/resources/app/extensions/$ext/"
                 fi
               fi
             else
-              echo "      ⚠️ Not found in official: $ext"
+              echo "         ⚠️ Not found in official or build: $ext"
             fi
           done
 
@@ -437,10 +462,10 @@ jobs:
           echo "      ⏭️ Skipped: $EXT_SKIPPED"
 
           # ============================================================
-          # 4. 复制 @vscode/debug 包从官方
+          # 4. 复制 @vscode/debug 包从官方或构建目录
           # ============================================================
           echo ""
-          echo "📌 Step 4: Copying @vscode/debug packages from official..."
+          echo "📌 Step 4: Copying @vscode/debug packages..."
 
           NODE_MODULES="$BUILD_DIR/resources/app/node_modules"
           OFFICIAL_NODE_MODULES="$OFFICIAL_DIR/resources/app/node_modules"
@@ -450,14 +475,14 @@ jobs:
           for pkg in $DEBUG_PKGS; do
             if [ -d "$NODE_MODULES/$pkg" ]; then
               echo "   ✅ $pkg already exists"
-            elif [ -d "$OFFICIAL_NODE_MODULES/$pkg" ]; then
-              echo "   📦 Copying $pkg from official..."
-              mkdir -p "$NODE_MODULES/@vscode"
-              cp -r "$OFFICIAL_NODE_MODULES/$pkg" "$NODE_MODULES/@vscode/"
             elif [ -d "./node_modules/$pkg" ]; then
               echo "   📦 Copying $pkg from root node_modules..."
               mkdir -p "$NODE_MODULES/@vscode"
               cp -r "./node_modules/$pkg" "$NODE_MODULES/@vscode/"
+            elif [ -d "$OFFICIAL_NODE_MODULES/$pkg" ]; then
+              echo "   📦 Copying $pkg from official..."
+              mkdir -p "$NODE_MODULES/@vscode"
+              cp -r "$OFFICIAL_NODE_MODULES/$pkg" "$NODE_MODULES/@vscode/"
             else
               echo "   ⚠️ $pkg not found, installing..."
               cd "$NODE_MODULES"
