@@ -358,11 +358,7 @@ jobs:
           fi
 
           # ============================================================
-          # 3. 复制官方扩展（智能合并）
-          #    策略：
-          #    - 必须从官方复制的调试扩展：ms-vscode.js-debug, ms-vscode.js-debug-companion
-          #    - 保留构建的核心扩展（typescript-language-features 等）
-          #    - 其他扩展如果不存在则从官方复制
+          # 3. 复制官方扩展（智能合并）- 确保包含编译输出
           # ============================================================
           echo ""
           echo "📌 Step 3: Copying official extensions (smart merge)..."
@@ -392,19 +388,79 @@ jobs:
           EXT_COPIED=0
           EXT_KEPT=0
           EXT_SKIPPED=0
+          MISSING_COMPILED=0
 
-          # 3a. 先从官方复制必要的调试扩展
+          # 3a. 先从官方复制必要的调试扩展（完整复制）
           echo "   📦 Copying required debug extensions from official..."
           for ext in $REQUIRED_OFFICIAL_EXTS; do
             if [ -d "$OFFICIAL_EXT_DIR/$ext" ]; then
               echo "      ✅ Copying: $ext"
               rm -rf "$BUILD_DIR/resources/app/extensions/$ext" 2>/dev/null || true
-              cp -r "$OFFICIAL_EXT_DIR/$ext" "$BUILD_DIR/resources/app/extensions/"
+
+              # 使用 rsync 复制完整内容
+              rsync -a --no-owner --no-group \
+                "$OFFICIAL_EXT_DIR/$ext/" \
+                "$BUILD_DIR/resources/app/extensions/$ext/"
+
+              # 检查关键文件
+              if [ -f "$BUILD_DIR/resources/app/extensions/$ext/package.json" ]; then
+                echo "         📄 package.json found"
+
+                # 检查编译输出
+                if [ -d "$BUILD_DIR/resources/app/extensions/$ext/out" ]; then
+                  echo "         ✅ out/ directory found"
+                elif [ -d "$BUILD_DIR/resources/app/extensions/$ext/dist" ]; then
+                  echo "         ✅ dist/ directory found"
+                else
+                  echo "         ⚠️ No out/ or dist/ directory found"
+                  MISSING_COMPILED=$((MISSING_COMPILED + 1))
+                fi
+
+                # 检查调试适配器脚本
+                ADAPTER_FOUND=""
+                for adapter_path in "out/nodeDebug.js" "dist/nodeDebug.js" "src/nodeDebug.js"; do
+                  if [ -f "$BUILD_DIR/resources/app/extensions/$ext/$adapter_path" ]; then
+                    ADAPTER_FOUND="$adapter_path"
+                    break
+                  fi
+                done
+
+                if [ -n "$ADAPTER_FOUND" ]; then
+                  echo "         ✅ Debug adapter: $ADAPTER_FOUND"
+                else
+                  echo "         ⚠️ Debug adapter script not found"
+                fi
+              fi
+
               EXT_COPIED=$((EXT_COPIED + 1))
             else
               echo "      ⚠️ Not found in official: $ext"
             fi
           done
+
+          # 如果有调试扩展缺少编译输出，尝试从构建目录复制
+          if [ $MISSING_COMPILED -gt 0 ]; then
+            echo ""
+            echo "   🔧 Attempting to copy compiled output from build directories..."
+
+            # 检查构建目录中是否有已编译的调试扩展
+            BUILD_EXT_DIR="./extensions"
+            if [ -d "$BUILD_EXT_DIR" ]; then
+              for ext in $REQUIRED_OFFICIAL_EXTS; do
+                if [ -d "$BUILD_EXT_DIR/$ext" ]; then
+                  # 如果构建目录中有编译输出，复制过来
+                  if [ -d "$BUILD_EXT_DIR/$ext/out" ] && [ ! -d "$BUILD_DIR/resources/app/extensions/$ext/out" ]; then
+                    echo "      📦 Copying out/ from build for $ext"
+                    cp -r "$BUILD_EXT_DIR/$ext/out" "$BUILD_DIR/resources/app/extensions/$ext/"
+                  fi
+                  if [ -d "$BUILD_EXT_DIR/$ext/dist" ] && [ ! -d "$BUILD_DIR/resources/app/extensions/$ext/dist" ]; then
+                    echo "      📦 Copying dist/ from build for $ext"
+                    cp -r "$BUILD_EXT_DIR/$ext/dist" "$BUILD_DIR/resources/app/extensions/$ext/"
+                  fi
+                fi
+              done
+            fi
+          fi
 
           # 3b. 保留构建中的核心扩展（不覆盖）
           echo ""
@@ -843,18 +899,20 @@ jobs:
           if [ -d "$NODE_DEBUG_EXT" ]; then
             # 检查调试适配器脚本
             ADAPTER_SCRIPT=""
-            if [ -f "$NODE_DEBUG_EXT/out/nodeDebug.js" ]; then
-              ADAPTER_SCRIPT="out/nodeDebug.js"
-            elif [ -f "$NODE_DEBUG_EXT/dist/nodeDebug.js" ]; then
-              ADAPTER_SCRIPT="dist/nodeDebug.js"
-            elif [ -f "$NODE_DEBUG_EXT/src/nodeDebug.js" ]; then
-              ADAPTER_SCRIPT="src/nodeDebug.js"
-            fi
+            for adapter_path in "out/nodeDebug.js" "dist/nodeDebug.js" "src/nodeDebug.js"; do
+              if [ -f "$NODE_DEBUG_EXT/$adapter_path" ]; then
+                ADAPTER_SCRIPT="$adapter_path"
+                break
+              fi
+            done
 
             if [ -n "$ADAPTER_SCRIPT" ]; then
               echo "   ✅ Debug adapter: $ADAPTER_SCRIPT"
             else
               echo "   ⚠️ Debug adapter script not found"
+              # 列出扩展目录内容以便调试
+              echo "      📂 Contents of ms-vscode.js-debug:"
+              ls -la "$NODE_DEBUG_EXT/" 2>/dev/null | head -20 || true
             fi
           fi
 
@@ -943,6 +1001,14 @@ jobs:
             PASSED=$((PASSED + 1))
           else
             echo "   ⚠️ TypeScript: Not found (non-critical)"
+          fi
+
+          # 检查调试适配器
+          if [ -n "$ADAPTER_SCRIPT" ]; then
+            echo "   ✅ Debug adapter: Found"
+            PASSED=$((PASSED + 1))
+          else
+            echo "   ⚠️ Debug adapter: Not found (may be in different location)"
           fi
 
           echo "=========================================="
