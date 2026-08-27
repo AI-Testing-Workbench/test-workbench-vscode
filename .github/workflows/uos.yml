@@ -1774,32 +1774,66 @@ jobs:
           fi
 
           echo "✅ Found DEB package: $DEB_PATH"
+          echo "📦 File size: $(du -h "$DEB_PATH" 2>/dev/null | cut -f1)"
 
           echo "📦 Extracting DEB package for advanced validation..."
           mkdir -p /tmp/deb-adv-verify
           cd /tmp/deb-adv-verify || exit 0
 
-          # 提取 DEB 包
+          # ============================================================
+          # 尝试多种方式提取 DEB 包
+          # ============================================================
+          echo "   Trying method 1: ar x"
           ar x "$DEB_PATH" 2>/dev/null
-          if [ $? -ne 0 ]; then
-              echo "⚠️ Failed to extract DEB package with 'ar'"
-              cd "$GITHUB_WORKSPACE" || exit 0
-              rm -rf /tmp/deb-adv-verify
-              exit 0
-          fi
+          AR_EXIT=$?
 
-          # 尝试提取数据归档
-          EXTRACTED=0
-          if [ -f "data.tar.xz" ]; then
-              tar -xf data.tar.xz 2>/dev/null && EXTRACTED=1
-          elif [ -f "data.tar.gz" ]; then
-              tar -xf data.tar.gz 2>/dev/null && EXTRACTED=1
-          elif [ -f "data.tar" ]; then
-              tar -xf data.tar 2>/dev/null && EXTRACTED=1
+          if [ $AR_EXIT -ne 0 ]; then
+              echo "   ⚠️ Method 1 (ar) failed, trying method 2: dpkg-deb"
+              # 尝试使用 dpkg-deb
+              dpkg-deb -x "$DEB_PATH" ./ 2>/dev/null
+              DPKG_EXIT=$?
+
+              if [ $DPKG_EXIT -ne 0 ]; then
+                  echo "   ⚠️ Method 2 (dpkg-deb) failed, trying method 3: 7z"
+                  # 尝试使用 7z
+                  if command -v 7z &>/dev/null; then
+                      7z x "$DEB_PATH" -o./ 2>/dev/null
+                      SEVENZ_EXIT=$?
+                      if [ $SEVENZ_EXIT -eq 0 ]; then
+                          EXTRACTED=1
+                      fi
+                  else
+                      echo "   ⚠️ 7z not available"
+                  fi
+              else
+                  EXTRACTED=1
+              fi
+          else
+              # ar 成功，尝试提取数据归档
+              EXTRACTED=0
+              if [ -f "data.tar.xz" ]; then
+                  echo "   Extracting data.tar.xz..."
+                  tar -xf data.tar.xz 2>/dev/null && EXTRACTED=1
+              elif [ -f "data.tar.gz" ]; then
+                  echo "   Extracting data.tar.gz..."
+                  tar -xf data.tar.gz 2>/dev/null && EXTRACTED=1
+              elif [ -f "data.tar.zst" ]; then
+                  echo "   Extracting data.tar.zst..."
+                  if command -v zstd &>/dev/null; then
+                      zstd -d data.tar.zst -o data.tar 2>/dev/null && tar -xf data.tar 2>/dev/null && EXTRACTED=1
+                  else
+                      echo "   ⚠️ zstd not available"
+                  fi
+              elif [ -f "data.tar" ]; then
+                  echo "   Extracting data.tar..."
+                  tar -xf data.tar 2>/dev/null && EXTRACTED=1
+              fi
           fi
 
           if [ $EXTRACTED -eq 0 ]; then
-              echo "⚠️ Failed to extract data archive, skipping validation"
+              echo "⚠️ Failed to extract data archive with any method"
+              echo "   Listing files in current directory:"
+              ls -la
               cd "$GITHUB_WORKSPACE" || exit 0
               rm -rf /tmp/deb-adv-verify
               exit 0
@@ -1822,6 +1856,8 @@ jobs:
           # 检查 extensions 目录
           if [ ! -d "$EXT_DIR" ]; then
               echo "❌ Extensions directory not found: $EXT_DIR"
+              echo "   Checking current directory structure..."
+              find . -maxdepth 3 -type d 2>/dev/null | head -20
               cd "$GITHUB_WORKSPACE" || exit 0
               rm -rf /tmp/deb-adv-verify
               exit 0
@@ -1829,7 +1865,7 @@ jobs:
 
           echo "📂 Extensions directory: $EXT_DIR"
 
-          # 统计扩展数量（使用 while + find 避免空目录问题）
+          # 统计扩展数量
           TOTAL_EXTS=0
           while IFS= read -r -d '' dir; do
               if [ -d "$dir" ]; then
