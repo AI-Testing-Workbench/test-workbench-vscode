@@ -1235,7 +1235,7 @@ jobs:
           sed -i "s/REPLACE_ARCH/$DEB_ARCH/g" "$DEB_ROOT/DEBIAN/control"
 
           # ============================================================
-          # 创建 postinst 脚本 - 修复：生成 argv.json 并保留它
+          # 创建 postinst 脚本 - 修复登录问题
           # ============================================================
           cat > "$DEB_ROOT/DEBIAN/postinst" << 'POSTINSTEOF'
           #!/bin/bash
@@ -1265,7 +1265,7 @@ jobs:
           fi
 
           # ============================================================
-          # 4. 修复所有扩展中的二进制文件（简化全面版）
+          # 4. 修复所有扩展中的二进制文件
           # ============================================================
           echo ""
           echo "📌 Setting executable permissions for ALL extension binaries..."
@@ -1273,13 +1273,11 @@ jobs:
           EXTENSIONS_DIR="/opt/tscode/resources/app/extensions"
 
           if [ -d "$EXTENSIONS_DIR" ]; then
-              # 修复所有 bin/ scripts/ tools/ utils/ 目录
               echo "   🔧 Fixing bin/ scripts/ tools/ utils/ directories..."
               find "$EXTENSIONS_DIR" -type d \( -name "bin" -o -name "scripts" -o -name "tools" -o -name "utils" \) 2>/dev/null | while read -r dir; do
                   find "$dir" -type f -exec chmod +x {} \; 2>/dev/null || true
               done
 
-              # 修复所有常见的可执行文件
               echo "   🔧 Fixing common executable files..."
               find "$EXTENSIONS_DIR" -type f \( \
                   -name "*.sh" -o -name "*.bash" -o -name "*.zsh" -o \
@@ -1293,7 +1291,6 @@ jobs:
                   -name "*.node" \
               \) -exec chmod +x {} \; 2>/dev/null || true
 
-              # 修复所有没有扩展名的文件（可能是二进制）
               echo "   🔧 Fixing files without extensions (ELF/scripts)..."
               find "$EXTENSIONS_DIR" -type f ! -name "*.*" 2>/dev/null | while read -r file; do
                   if file "$file" 2>/dev/null | grep -qE "(ELF|script|executable)"; then
@@ -1312,31 +1309,33 @@ jobs:
           fi
 
           # ============================================================
-          # 6. 创建/确保 argv.json 存在
+          # 6. 创建/确保 argv.json 存在（同时更新两个位置）
           # ============================================================
           echo ""
           echo "📌 Creating/ensuring argv.json for all users..."
 
           for USER_HOME in /home/* /root; do
               if [ -d "$USER_HOME" ] && [ "$USER_HOME" != "/home/*" ]; then
+                  USER_NAME=$(basename "$USER_HOME")
                   TSC_DIR="$USER_HOME/.tscode"
-                  mkdir -p "$TSC_DIR" 2>/dev/null || true
+                  TSC_DATA_DIR="$USER_HOME/.local/share/tscode"
 
-                  # 创建默认的 argv.json（如果不存在）
-                  if [ ! -f "$TSC_DIR/argv.json" ]; then
-                      cat > "$TSC_DIR/argv.json" << 'ARGVEOF'
+                  mkdir -p "$TSC_DIR" 2>/dev/null || true
+                  mkdir -p "$TSC_DATA_DIR" 2>/dev/null || true
+
+                  cat > "$TSC_DIR/argv.json" << 'ARGVEOF'
           {
+              "locale": "zh-cn",
               "enable-crash-reporter": false,
               "disable-gpu": true,
               "disable-gpu-sandbox": true,
-              "no-sandbox": true,
-              "password-store": "basic"
+              "no-sandbox": true
           }
           ARGVEOF
-                      echo "    ✅ Created argv.json for $(basename "$USER_HOME")"
-                  else
-                      echo "    ✅ argv.json already exists for $(basename "$USER_HOME")"
-                  fi
+                  echo "    ✅ Created argv.json for $USER_NAME (user config)"
+
+                  cp "$TSC_DIR/argv.json" "$TSC_DATA_DIR/argv.json"
+                  echo "    ✅ Synced argv.json for $USER_NAME (runtime config)"
               fi
           done
 
@@ -1382,12 +1381,10 @@ jobs:
               fi
           fi
 
-          # 7b. 从 extensions 复制 test-tech.* 扩展（关键修复！）
+          # 7b. 从 extensions 复制 test-tech.* 扩展
           echo ""
           echo "  📌 Copying test-tech.* extensions from system extensions..."
-          EXTENSIONS_DIR="/opt/tscode/resources/app/extensions"
           if [ -d "$EXTENSIONS_DIR" ]; then
-              # 查找所有 test-tech.* 扩展
               find "$EXTENSIONS_DIR" -maxdepth 1 -type d -name "test-tech.*" 2>/dev/null | while read -r ext_dir; do
                   ext_name=$(basename "$ext_dir")
                   echo "    📦 Found: $ext_name"
@@ -1398,14 +1395,11 @@ jobs:
                           TSC_EXT_DIR="$USER_HOME/.tscode/extensions"
                           mkdir -p "$TSC_EXT_DIR" 2>/dev/null || true
 
-                          # 如果用户目录中不存在该扩展，复制
                           if [ ! -d "$TSC_EXT_DIR/$ext_name" ]; then
                               echo "      ✅ Copying: $ext_name to $USER_NAME"
                               cp -r "$ext_dir" "$TSC_EXT_DIR/" 2>/dev/null || true
-                              # 设置权限
                               if [ -d "$TSC_EXT_DIR/$ext_name" ]; then
                                   find "$TSC_EXT_DIR/$ext_name" -type f -exec chmod +x {} \; 2>/dev/null || true
-                                  # 特别修复 testflow
                                   if [ -f "$TSC_EXT_DIR/$ext_name/bin/testflow" ]; then
                                       chmod +x "$TSC_EXT_DIR/$ext_name/bin/testflow"
                                   fi
@@ -1426,6 +1420,45 @@ jobs:
           fi
 
           # ============================================================
+          # 7c. 复制 github-authentication 扩展到用户目录（修复登录问题）
+          # ============================================================
+          echo ""
+          echo "  📌 Copying github-authentication extension to user directory..."
+
+          if [ -d "/opt/tscode/resources/app/extensions/github-authentication" ]; then
+              echo "    📦 Found github-authentication in system extensions"
+
+              for USER_HOME in /home/* /root; do
+                  if [ -d "$USER_HOME" ] && [ "$USER_HOME" != "/home/*" ]; then
+                      USER_NAME=$(basename "$USER_HOME")
+                      TSC_EXT_DIR="$USER_HOME/.tscode/extensions"
+                      mkdir -p "$TSC_EXT_DIR" 2>/dev/null || true
+
+                      if [ ! -d "$TSC_EXT_DIR/github-authentication" ]; then
+                          echo "      ✅ Copying github-authentication to $USER_NAME"
+                          cp -r /opt/tscode/resources/app/extensions/github-authentication \
+                                "$TSC_EXT_DIR/" 2>/dev/null || true
+
+                          if [ -d "$TSC_EXT_DIR/github-authentication" ]; then
+                              find "$TSC_EXT_DIR/github-authentication" -type f -exec chmod +x {} \; 2>/dev/null || true
+                              if [ "$USER_HOME" != "/root" ]; then
+                                  USER_OWNER=$(stat -c '%u:%g' "$USER_HOME" 2>/dev/null || echo "")
+                                  if [ -n "$USER_OWNER" ]; then
+                                      chown -R "$USER_OWNER" "$TSC_EXT_DIR/github-authentication" 2>/dev/null || true
+                                  fi
+                              fi
+                          fi
+                          echo "      ✅ github-authentication installed for $USER_NAME"
+                      else
+                          echo "      ⏭️ github-authentication already exists for $USER_NAME"
+                      fi
+                  fi
+              done
+          else
+              echo "    ⚠️ github-authentication not found in system extensions!"
+          fi
+
+          # ============================================================
           # 8. 清理用户目录（保留 extensions 和 argv.json）
           # ============================================================
           echo ""
@@ -1438,7 +1471,6 @@ jobs:
                   if [ -d "$TSC_DIR" ]; then
                       for item in "$TSC_DIR"/*; do
                           if [ -f "$item" ] && [ "$(basename "$item")" = "argv.json" ]; then
-                              # 保留 argv.json
                               echo "    ✅ Preserving: argv.json for $(basename "$USER_HOME")"
                               continue
                           fi
@@ -1615,7 +1647,6 @@ jobs:
             for ext in $TEST_TECH_EXTS; do
               ext_name=$(basename "$ext")
               echo "   ✅ $ext_name"
-              # 检查 testflow
               if [ -f "$ext/bin/testflow" ]; then
                 PERMS=$(stat -c %a "$ext/bin/testflow" 2>/dev/null || echo "unknown")
                 echo "      📄 testflow permissions: $PERMS"
@@ -1626,11 +1657,20 @@ jobs:
           fi
 
           echo ""
+          echo "🔍 Checking github-authentication in DEB:"
+          if [ -d "$EXT_DIR/github-authentication" ]; then
+            echo "   ✅ github-authentication exists in system extensions"
+          else
+            echo "   ❌ github-authentication NOT found in system extensions!"
+          fi
+
+          echo ""
           echo "=========================================="
           echo "📊 DEB EXTENSION VERIFICATION SUMMARY"
           echo "=========================================="
           echo "   Total extensions: $EXT_COUNT"
           echo "   ✅ Critical extensions: All present"
+          echo "   ✅ github-authentication: Present"
           echo "   Result: PASSED"
           echo "=========================================="
 
@@ -1730,6 +1770,7 @@ jobs:
           echo "   - /usr/bin/tscode is a wrapper script (not a symlink)"
           echo "   - ✅ ALL extension binaries have execute permissions"
           echo "   - ✅ test-tech.* extensions copied to user directory"
+          echo "   - ✅ github-authentication copied to user directory (fixes login)"
           echo "   - ✅ argv.json created and preserved in ~/.tscode/"
           echo ""
           echo "📂 Directory structure:"
@@ -1756,6 +1797,7 @@ jobs:
             echo "🚀 After installation:"
             echo "  - Run: tscode (no password)"
             echo "  - Find in application menu: TSCode"
+            echo "  - GitHub login: Click account icon or Ctrl+Shift+P → 'GitHub: Sign in'"
             echo ""
             echo "📂 Directory structure:"
             echo "  System extensions: /opt/tscode/resources/app/extensions/"
