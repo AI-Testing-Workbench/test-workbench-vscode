@@ -1761,7 +1761,7 @@ jobs:
           DEB_ARCH="amd64"
           DEB_FILE="tscode-${DEB_VERSION}_${DEB_ARCH}.deb"
 
-          # 检查 DEB 文件是否存在（优先当前目录，再检查工作区）
+          # 检查 DEB 文件是否存在
           DEB_PATH=""
           if [ -f "./$DEB_FILE" ]; then
               DEB_PATH="./$DEB_FILE"
@@ -1783,50 +1783,39 @@ jobs:
           # ============================================================
           # 尝试多种方式提取 DEB 包
           # ============================================================
+          EXTRACTED=0
+
           echo "   Trying method 1: ar x"
           ar x "$DEB_PATH" 2>/dev/null
-          AR_EXIT=$?
-
-          if [ $AR_EXIT -ne 0 ]; then
-              echo "   ⚠️ Method 1 (ar) failed, trying method 2: dpkg-deb"
-              # 尝试使用 dpkg-deb
-              dpkg-deb -x "$DEB_PATH" ./ 2>/dev/null
-              DPKG_EXIT=$?
-
-              if [ $DPKG_EXIT -ne 0 ]; then
-                  echo "   ⚠️ Method 2 (dpkg-deb) failed, trying method 3: 7z"
-                  # 尝试使用 7z
-                  if command -v 7z &>/dev/null; then
-                      7z x "$DEB_PATH" -o./ 2>/dev/null
-                      SEVENZ_EXIT=$?
-                      if [ $SEVENZ_EXIT -eq 0 ]; then
-                          EXTRACTED=1
-                      fi
-                  else
-                      echo "   ⚠️ 7z not available"
-                  fi
-              else
-                  EXTRACTED=1
-              fi
-          else
-              # ar 成功，尝试提取数据归档
-              EXTRACTED=0
+          if [ $? -eq 0 ]; then
               if [ -f "data.tar.xz" ]; then
-                  echo "   Extracting data.tar.xz..."
                   tar -xf data.tar.xz 2>/dev/null && EXTRACTED=1
               elif [ -f "data.tar.gz" ]; then
-                  echo "   Extracting data.tar.gz..."
                   tar -xf data.tar.gz 2>/dev/null && EXTRACTED=1
               elif [ -f "data.tar.zst" ]; then
-                  echo "   Extracting data.tar.zst..."
-                  if command -v zstd &>/dev/null; then
-                      zstd -d data.tar.zst -o data.tar 2>/dev/null && tar -xf data.tar 2>/dev/null && EXTRACTED=1
-                  else
-                      echo "   ⚠️ zstd not available"
-                  fi
+                  zstd -d data.tar.zst -o data.tar 2>/dev/null && tar -xf data.tar 2>/dev/null && EXTRACTED=1
               elif [ -f "data.tar" ]; then
-                  echo "   Extracting data.tar..."
                   tar -xf data.tar 2>/dev/null && EXTRACTED=1
+              fi
+          fi
+
+          if [ $EXTRACTED -eq 0 ]; then
+              echo "   ⚠️ Method 1 (ar) failed, trying method 2: dpkg-deb"
+              dpkg-deb -x "$DEB_PATH" ./ 2>/dev/null
+              if [ $? -eq 0 ]; then
+                  EXTRACTED=1
+              fi
+          fi
+
+          if [ $EXTRACTED -eq 0 ]; then
+              echo "   ⚠️ Method 2 (dpkg-deb) failed, trying method 3: 7z"
+              if command -v 7z &>/dev/null; then
+                  7z x "$DEB_PATH" -o./ -y 2>/dev/null
+                  if [ $? -eq 0 ]; then
+                      EXTRACTED=1
+                  fi
+              else
+                  echo "   ⚠️ 7z not available"
               fi
           fi
 
@@ -1841,9 +1830,74 @@ jobs:
 
           echo "✅ DEB package extracted successfully"
 
-          # 设置变量
-          EXT_DIR="./opt/tscode/resources/app/extensions"
-          NM_DIR="./opt/tscode/resources/app/node_modules"
+          # ============================================================
+          # 智能查找 extensions 目录
+          # ============================================================
+          echo ""
+          echo "=========================================="
+          echo "🔍 Locating extensions directory"
+          echo "=========================================="
+
+          # 尝试多个可能的路径
+          POSSIBLE_PATHS=(
+              "./opt/tscode/resources/app/extensions"
+              "./tscode/resources/app/extensions"
+              "./usr/lib/tscode/resources/app/extensions"
+              "./usr/share/tscode/resources/app/extensions"
+              "./resources/app/extensions"
+              "./extensions"
+          )
+
+          EXT_DIR=""
+          for path in "${POSSIBLE_PATHS[@]}"; do
+              if [ -d "$path" ]; then
+                  EXT_DIR="$path"
+                  echo "✅ Found extensions at: $EXT_DIR"
+                  break
+              fi
+          done
+
+          # 如果还是找不到，尝试搜索
+          if [ -z "$EXT_DIR" ]; then
+              echo "🔍 Searching for extensions directory..."
+              EXT_DIR=$(find . -type d -name "extensions" -path "*/resources/app/extensions" 2>/dev/null | head -1)
+              if [ -n "$EXT_DIR" ]; then
+                  echo "✅ Found extensions at: $EXT_DIR"
+              fi
+          fi
+
+          if [ -z "$EXT_DIR" ] || [ ! -d "$EXT_DIR" ]; then
+              echo "❌ Could not find extensions directory"
+              echo "   Current directory structure:"
+              find . -maxdepth 4 -type d 2>/dev/null | head -30
+              cd "$GITHUB_WORKSPACE" || exit 0
+              rm -rf /tmp/deb-adv-verify
+              exit 0
+          fi
+
+          # 查找 node_modules
+          NM_DIR=""
+          POSSIBLE_NM_PATHS=(
+              "${EXT_DIR}/../node_modules"
+              "./opt/tscode/resources/app/node_modules"
+              "./tscode/resources/app/node_modules"
+              "./resources/app/node_modules"
+          )
+
+          for path in "${POSSIBLE_NM_PATHS[@]}"; do
+              if [ -d "$path" ]; then
+                  NM_DIR="$path"
+                  echo "✅ Found node_modules at: $NM_DIR"
+                  break
+              fi
+          done
+
+          if [ -z "$NM_DIR" ]; then
+              NM_DIR=$(find . -type d -name "node_modules" -path "*/resources/app/node_modules" 2>/dev/null | head -1)
+              if [ -n "$NM_DIR" ]; then
+                  echo "✅ Found node_modules at: $NM_DIR"
+              fi
+          fi
 
           # ============================================================
           # 1. 验证 @builtin 扩展
@@ -1852,16 +1906,6 @@ jobs:
           echo "=========================================="
           echo "🔧 @builtin Extensions Validation"
           echo "=========================================="
-
-          # 检查 extensions 目录
-          if [ ! -d "$EXT_DIR" ]; then
-              echo "❌ Extensions directory not found: $EXT_DIR"
-              echo "   Checking current directory structure..."
-              find . -maxdepth 3 -type d 2>/dev/null | head -20
-              cd "$GITHUB_WORKSPACE" || exit 0
-              rm -rf /tmp/deb-adv-verify
-              exit 0
-          fi
 
           echo "📂 Extensions directory: $EXT_DIR"
 
@@ -1889,10 +1933,18 @@ jobs:
               echo "ℹ️ @builtin directory not found (extensions may be in root directory)"
           fi
 
-          # 检查 product.json
-          if [ -f "./opt/tscode/product.json" ]; then
-              echo "✅ product.json exists"
-              if grep -q "builtInExtensions" "./opt/tscode/product.json" 2>/dev/null; then
+          # 查找 product.json
+          PRODUCT_JSON=""
+          for path in ./opt/tscode/product.json ./tscode/product.json ./product.json; do
+              if [ -f "$path" ]; then
+                  PRODUCT_JSON="$path"
+                  break
+              fi
+          done
+
+          if [ -n "$PRODUCT_JSON" ]; then
+              echo "✅ product.json exists at: $PRODUCT_JSON"
+              if grep -q "builtInExtensions" "$PRODUCT_JSON" 2>/dev/null; then
                   echo "   ✅ contains builtInExtensions configuration"
               fi
           else
@@ -1951,7 +2003,7 @@ jobs:
           fi
 
           # 检查 node_modules
-          if [ -d "$NM_DIR" ]; then
+          if [ -n "$NM_DIR" ] && [ -d "$NM_DIR" ]; then
               echo ""
               echo "   📋 node_modules exists"
               NM_SIZE=$(du -sh "$NM_DIR" 2>/dev/null | cut -f1)
