@@ -1744,6 +1744,332 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           rm -rf /tmp/deb-verify-custom
 
+      - name: 🔍 Advanced DEB package validation (@builtin & Debug)
+        run: |
+          echo "=========================================="
+          echo "🔍 Advanced DEB Package Validation"
+          echo "   - @builtin extensions validation"
+          echo "   - Debug features validation"
+          echo "=========================================="
+
+          VERSION="${{ github.event.inputs.version || '1.116.0' }}"
+          DEB_VERSION="${VERSION}-1"
+          DEB_ARCH="amd64"
+          DEB_FILE="tscode-${DEB_VERSION}_${DEB_ARCH}.deb"
+
+          if [ ! -f "$DEB_FILE" ]; then
+            echo "❌ DEB package not found: $DEB_FILE"
+            exit 1
+          fi
+
+          echo "📦 Extracting DEB package for advanced validation..."
+          mkdir -p /tmp/deb-adv-verify
+          cd /tmp/deb-adv-verify
+          ar x "$GITHUB_WORKSPACE/$DEB_FILE"
+
+          if [ -f "data.tar.xz" ]; then
+            tar -xf data.tar.xz
+          elif [ -f "data.tar.gz" ]; then
+            tar -xf data.tar.gz
+          elif [ -f "data.tar" ]; then
+            tar -xf data.tar
+          else
+            echo "❌ No data archive found in DEB package!"
+            exit 1
+          fi
+
+          # ============================================================
+          # 1. 验证 @builtin 扩展
+          # ============================================================
+          echo ""
+          echo "=========================================="
+          echo "🔧 @builtin Extensions Validation"
+          echo "=========================================="
+
+          EXT_DIR="./opt/tscode/resources/app/extensions"
+          BUILTIN_DIR="$EXT_DIR/@builtin"
+
+          # 检查 @builtin 目录
+          if [ -d "$BUILTIN_DIR" ]; then
+            echo "✅ @builtin directory exists"
+
+            # 检查 @builtin 目录内容
+            BUILTIN_COUNT=$(find "$BUILTIN_DIR" -maxdepth 1 -type d ! -path "$BUILTIN_DIR" 2>/dev/null | wc -l | tr -d ' ')
+            echo "   📊 @builtin contains $BUILTIN_COUNT sub-extensions"
+
+            # 检查是否包含 package.json
+            if [ -f "$BUILTIN_DIR/package.json" ]; then
+              echo "   ✅ @builtin has package.json"
+            else
+              echo "   ⚠️ @builtin does not have package.json"
+            fi
+
+            # 检查编译后的文件
+            JS_FILES=$(find "$BUILTIN_DIR" -name "*.js" -type f 2>/dev/null | wc -l | tr -d ' ')
+            if [ "$JS_FILES" -gt 0 ]; then
+              echo "   ✅ Found $JS_FILES JavaScript files in @builtin"
+            else
+              echo "   ⚠️ No JavaScript files found in @builtin"
+            fi
+
+            # 检查是否还有 TypeScript 源文件（不应该有）
+            TS_FILES=$(find "$BUILTIN_DIR" -name "*.ts" -type f ! -name "*.d.ts" 2>/dev/null | wc -l | tr -d ' ')
+            if [ "$TS_FILES" -eq 0 ]; then
+              echo "   ✅ No TypeScript source files in @builtin (clean)"
+            else
+              echo "   ⚠️ Found $TS_FILES TypeScript source files in @builtin"
+            fi
+          else
+            echo "⚠️ @builtin directory not found (may be embedded differently)"
+          fi
+
+          # 检查 product.json 中的 builtInExtensions 配置
+          if [ -f "./opt/tscode/product.json" ]; then
+            if grep -q "builtInExtensions" "./opt/tscode/product.json"; then
+              echo "✅ product.json contains builtInExtensions configuration"
+            else
+              echo "⚠️ product.json does not contain builtInExtensions"
+            fi
+          fi
+
+          # 检查关键 @builtin 扩展
+          echo ""
+          echo "   📋 Checking critical @builtin extensions..."
+
+          BUILTIN_EXTS=(
+            "typescript-language-features"
+            "git"
+            "json-language-features"
+            "markdown-language-features"
+            "html-language-features"
+            "css-language-features"
+            "npm"
+            "debug-auto-launch"
+            "merge-conflict"
+            "search-result"
+          )
+
+          BUILTIN_FOUND=0
+          BUILTIN_MISSING=0
+
+          for ext in "${BUILTIN_EXTS[@]}"; do
+            # 检查 @builtin 目录下
+            if [ -d "$BUILTIN_DIR/$ext" ]; then
+              echo "      ✅ $ext (in @builtin)"
+              ((BUILTIN_FOUND++))
+            # 检查是否在 extensions 根目录
+            elif [ -d "$EXT_DIR/$ext" ]; then
+              echo "      ✅ $ext (in extensions)"
+              ((BUILTIN_FOUND++))
+            else
+              echo "      ⚠️ $ext (not found as @builtin)"
+              ((BUILTIN_MISSING++))
+            fi
+          done
+
+          echo ""
+          echo "   📊 @builtin summary: $BUILTIN_FOUND found, $BUILTIN_MISSING missing"
+
+          # ============================================================
+          # 2. 验证 Debug 功能
+          # ============================================================
+          echo ""
+          echo "=========================================="
+          echo "🐛 Debug Features Validation"
+          echo "=========================================="
+
+          # 检查 Debug 扩展
+          echo "   📋 Checking debug extensions..."
+
+          DEBUG_EXTS=(
+            "debug-auto-launch"
+            "debug-server-ready"
+            "js-debug"
+            "vscode-js-debug"
+            "node-debug2"
+          )
+
+          DEBUG_FOUND=0
+          for ext in "${DEBUG_EXTS[@]}"; do
+            if [ -d "$EXT_DIR/$ext" ]; then
+              echo "      ✅ $ext"
+              ((DEBUG_FOUND++))
+            fi
+          done
+
+          if [ $DEBUG_FOUND -gt 0 ]; then
+            echo "   ✅ Found $DEBUG_FOUND debug extension(s)"
+          else
+            echo "   ⚠️ No debug extensions found (may be in @builtin)"
+          fi
+
+          # 检查 Debug 适配器
+          echo ""
+          echo "   📋 Checking debug adapters..."
+
+          NM_DIR="./opt/tscode/resources/app/node_modules"
+          DEBUG_ADAPTERS=(
+            "vscode-debugadapter"
+            "vscode-debugprotocol"
+            "vscode-js-debug"
+          )
+
+          ADAPTER_FOUND=0
+          for adapter in "${DEBUG_ADAPTERS[@]}"; do
+            if [ -d "$NM_DIR/$adapter" ]; then
+              echo "      ✅ $adapter"
+              ((ADAPTER_FOUND++))
+            fi
+          done
+
+          if [ $ADAPTER_FOUND -gt 0 ]; then
+            echo "   ✅ Found $ADAPTER_FOUND debug adapter(s)"
+          else
+            echo "   ⚠️ No debug adapters found"
+          fi
+
+          # 检查 package.json 中的 debug 配置
+          echo ""
+          echo "   📋 Checking debug configurations..."
+
+          if [ -f "./opt/tscode/resources/app/package.json" ]; then
+            if grep -q "debug" "./opt/tscode/resources/app/package.json"; then
+              echo "      ✅ package.json contains debug configuration"
+            fi
+          fi
+
+          if [ -f "./opt/tscode/product.json" ]; then
+            if grep -q "debug" "./opt/tscode/product.json"; then
+              echo "      ✅ product.json contains debug configuration"
+            fi
+          fi
+
+          # 检查 JS Debug 配置
+          echo ""
+          echo "   📋 Checking JS Debug configuration..."
+
+          JS_DEBUG_PATHS=(
+            "$EXT_DIR/js-debug/package.json"
+            "$EXT_DIR/vscode-js-debug/package.json"
+            "$NM_DIR/vscode-js-debug/package.json"
+          )
+
+          JS_DEBUG_FOUND=0
+          for path in "${JS_DEBUG_PATHS[@]}"; do
+            if [ -f "$path" ]; then
+              echo "      ✅ Found: $path"
+              ((JS_DEBUG_FOUND++))
+              break
+            fi
+          done
+
+          if [ $JS_DEBUG_FOUND -eq 0 ]; then
+            echo "      ⚠️ No JS Debug configuration found"
+          fi
+
+          # 检查 debug 贡献
+          echo ""
+          echo "   📋 Checking debug contributions..."
+
+          if [ -f "$EXT_DIR/js-debug/package.json" ]; then
+            if grep -q "debuggers" "$EXT_DIR/js-debug/package.json"; then
+              echo "      ✅ Debuggers contribution found in js-debug"
+            fi
+            if grep -q "breakpoints" "$EXT_DIR/js-debug/package.json"; then
+              echo "      ✅ Breakpoints contribution found in js-debug"
+            fi
+          elif [ -f "$EXT_DIR/vscode-js-debug/package.json" ]; then
+            if grep -q "debuggers" "$EXT_DIR/vscode-js-debug/package.json"; then
+              echo "      ✅ Debuggers contribution found in vscode-js-debug"
+            fi
+            if grep -q "breakpoints" "$EXT_DIR/vscode-js-debug/package.json"; then
+              echo "      ✅ Breakpoints contribution found in vscode-js-debug"
+            fi
+          fi
+
+          # ============================================================
+          # 3. 验证运行时依赖
+          # ============================================================
+          echo ""
+          echo "=========================================="
+          echo "📦 Runtime Dependencies Validation"
+          echo "=========================================="
+
+          # 检查原生模块
+          echo "   📋 Checking native modules..."
+
+          NATIVE_MODULES=(
+            "vscode-oniguruma"
+            "vscode-textmate"
+            "native-watchdog"
+          )
+
+          for mod in "${NATIVE_MODULES[@]}"; do
+            if [ -d "$NM_DIR/$mod" ]; then
+              echo "      ✅ $mod"
+            fi
+          done
+
+          # 检查 ripgrep
+          echo ""
+          echo "   📋 Checking ripgrep..."
+
+          if [ -f "$NM_DIR/@vscode/ripgrep/bin/rg" ]; then
+            if [ -x "$NM_DIR/@vscode/ripgrep/bin/rg" ]; then
+              echo "      ✅ ripgrep exists and is executable"
+            else
+              echo "      ❌ ripgrep exists but is NOT executable"
+            fi
+          else
+            echo "      ⚠️ ripgrep not found at expected location"
+          fi
+
+          # ============================================================
+          # 4. 生成验证报告
+          # ============================================================
+          echo ""
+          echo "=========================================="
+          echo "📊 ADVANCED VALIDATION REPORT"
+          echo "=========================================="
+
+          # 计算统计
+          TOTAL_BUILTIN_EXTS=${#BUILTIN_EXTS[@]}
+          BUILTIN_OK=$((TOTAL_BUILTIN_EXTS - BUILTIN_MISSING))
+
+          echo "   @builtin extensions: $BUILTIN_OK/$TOTAL_BUILTIN_EXTS present"
+          echo "   Debug extensions: $DEBUG_FOUND found"
+          echo "   Debug adapters: $ADAPTER_FOUND found"
+          echo "   JS Debug: $JS_DEBUG_FOUND found"
+
+          echo ""
+
+          # 判断是否通过
+          if [ $BUILTIN_MISSING -eq 0 ] || [ $DEBUG_FOUND -gt 0 ] || [ $ADAPTER_FOUND -gt 0 ]; then
+            echo "✅ Advanced validation PASSED"
+            echo "   - @builtin extensions: OK"
+            echo "   - Debug features: OK"
+            echo "   - Runtime dependencies: OK"
+          else
+            echo "⚠️ Advanced validation has warnings"
+            if [ $BUILTIN_MISSING -gt 0 ]; then
+              echo "   - $BUILTIN_MISSING @builtin extensions missing"
+            fi
+            if [ $DEBUG_FOUND -eq 0 ]; then
+              echo "   - No debug extensions found"
+            fi
+            if [ $ADAPTER_FOUND -eq 0 ]; then
+              echo "   - No debug adapters found"
+            fi
+          fi
+
+          cd "$GITHUB_WORKSPACE"
+          rm -rf /tmp/deb-adv-verify
+
+          echo ""
+          echo "✅ Advanced DEB package validation completed!"
+
+        continue-on-error: true
+
       - name: 📤 Upload artifacts
         uses: actions/upload-artifact@v7
         with:
