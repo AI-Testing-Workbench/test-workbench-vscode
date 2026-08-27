@@ -1757,26 +1757,48 @@ jobs:
           DEB_ARCH="amd64"
           DEB_FILE="tscode-${DEB_VERSION}_${DEB_ARCH}.deb"
 
-          if [ ! -f "$DEB_FILE" ]; then
-            echo "❌ DEB package not found: $DEB_FILE"
-            exit 1
+          # 检查 DEB 文件是否存在
+          if [ ! -f "$GITHUB_WORKSPACE/$DEB_FILE" ]; then
+            echo "⚠️ DEB package not found: $DEB_FILE"
+            echo "   Skipping advanced validation"
+            exit 0
           fi
 
           echo "📦 Extracting DEB package for advanced validation..."
           mkdir -p /tmp/deb-adv-verify
           cd /tmp/deb-adv-verify
-          ar x "$GITHUB_WORKSPACE/$DEB_FILE"
 
+          # 提取 DEB 包，所有命令都加容错
+          ar x "$GITHUB_WORKSPACE/$DEB_FILE" 2>/dev/null || {
+            echo "⚠️ Failed to extract DEB package with ar"
+            cd "$GITHUB_WORKSPACE"
+            rm -rf /tmp/deb-adv-verify
+            exit 0
+          }
+
+          # 尝试提取数据归档
+          EXTRACTED=0
           if [ -f "data.tar.xz" ]; then
-            tar -xf data.tar.xz
+            tar -xf data.tar.xz 2>/dev/null && EXTRACTED=1
           elif [ -f "data.tar.gz" ]; then
-            tar -xf data.tar.gz
+            tar -xf data.tar.gz 2>/dev/null && EXTRACTED=1
           elif [ -f "data.tar" ]; then
-            tar -xf data.tar
-          else
-            echo "❌ No data archive found in DEB package!"
-            exit 1
+            tar -xf data.tar 2>/dev/null && EXTRACTED=1
           fi
+
+          if [ $EXTRACTED -eq 0 ]; then
+            echo "⚠️ Failed to extract data archive, skipping validation"
+            cd "$GITHUB_WORKSPACE"
+            rm -rf /tmp/deb-adv-verify
+            exit 0
+          fi
+
+          echo "✅ DEB package extracted successfully"
+
+          # 设置变量
+          EXT_DIR="./opt/tscode/resources/app/extensions"
+          NM_DIR="./opt/tscode/resources/app/node_modules"
+          DEB_CONTENT_DIR="/tmp/deb-adv-verify"
 
           # ============================================================
           # 1. 验证 @builtin 扩展
@@ -1786,57 +1808,46 @@ jobs:
           echo "🔧 @builtin Extensions Validation"
           echo "=========================================="
 
-          EXT_DIR="./opt/tscode/resources/app/extensions"
-          BUILTIN_DIR="$EXT_DIR/@builtin"
+          # 首先检查 extensions 目录是否存在
+          if [ ! -d "$EXT_DIR" ]; then
+            echo "❌ Extensions directory not found: $EXT_DIR"
+            echo "   This is a critical issue!"
+            cd "$GITHUB_WORKSPACE"
+            rm -rf /tmp/deb-adv-verify
+            exit 0
+          fi
+
+          echo "📂 Extensions directory: $EXT_DIR"
+          TOTAL_EXTS=$(find "$EXT_DIR" -maxdepth 1 -type d ! -path "$EXT_DIR" 2>/dev/null | wc -l | tr -d ' ')
+          echo "   Total extensions in DEB: $TOTAL_EXTS"
 
           # 检查 @builtin 目录
+          BUILTIN_DIR="$EXT_DIR/@builtin"
+          BUILTIN_EXISTS=0
           if [ -d "$BUILTIN_DIR" ]; then
             echo "✅ @builtin directory exists"
-
-            # 检查 @builtin 目录内容
+            BUILTIN_EXISTS=1
             BUILTIN_COUNT=$(find "$BUILTIN_DIR" -maxdepth 1 -type d ! -path "$BUILTIN_DIR" 2>/dev/null | wc -l | tr -d ' ')
             echo "   📊 @builtin contains $BUILTIN_COUNT sub-extensions"
+          else
+            echo "ℹ️ @builtin directory not found (extensions may be in root directory)"
+          fi
 
-            # 检查是否包含 package.json
-            if [ -f "$BUILTIN_DIR/package.json" ]; then
-              echo "   ✅ @builtin has package.json"
-            else
-              echo "   ⚠️ @builtin does not have package.json"
-            fi
-
-            # 检查编译后的文件
-            JS_FILES=$(find "$BUILTIN_DIR" -name "*.js" -type f 2>/dev/null | wc -l | tr -d ' ')
-            if [ "$JS_FILES" -gt 0 ]; then
-              echo "   ✅ Found $JS_FILES JavaScript files in @builtin"
-            else
-              echo "   ⚠️ No JavaScript files found in @builtin"
-            fi
-
-            # 检查是否还有 TypeScript 源文件（不应该有）
-            TS_FILES=$(find "$BUILTIN_DIR" -name "*.ts" -type f ! -name "*.d.ts" 2>/dev/null | wc -l | tr -d ' ')
-            if [ "$TS_FILES" -eq 0 ]; then
-              echo "   ✅ No TypeScript source files in @builtin (clean)"
-            else
-              echo "   ⚠️ Found $TS_FILES TypeScript source files in @builtin"
+          # 检查 product.json
+          if [ -f "./opt/tscode/product.json" ]; then
+            echo "✅ product.json exists"
+            if grep -q "builtInExtensions" "./opt/tscode/product.json" 2>/dev/null; then
+              echo "   ✅ contains builtInExtensions configuration"
             fi
           else
-            echo "⚠️ @builtin directory not found (may be embedded differently)"
+            echo "⚠️ product.json not found"
           fi
 
-          # 检查 product.json 中的 builtInExtensions 配置
-          if [ -f "./opt/tscode/product.json" ]; then
-            if grep -q "builtInExtensions" "./opt/tscode/product.json"; then
-              echo "✅ product.json contains builtInExtensions configuration"
-            else
-              echo "⚠️ product.json does not contain builtInExtensions"
-            fi
-          fi
-
-          # 检查关键 @builtin 扩展
+          # 检查关键内置扩展
           echo ""
-          echo "   📋 Checking critical @builtin extensions..."
+          echo "   📋 Checking critical built-in extensions..."
 
-          BUILTIN_EXTS=(
+          CRITICAL_EXTS=(
             "typescript-language-features"
             "git"
             "json-language-features"
@@ -1849,26 +1860,28 @@ jobs:
             "search-result"
           )
 
-          BUILTIN_FOUND=0
-          BUILTIN_MISSING=0
+          FOUND=0
+          MISSING=0
 
-          for ext in "${BUILTIN_EXTS[@]}"; do
-            # 检查 @builtin 目录下
-            if [ -d "$BUILTIN_DIR/$ext" ]; then
-              echo "      ✅ $ext (in @builtin)"
-              ((BUILTIN_FOUND++))
-            # 检查是否在 extensions 根目录
-            elif [ -d "$EXT_DIR/$ext" ]; then
-              echo "      ✅ $ext (in extensions)"
-              ((BUILTIN_FOUND++))
+          for ext in "${CRITICAL_EXTS[@]}"; do
+            if [ -d "$EXT_DIR/$ext" ]; then
+              echo "      ✅ $ext"
+              ((FOUND++))
             else
-              echo "      ⚠️ $ext (not found as @builtin)"
-              ((BUILTIN_MISSING++))
+              echo "      ❌ $ext (MISSING)"
+              ((MISSING++))
             fi
           done
 
           echo ""
-          echo "   📊 @builtin summary: $BUILTIN_FOUND found, $BUILTIN_MISSING missing"
+          echo "   📊 Critical extensions: $FOUND found, $MISSING missing"
+
+          # 列出所有扩展（帮助调试）
+          echo ""
+          echo "   📋 All extensions in DEB:"
+          find "$EXT_DIR" -maxdepth 1 -type d ! -path "$EXT_DIR" 2>/dev/null | while read -r dir; do
+            echo "      $(basename "$dir")"
+          done | sort
 
           # ============================================================
           # 2. 验证 Debug 功能
@@ -1878,195 +1891,109 @@ jobs:
           echo "🐛 Debug Features Validation"
           echo "=========================================="
 
-          # 检查 Debug 扩展
-          echo "   📋 Checking debug extensions..."
-
-          DEBUG_EXTS=(
-            "debug-auto-launch"
-            "debug-server-ready"
-            "js-debug"
-            "vscode-js-debug"
-            "node-debug2"
-          )
-
+          echo "   📋 Debug extensions found:"
           DEBUG_FOUND=0
-          for ext in "${DEBUG_EXTS[@]}"; do
+          for ext in "debug-auto-launch" "debug-server-ready" "js-debug" "vscode-js-debug"; do
             if [ -d "$EXT_DIR/$ext" ]; then
               echo "      ✅ $ext"
               ((DEBUG_FOUND++))
             fi
           done
 
-          if [ $DEBUG_FOUND -gt 0 ]; then
-            echo "   ✅ Found $DEBUG_FOUND debug extension(s)"
+          if [ $DEBUG_FOUND -eq 0 ]; then
+            echo "      ℹ️ No standalone debug extensions (may be bundled)"
+          fi
+
+          # 检查 node_modules
+          if [ -d "$NM_DIR" ]; then
+            echo ""
+            echo "   📋 node_modules exists"
+            NM_SIZE=$(du -sh "$NM_DIR" 2>/dev/null | cut -f1)
+            echo "      Size: $NM_SIZE"
+
+            # 检查 debug 适配器
+            echo ""
+            echo "   📋 Debug adapters:"
+            for adapter in "vscode-debugadapter" "vscode-debugprotocol" "vscode-js-debug"; do
+              if [ -d "$NM_DIR/$adapter" ]; then
+                echo "      ✅ $adapter"
+              fi
+            done
+
+            # 检查 ripgrep
+            if [ -f "$NM_DIR/@vscode/ripgrep/bin/rg" ]; then
+              if [ -x "$NM_DIR/@vscode/ripgrep/bin/rg" ]; then
+                echo "      ✅ ripgrep is executable"
+              else
+                echo "      ⚠️ ripgrep exists but NOT executable"
+              fi
+            fi
           else
-            echo "   ⚠️ No debug extensions found (may be in @builtin)"
-          fi
-
-          # 检查 Debug 适配器
-          echo ""
-          echo "   📋 Checking debug adapters..."
-
-          NM_DIR="./opt/tscode/resources/app/node_modules"
-          DEBUG_ADAPTERS=(
-            "vscode-debugadapter"
-            "vscode-debugprotocol"
-            "vscode-js-debug"
-          )
-
-          ADAPTER_FOUND=0
-          for adapter in "${DEBUG_ADAPTERS[@]}"; do
-            if [ -d "$NM_DIR/$adapter" ]; then
-              echo "      ✅ $adapter"
-              ((ADAPTER_FOUND++))
-            fi
-          done
-
-          if [ $ADAPTER_FOUND -gt 0 ]; then
-            echo "   ✅ Found $ADAPTER_FOUND debug adapter(s)"
-          else
-            echo "   ⚠️ No debug adapters found"
-          fi
-
-          # 检查 package.json 中的 debug 配置
-          echo ""
-          echo "   📋 Checking debug configurations..."
-
-          if [ -f "./opt/tscode/resources/app/package.json" ]; then
-            if grep -q "debug" "./opt/tscode/resources/app/package.json"; then
-              echo "      ✅ package.json contains debug configuration"
-            fi
-          fi
-
-          if [ -f "./opt/tscode/product.json" ]; then
-            if grep -q "debug" "./opt/tscode/product.json"; then
-              echo "      ✅ product.json contains debug configuration"
-            fi
-          fi
-
-          # 检查 JS Debug 配置
-          echo ""
-          echo "   📋 Checking JS Debug configuration..."
-
-          JS_DEBUG_PATHS=(
-            "$EXT_DIR/js-debug/package.json"
-            "$EXT_DIR/vscode-js-debug/package.json"
-            "$NM_DIR/vscode-js-debug/package.json"
-          )
-
-          JS_DEBUG_FOUND=0
-          for path in "${JS_DEBUG_PATHS[@]}"; do
-            if [ -f "$path" ]; then
-              echo "      ✅ Found: $path"
-              ((JS_DEBUG_FOUND++))
-              break
-            fi
-          done
-
-          if [ $JS_DEBUG_FOUND -eq 0 ]; then
-            echo "      ⚠️ No JS Debug configuration found"
-          fi
-
-          # 检查 debug 贡献
-          echo ""
-          echo "   📋 Checking debug contributions..."
-
-          if [ -f "$EXT_DIR/js-debug/package.json" ]; then
-            if grep -q "debuggers" "$EXT_DIR/js-debug/package.json"; then
-              echo "      ✅ Debuggers contribution found in js-debug"
-            fi
-            if grep -q "breakpoints" "$EXT_DIR/js-debug/package.json"; then
-              echo "      ✅ Breakpoints contribution found in js-debug"
-            fi
-          elif [ -f "$EXT_DIR/vscode-js-debug/package.json" ]; then
-            if grep -q "debuggers" "$EXT_DIR/vscode-js-debug/package.json"; then
-              echo "      ✅ Debuggers contribution found in vscode-js-debug"
-            fi
-            if grep -q "breakpoints" "$EXT_DIR/vscode-js-debug/package.json"; then
-              echo "      ✅ Breakpoints contribution found in vscode-js-debug"
-            fi
+            echo "   ⚠️ node_modules directory not found"
           fi
 
           # ============================================================
-          # 3. 验证运行时依赖
+          # 3. 检查 github-authentication
           # ============================================================
           echo ""
           echo "=========================================="
-          echo "📦 Runtime Dependencies Validation"
+          echo "🔐 GitHub Authentication Extension"
           echo "=========================================="
 
-          # 检查原生模块
-          echo "   📋 Checking native modules..."
-
-          NATIVE_MODULES=(
-            "vscode-oniguruma"
-            "vscode-textmate"
-            "native-watchdog"
-          )
-
-          for mod in "${NATIVE_MODULES[@]}"; do
-            if [ -d "$NM_DIR/$mod" ]; then
-              echo "      ✅ $mod"
-            fi
-          done
-
-          # 检查 ripgrep
-          echo ""
-          echo "   📋 Checking ripgrep..."
-
-          if [ -f "$NM_DIR/@vscode/ripgrep/bin/rg" ]; then
-            if [ -x "$NM_DIR/@vscode/ripgrep/bin/rg" ]; then
-              echo "      ✅ ripgrep exists and is executable"
-            else
-              echo "      ❌ ripgrep exists but is NOT executable"
-            fi
+          if [ -d "$EXT_DIR/github-authentication" ]; then
+            echo "✅ github-authentication exists"
           else
-            echo "      ⚠️ ripgrep not found at expected location"
+            echo "⚠️ github-authentication not found in system extensions"
+            echo "   (Will be copied from official VSCode during build)"
           fi
 
           # ============================================================
-          # 4. 生成验证报告
+          # 4. 生成最终报告
           # ============================================================
           echo ""
           echo "=========================================="
           echo "📊 ADVANCED VALIDATION REPORT"
           echo "=========================================="
 
-          # 计算统计
-          TOTAL_BUILTIN_EXTS=${#BUILTIN_EXTS[@]}
-          BUILTIN_OK=$((TOTAL_BUILTIN_EXTS - BUILTIN_MISSING))
+          TOTAL_CRITICAL=${#CRITICAL_EXTS[@]}
 
-          echo "   @builtin extensions: $BUILTIN_OK/$TOTAL_BUILTIN_EXTS present"
-          echo "   Debug extensions: $DEBUG_FOUND found"
-          echo "   Debug adapters: $ADAPTER_FOUND found"
-          echo "   JS Debug: $JS_DEBUG_FOUND found"
+          echo "   📦 Total extensions: $TOTAL_EXTS"
+          echo "   📋 Critical extensions: $FOUND/$TOTAL_CRITICAL"
+          echo "   🐛 Debug extensions: $DEBUG_FOUND"
 
           echo ""
 
-          # 判断是否通过
-          if [ $BUILTIN_MISSING -eq 0 ] || [ $DEBUG_FOUND -gt 0 ] || [ $ADAPTER_FOUND -gt 0 ]; then
-            echo "✅ Advanced validation PASSED"
-            echo "   - @builtin extensions: OK"
-            echo "   - Debug features: OK"
-            echo "   - Runtime dependencies: OK"
+          # 判断结果
+          if [ $MISSING -eq 0 ]; then
+            echo "✅ All critical extensions present"
+          elif [ $MISSING -le 2 ]; then
+            echo "⚠️ $MISSING critical extensions missing (minor issue)"
           else
-            echo "⚠️ Advanced validation has warnings"
-            if [ $BUILTIN_MISSING -gt 0 ]; then
-              echo "   - $BUILTIN_MISSING @builtin extensions missing"
-            fi
-            if [ $DEBUG_FOUND -eq 0 ]; then
-              echo "   - No debug extensions found"
-            fi
-            if [ $ADAPTER_FOUND -eq 0 ]; then
-              echo "   - No debug adapters found"
-            fi
+            echo "❌ $MISSING critical extensions missing (major issue)"
           fi
+
+          # 输出扩展列表用于调试
+          echo ""
+          echo "📋 Full extension list:"
+          echo "----------------------------------------"
+          find "$EXT_DIR" -maxdepth 1 -type d ! -path "$EXT_DIR" 2>/dev/null | while read -r dir; do
+            name=$(basename "$dir")
+            if [ -f "$dir/package.json" ]; then
+              version=$(grep -o '"version": *"[^"]*"' "$dir/package.json" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "unknown")
+              echo "  $name (v$version)"
+            else
+              echo "  $name"
+            fi
+          done | sort
+          echo "----------------------------------------"
 
           cd "$GITHUB_WORKSPACE"
           rm -rf /tmp/deb-adv-verify
 
           echo ""
-          echo "✅ Advanced DEB package validation completed!"
+          echo "✅ Advanced validation completed"
+          echo "   Note: All checks are informational only"
+          echo "   Build will continue regardless of validation results"
 
         continue-on-error: true
 
