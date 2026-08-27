@@ -1761,41 +1761,48 @@ jobs:
           DEB_ARCH="amd64"
           DEB_FILE="tscode-${DEB_VERSION}_${DEB_ARCH}.deb"
 
-          # 检查 DEB 文件是否存在
-          if [ ! -f "$GITHUB_WORKSPACE/$DEB_FILE" ]; then
-            echo "⚠️ DEB package not found: $DEB_FILE"
-            echo "   Skipping advanced validation"
-            exit 0
+          # 检查 DEB 文件是否存在（优先当前目录，再检查工作区）
+          DEB_PATH=""
+          if [ -f "./$DEB_FILE" ]; then
+              DEB_PATH="./$DEB_FILE"
+          elif [ -f "${GITHUB_WORKSPACE}/$DEB_FILE" ]; then
+              DEB_PATH="${GITHUB_WORKSPACE}/$DEB_FILE"
+          else
+              echo "⚠️ DEB package not found: $DEB_FILE"
+              echo "   Skipping advanced validation"
+              exit 0
           fi
+
+          echo "✅ Found DEB package: $DEB_PATH"
 
           echo "📦 Extracting DEB package for advanced validation..."
           mkdir -p /tmp/deb-adv-verify
-          cd /tmp/deb-adv-verify
+          cd /tmp/deb-adv-verify || exit 0
 
           # 提取 DEB 包
-          ar x "$GITHUB_WORKSPACE/$DEB_FILE" 2>/dev/null
+          ar x "$DEB_PATH" 2>/dev/null
           if [ $? -ne 0 ]; then
-            echo "⚠️ Failed to extract DEB package"
-            cd "$GITHUB_WORKSPACE"
-            rm -rf /tmp/deb-adv-verify
-            exit 0
+              echo "⚠️ Failed to extract DEB package with 'ar'"
+              cd "$GITHUB_WORKSPACE" || exit 0
+              rm -rf /tmp/deb-adv-verify
+              exit 0
           fi
 
           # 尝试提取数据归档
           EXTRACTED=0
           if [ -f "data.tar.xz" ]; then
-            tar -xf data.tar.xz 2>/dev/null && EXTRACTED=1
+              tar -xf data.tar.xz 2>/dev/null && EXTRACTED=1
           elif [ -f "data.tar.gz" ]; then
-            tar -xf data.tar.gz 2>/dev/null && EXTRACTED=1
+              tar -xf data.tar.gz 2>/dev/null && EXTRACTED=1
           elif [ -f "data.tar" ]; then
-            tar -xf data.tar 2>/dev/null && EXTRACTED=1
+              tar -xf data.tar 2>/dev/null && EXTRACTED=1
           fi
 
           if [ $EXTRACTED -eq 0 ]; then
-            echo "⚠️ Failed to extract data archive, skipping validation"
-            cd "$GITHUB_WORKSPACE"
-            rm -rf /tmp/deb-adv-verify
-            exit 0
+              echo "⚠️ Failed to extract data archive, skipping validation"
+              cd "$GITHUB_WORKSPACE" || exit 0
+              rm -rf /tmp/deb-adv-verify
+              exit 0
           fi
 
           echo "✅ DEB package extracted successfully"
@@ -1814,46 +1821,46 @@ jobs:
 
           # 检查 extensions 目录
           if [ ! -d "$EXT_DIR" ]; then
-            echo "❌ Extensions directory not found: $EXT_DIR"
-            cd "$GITHUB_WORKSPACE"
-            rm -rf /tmp/deb-adv-verify
-            exit 0
+              echo "❌ Extensions directory not found: $EXT_DIR"
+              cd "$GITHUB_WORKSPACE" || exit 0
+              rm -rf /tmp/deb-adv-verify
+              exit 0
           fi
 
           echo "📂 Extensions directory: $EXT_DIR"
 
-          # 统计扩展数量（使用更安全的方式）
+          # 统计扩展数量（使用 while + find 避免空目录问题）
           TOTAL_EXTS=0
-          for dir in "$EXT_DIR"/*/; do
-            if [ -d "$dir" ]; then
-              TOTAL_EXTS=$((TOTAL_EXTS + 1))
-            fi
-          done
+          while IFS= read -r -d '' dir; do
+              if [ -d "$dir" ]; then
+                  TOTAL_EXTS=$((TOTAL_EXTS + 1))
+              fi
+          done < <(find "$EXT_DIR" -maxdepth 1 -mindepth 1 -type d -print0 2>/dev/null)
           echo "   Total extensions in DEB: $TOTAL_EXTS"
 
           # 检查 @builtin 目录
           BUILTIN_DIR="$EXT_DIR/@builtin"
           if [ -d "$BUILTIN_DIR" ]; then
-            echo "✅ @builtin directory exists"
-            BUILTIN_COUNT=0
-            for dir in "$BUILTIN_DIR"/*/; do
-              if [ -d "$dir" ]; then
-                BUILTIN_COUNT=$((BUILTIN_COUNT + 1))
-              fi
-            done
-            echo "   📊 @builtin contains $BUILTIN_COUNT sub-extensions"
+              echo "✅ @builtin directory exists"
+              BUILTIN_COUNT=0
+              while IFS= read -r -d '' dir; do
+                  if [ -d "$dir" ]; then
+                      BUILTIN_COUNT=$((BUILTIN_COUNT + 1))
+                  fi
+              done < <(find "$BUILTIN_DIR" -maxdepth 1 -mindepth 1 -type d -print0 2>/dev/null)
+              echo "   📊 @builtin contains $BUILTIN_COUNT sub-extensions"
           else
-            echo "ℹ️ @builtin directory not found (extensions may be in root directory)"
+              echo "ℹ️ @builtin directory not found (extensions may be in root directory)"
           fi
 
           # 检查 product.json
           if [ -f "./opt/tscode/product.json" ]; then
-            echo "✅ product.json exists"
-            if grep -q "builtInExtensions" "./opt/tscode/product.json" 2>/dev/null; then
-              echo "   ✅ contains builtInExtensions configuration"
-            fi
+              echo "✅ product.json exists"
+              if grep -q "builtInExtensions" "./opt/tscode/product.json" 2>/dev/null; then
+                  echo "   ✅ contains builtInExtensions configuration"
+              fi
           else
-            echo "⚠️ product.json not found"
+              echo "⚠️ product.json not found"
           fi
 
           # 检查关键内置扩展
@@ -1867,21 +1874,21 @@ jobs:
           MISSING_LIST=""
 
           for ext in $CRITICAL_EXTS; do
-            if [ -d "$EXT_DIR/$ext" ]; then
-              echo "      ✅ $ext"
-              FOUND=$((FOUND + 1))
-            else
-              echo "      ❌ $ext (MISSING)"
-              MISSING=$((MISSING + 1))
-              MISSING_LIST="$MISSING_LIST $ext"
-            fi
+              if [ -d "$EXT_DIR/$ext" ]; then
+                  echo "      ✅ $ext"
+                  FOUND=$((FOUND + 1))
+              else
+                  echo "      ❌ $ext (MISSING)"
+                  MISSING=$((MISSING + 1))
+                  MISSING_LIST="$MISSING_LIST $ext"
+              fi
           done
 
           echo ""
           echo "   📊 Critical extensions: $FOUND found, $MISSING missing"
 
           if [ $MISSING -gt 0 ]; then
-            echo "   ⚠️ Missing extensions:$MISSING_LIST"
+              echo "   ⚠️ Missing extensions:$MISSING_LIST"
           fi
 
           # ============================================================
@@ -1895,52 +1902,52 @@ jobs:
           echo "   📋 Debug extensions found:"
           DEBUG_FOUND=0
           for ext in debug-auto-launch debug-server-ready js-debug vscode-js-debug; do
-            if [ -d "$EXT_DIR/$ext" ]; then
-              echo "      ✅ $ext"
-              DEBUG_FOUND=$((DEBUG_FOUND + 1))
-            fi
+              if [ -d "$EXT_DIR/$ext" ]; then
+                  echo "      ✅ $ext"
+                  DEBUG_FOUND=$((DEBUG_FOUND + 1))
+              fi
           done
 
           if [ $DEBUG_FOUND -eq 0 ]; then
-            echo "      ℹ️ No standalone debug extensions (may be bundled)"
+              echo "      ℹ️ No standalone debug extensions (may be bundled)"
           else
-            echo "   📊 Found $DEBUG_FOUND debug extension(s)"
+              echo "   📊 Found $DEBUG_FOUND debug extension(s)"
           fi
 
           # 检查 node_modules
           if [ -d "$NM_DIR" ]; then
-            echo ""
-            echo "   📋 node_modules exists"
-            NM_SIZE=$(du -sh "$NM_DIR" 2>/dev/null | cut -f1)
-            echo "      Size: $NM_SIZE"
+              echo ""
+              echo "   📋 node_modules exists"
+              NM_SIZE=$(du -sh "$NM_DIR" 2>/dev/null | cut -f1)
+              echo "      Size: $NM_SIZE"
 
-            # 检查 debug 适配器
-            echo ""
-            echo "   📋 Debug adapters:"
-            ADAPTER_FOUND=0
-            for adapter in vscode-debugadapter vscode-debugprotocol vscode-js-debug; do
-              if [ -d "$NM_DIR/$adapter" ]; then
-                echo "      ✅ $adapter"
-                ADAPTER_FOUND=$((ADAPTER_FOUND + 1))
+              # 检查 debug 适配器
+              echo ""
+              echo "   📋 Debug adapters:"
+              ADAPTER_FOUND=0
+              for adapter in vscode-debugadapter vscode-debugprotocol vscode-js-debug; do
+                  if [ -d "$NM_DIR/$adapter" ]; then
+                      echo "      ✅ $adapter"
+                      ADAPTER_FOUND=$((ADAPTER_FOUND + 1))
+                  fi
+              done
+
+              if [ $ADAPTER_FOUND -eq 0 ]; then
+                  echo "      ℹ️ No debug adapters found"
               fi
-            done
 
-            if [ $ADAPTER_FOUND -eq 0 ]; then
-              echo "      ℹ️ No debug adapters found"
-            fi
-
-            # 检查 ripgrep
-            if [ -f "$NM_DIR/@vscode/ripgrep/bin/rg" ]; then
-              if [ -x "$NM_DIR/@vscode/ripgrep/bin/rg" ]; then
-                echo "      ✅ ripgrep is executable"
+              # 检查 ripgrep
+              if [ -f "$NM_DIR/@vscode/ripgrep/bin/rg" ]; then
+                  if [ -x "$NM_DIR/@vscode/ripgrep/bin/rg" ]; then
+                      echo "      ✅ ripgrep is executable"
+                  else
+                      echo "      ⚠️ ripgrep exists but NOT executable"
+                  fi
               else
-                echo "      ⚠️ ripgrep exists but NOT executable"
+                  echo "      ⚠️ ripgrep not found"
               fi
-            else
-              echo "      ⚠️ ripgrep not found"
-            fi
           else
-            echo "   ⚠️ node_modules directory not found"
+              echo "   ⚠️ node_modules directory not found"
           fi
 
           # ============================================================
@@ -1952,9 +1959,9 @@ jobs:
           echo "=========================================="
 
           if [ -d "$EXT_DIR/github-authentication" ]; then
-            echo "✅ github-authentication exists"
+              echo "✅ github-authentication exists"
           else
-            echo "⚠️ github-authentication not found in system extensions"
+              echo "⚠️ github-authentication not found in system extensions"
           fi
 
           # ============================================================
@@ -1965,25 +1972,23 @@ jobs:
           echo "📋 Full Extension List"
           echo "=========================================="
 
-          EXT_LIST=""
-          for dir in "$EXT_DIR"/*/; do
-            if [ -d "$dir" ]; then
-              name=$(basename "$dir")
-              EXT_LIST="$EXT_LIST $name"
-            fi
-          done
+          # 使用 while + find 安全地输出所有扩展
+          EXT_LIST=$(find "$EXT_DIR" -maxdepth 1 -mindepth 1 -type d -exec basename {} \; 2>/dev/null | sort)
 
-          # 用 echo 输出，避免管道问题
-          echo "$EXT_LIST" | tr ' ' '\n' | sort | while read -r name; do
-            if [ -n "$name" ]; then
-              if [ -f "$EXT_DIR/$name/package.json" ]; then
-                version=$(grep -o '"version": *"[^"]*"' "$EXT_DIR/$name/package.json" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "unknown")
-                echo "  $name (v$version)"
-              else
-                echo "  $name"
-              fi
-            fi
-          done
+          if [ -n "$EXT_LIST" ]; then
+              echo "$EXT_LIST" | while read -r name; do
+                  if [ -n "$name" ]; then
+                      if [ -f "$EXT_DIR/$name/package.json" ]; then
+                          version=$(grep -o '"version": *"[^"]*"' "$EXT_DIR/$name/package.json" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "unknown")
+                          echo "  $name (v$version)"
+                      else
+                          echo "  $name"
+                      fi
+                  fi
+              done
+          else
+              echo "  (No extensions found)"
+          fi
 
           # ============================================================
           # 5. 生成最终报告
@@ -2003,18 +2008,19 @@ jobs:
 
           # 判断结果（仅用于信息展示，不影响构建）
           if [ $MISSING -eq 0 ]; then
-            echo "✅ All critical extensions present"
+              echo "✅ All critical extensions present"
           elif [ $MISSING -le 2 ]; then
-            echo "⚠️ $MISSING critical extension(s) missing (minor issue)"
+              echo "⚠️ $MISSING critical extension(s) missing (minor issue)"
           else
-            echo "⚠️ $MISSING critical extensions missing (review needed)"
+              echo "⚠️ $MISSING critical extensions missing (review needed)"
           fi
 
-          cd "$GITHUB_WORKSPACE"
+          cd "$GITHUB_WORKSPACE" || exit 0
           rm -rf /tmp/deb-adv-verify
 
           echo ""
           echo "✅ Advanced validation completed (informational only)"
+          exit 0
 
         continue-on-error: true
         shell: /usr/bin/bash
