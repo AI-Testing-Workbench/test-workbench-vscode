@@ -1524,7 +1524,8 @@ jobs:
 
           echo "📦 Extracting DEB package for custom extension verification..."
           mkdir -p /tmp/deb-verify-custom
-          cd /tmp/deb-verify-custom          ar x "$GITHUB_WORKSPACE/$DEB_FILE"
+          cd /tmp/deb-verify-custom
+          ar x "$GITHUB_WORKSPACE/$DEB_FILE"
 
           if [ -f "data.tar.xz" ]; then
             tar -xf data.tar.xz
