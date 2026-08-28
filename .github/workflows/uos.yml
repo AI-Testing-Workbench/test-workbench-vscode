@@ -841,7 +841,6 @@ jobs:
               cat > "$ARGV_FILE" << 'JSONEOF'
           {
               "locale": "zh-cn",
-              "disable-hardware-acceleration": true,
               "enable-crash-reporter": false
           }
           JSONEOF
