@@ -625,7 +625,8 @@ jobs:
           # 保护核心扩展不被删除
           echo ""
           echo "📌 Preserving core extensions..."
-          CORE_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features npm debug-auto-launch merge-conflict search-result @builtin"
+          # 重要：添加 github-authentication 和 git-base 到保护列表
+          CORE_EXTS="typescript-language-features git git-base github-authentication json-language-features markdown-language-features html-language-features css-language-features npm debug-auto-launch merge-conflict search-result @builtin"
 
           mkdir -p /tmp/core-extensions-backup
           for ext in $CORE_EXTS; do
@@ -795,14 +796,14 @@ jobs:
           fi
 
           # ============================================================
-          # 创建启动包装脚本 (run.sh) - 优化版
+          # 创建启动包装脚本 (run.sh) - 修复版：确保 DBUS_SESSION_BUS_ADDRESS= 为空
           # ============================================================
           echo ""
           echo "📌 Creating startup wrapper script (run.sh)..."
 
           cat > run.sh << 'RUNEOF'
           #!/bin/bash
-          # TSCode 启动脚本 - 优化版
+          # TSCode 启动脚本 - 修复版（支持 GitHub 登录，无密钥环弹窗）
 
           SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -817,7 +818,7 @@ jobs:
           export ELECTRON_DISABLE_CRASH_REPORTING=1
           export CRASHPAD_DISABLE=1
 
-          # 禁用密钥环
+          # 禁用密钥环 - 关键：DBUS_SESSION_BUS_ADDRESS 必须设置为空（不是 unset）
           export GNOME_KEYRING_CONTROL=
           export DBUS_SESSION_BUS_ADDRESS=
           export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
@@ -1006,7 +1007,7 @@ jobs:
 
           echo ""
           echo "7️⃣ Checking core extensions..."
-          for ext in typescript-language-features git json-language-features; do
+          for ext in typescript-language-features git git-base github-authentication json-language-features; do
             if [ -d "$SCRIPT_DIR/resources/app/extensions/$ext" ]; then
               echo "   ✅ $ext (system)"
               ((PASSED++))
@@ -1248,7 +1249,7 @@ jobs:
           sed -i "s/REPLACE_ARCH/$DEB_ARCH/g" "$DEB_ROOT/DEBIAN/control"
 
           # ============================================================
-          # 创建 postinst 脚本 - 修复权限并创建配置文件
+          # 创建 postinst 脚本
           # ============================================================
           cat > "$DEB_ROOT/DEBIAN/postinst" << 'POSTINSTEOF'
           #!/bin/bash
@@ -1286,13 +1287,11 @@ jobs:
           EXTENSIONS_DIR="/opt/tscode/resources/app/extensions"
 
           if [ -d "$EXTENSIONS_DIR" ]; then
-              # 修复所有 bin/ scripts/ tools/ utils/ 目录
               echo "   🔧 Fixing bin/ scripts/ tools/ utils/ directories..."
               find "$EXTENSIONS_DIR" -type d \( -name "bin" -o -name "scripts" -o -name "tools" -o -name "utils" \) 2>/dev/null | while read -r dir; do
                   find "$dir" -type f -exec chmod +x {} \; 2>/dev/null || true
               done
 
-              # 修复所有常见的可执行文件
               echo "   🔧 Fixing common executable files..."
               find "$EXTENSIONS_DIR" -type f \( \
                   -name "*.sh" -o -name "*.bash" -o -name "*.zsh" -o \
@@ -1306,7 +1305,6 @@ jobs:
                   -name "*.node" \
               \) -exec chmod +x {} \; 2>/dev/null || true
 
-              # 修复所有没有扩展名的文件（可能是二进制）
               echo "   🔧 Fixing files without extensions (ELF/scripts)..."
               find "$EXTENSIONS_DIR" -type f ! -name "*.*" 2>/dev/null | while read -r file; do
                   if file "$file" 2>/dev/null | grep -qE "(ELF|script|executable)"; then
@@ -1334,12 +1332,10 @@ jobs:
               if [ -d "$USER_HOME" ] && [ "$USER_HOME" != "/home/*" ]; then
                   USER_NAME=$(basename "$USER_HOME")
 
-                  # 创建必要的目录
                   mkdir -p "$USER_HOME/.tscode"
                   mkdir -p "$USER_HOME/.tscode/extensions"
                   mkdir -p "$USER_HOME/.local/share/tscode"
 
-                  # 创建 argv.json 配置文件（如果不存在）
                   ARGV_FILE="$USER_HOME/.local/share/tscode/argv.json"
                   if [ ! -f "$ARGV_FILE" ]; then
                       echo "    📄 Creating argv.json for $USER_NAME..."
@@ -1353,14 +1349,12 @@ jobs:
                       chmod 644 "$ARGV_FILE" 2>/dev/null || true
                   fi
 
-                  # 设置所有权（如果不是 root）
                   if [ "$USER_NAME" != "root" ]; then
                       echo "    👤 Setting ownership for $USER_NAME..."
                       chown -R "$USER_NAME:$USER_NAME" "$USER_HOME/.tscode" 2>/dev/null || true
                       chown -R "$USER_NAME:$USER_NAME" "$USER_HOME/.local/share/tscode" 2>/dev/null || true
                   fi
 
-                  # 设置权限
                   chmod -R 755 "$USER_HOME/.tscode" 2>/dev/null || true
                   chmod -R 755 "$USER_HOME/.local/share/tscode" 2>/dev/null || true
                   chmod 644 "$ARGV_FILE" 2>/dev/null || true
@@ -1375,7 +1369,6 @@ jobs:
           echo ""
           echo "📦 Copying prebuilt extensions to user directories..."
 
-          # 7a. 从 custom-extensions 复制
           CUSTOM_EXT_DIR="/opt/tscode/resources/app/custom-extensions"
           if [ -d "$CUSTOM_EXT_DIR" ]; then
               rm -f "$CUSTOM_EXT_DIR/.empty" 2>/dev/null || true
@@ -1408,12 +1401,11 @@ jobs:
               fi
           fi
 
-          # 7b. 从 extensions 复制 test-tech.* 扩展（关键修复！）
+          # 7b. 从 extensions 复制 test-tech.* 扩展
           echo ""
           echo "  📌 Copying test-tech.* extensions from system extensions..."
           EXTENSIONS_DIR="/opt/tscode/resources/app/extensions"
           if [ -d "$EXTENSIONS_DIR" ]; then
-              # 查找所有 test-tech.* 扩展
               find "$EXTENSIONS_DIR" -maxdepth 1 -type d -name "test-tech.*" 2>/dev/null | while read -r ext_dir; do
                   ext_name=$(basename "$ext_dir")
                   echo "    📦 Found: $ext_name"
@@ -1424,14 +1416,11 @@ jobs:
                           TSC_EXT_DIR="$USER_HOME/.tscode/extensions"
                           mkdir -p "$TSC_EXT_DIR" 2>/dev/null || true
 
-                          # 如果用户目录中不存在该扩展，复制
                           if [ ! -d "$TSC_EXT_DIR/$ext_name" ]; then
                               echo "      ✅ Copying: $ext_name to $USER_NAME"
                               cp -r "$ext_dir" "$TSC_EXT_DIR/" 2>/dev/null || true
-                              # 设置权限
                               if [ -d "$TSC_EXT_DIR/$ext_name" ]; then
                                   find "$TSC_EXT_DIR/$ext_name" -type f -exec chmod +x {} \; 2>/dev/null || true
-                                  # 特别修复 testflow
                                   if [ -f "$TSC_EXT_DIR/$ext_name/bin/testflow" ]; then
                                       chmod +x "$TSC_EXT_DIR/$ext_name/bin/testflow"
                                   fi
@@ -1603,7 +1592,7 @@ jobs:
 
           echo ""
           echo "🔍 Checking critical extensions in DEB:"
-          CRITICAL_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features npm debug-auto-launch merge-conflict"
+          CRITICAL_EXTS="typescript-language-features git git-base github-authentication json-language-features markdown-language-features html-language-features css-language-features npm debug-auto-launch merge-conflict"
           CRITICAL_MISSING=""
 
           for ext in $CRITICAL_EXTS; do
@@ -1628,7 +1617,6 @@ jobs:
             for ext in $TEST_TECH_EXTS; do
               ext_name=$(basename "$ext")
               echo "   ✅ $ext_name"
-              # 检查 testflow
               if [ -f "$ext/bin/testflow" ]; then
                 PERMS=$(stat -c %a "$ext/bin/testflow" 2>/dev/null || echo "unknown")
                 echo "      📄 testflow permissions: $PERMS"
@@ -1739,6 +1727,7 @@ jobs:
           echo "✅ Features:"
           echo "   - No password required on startup"
           echo "   - No sandbox password prompt"
+          echo "   - GitHub login works (no keyring popup)"
           echo "   - Desktop entry in application menu"
           echo "   - /usr/bin/tscode is a wrapper script (not a symlink)"
           echo "   - ✅ ALL extension binaries have execute permissions"
@@ -1770,6 +1759,7 @@ jobs:
             echo "🚀 After installation:"
             echo "  - Run: tscode (no password)"
             echo "  - Find in application menu: TSCode"
+            echo "  - GitHub login: Ctrl+Shift+P -> GitHub: Sign in"
             echo ""
             echo "📂 Directory structure:"
             echo "  System extensions: /opt/tscode/resources/app/extensions/"
