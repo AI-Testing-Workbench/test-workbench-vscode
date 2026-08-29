@@ -733,16 +733,17 @@ jobs:
           export ELECTRON_DISABLE_CRASH_REPORTING=1
           export CRASHPAD_DISABLE=1
 
-          unset GNOME_KEYRING_CONTROL
-          unset DBUS_SESSION_BUS_ADDRESS
-          unset VSCODE_PASSWORD_STORE
-          unset ELECTRON_PASSWORD_STORE
-          unset PYTHON_KEYRING_BACKEND
+          export VSCODE_PASSWORD_STORE=file
+          export ELECTRON_PASSWORD_STORE=file
 
           export VSCODE_APPDATA="$HOME/.local/share/tscode"
           export VSCODE_EXTENSIONS_DIR="$HOME/.tscode/extensions"
+          export VSCODE_SECRET_STORAGE_DIR="$VSCODE_APPDATA/secrets"
+
           mkdir -p "$VSCODE_APPDATA" 2>/dev/null || true
           mkdir -p "$VSCODE_EXTENSIONS_DIR" 2>/dev/null || true
+          mkdir -p "$VSCODE_SECRET_STORAGE_DIR" 2>/dev/null || true
+          chmod 700 "$VSCODE_SECRET_STORAGE_DIR" 2>/dev/null || true
 
           export VSCODE_SYSTEM_EXTENSIONS="$SCRIPT_DIR/resources/app/extensions"
 
@@ -751,6 +752,7 @@ jobs:
               --disable-gpu-sandbox \
               --disable-gpu \
               --disable-crash-reporter \
+              --password-store="file" \
               --extensions-dir="$VSCODE_EXTENSIONS_DIR" \
               --user-data-dir="$VSCODE_APPDATA" \
               --builtin-extensions-dir="$VSCODE_SYSTEM_EXTENSIONS" \
@@ -1171,42 +1173,6 @@ jobs:
           fi
 
           echo ""
-          echo "🔑 Configuring passwordless keyring for GitHub login..."
-
-          if ! command -v gnome-keyring-daemon >/dev/null 2>&1; then
-              echo "  📦 Installing gnome-keyring..."
-              apt-get update -qq 2>/dev/null || true
-              apt-get install -y -qq gnome-keyring libsecret-1-0 2>/dev/null || true
-          fi
-
-          for USER_HOME in /home/* /root; do
-              if [ -d "$USER_HOME" ] && [ "$USER_HOME" != "/home/*" ]; then
-                  USER_NAME=$(basename "$USER_HOME")
-
-                  mkdir -p "$USER_HOME/.local/share/keyrings"
-
-                  cat > "$USER_HOME/.local/share/keyrings/login.keyring" << 'KEYEOF'
-          [keyring]
-          display-name=Login
-          locked=false
-          KEYEOF
-
-                  if [ "$USER_HOME" != "/root" ]; then
-                      USER_UID=$(stat -c '%u' "$USER_HOME" 2>/dev/null || echo "")
-                      USER_GID=$(stat -c '%g' "$USER_HOME" 2>/dev/null || echo "")
-                      if [ -n "$USER_UID" ] && [ -n "$USER_GID" ]; then
-                          chown -R "$USER_UID:$USER_GID" "$USER_HOME/.local/share/keyrings" 2>/dev/null || true
-                      fi
-                  fi
-
-                  chmod 700 "$USER_HOME/.local/share/keyrings"
-                  chmod 600 "$USER_HOME/.local/share/keyrings/login.keyring"
-
-                  echo "    ✅ Passwordless keyring configured for: $USER_NAME"
-              fi
-          done
-
-          echo ""
           echo "📁 Creating and fixing user directories..."
 
           for USER_HOME in /home/* /root; do
@@ -1383,11 +1349,12 @@ jobs:
           echo "=========================================="
           echo "✅ TSCode installed successfully!"
           echo ""
-          echo "🔑 Keyring: Passwordless (GitHub login works without password prompt)"
           echo "📁 System extensions: /opt/tscode/resources/app/extensions/"
           echo "📂 User extensions: ~/.tscode/extensions/"
           echo "📂 User data: ~/.local/share/tscode/"
+          echo "📂 Secret storage: ~/.local/share/tscode/secrets/"
           echo ""
+          echo "🔑 Using file-based secret storage (no keyring required)"
           echo "🚀 Run 'tscode' to start"
           echo "=========================================="
 
@@ -1624,12 +1591,14 @@ jobs:
           echo "   - ✅ ALL extension binaries have execute permissions"
           echo "   - ✅ test-tech.* extensions copied to user directory"
           echo "   - ✅ User directory permissions fixed"
-          echo "   - ✅ Passwordless keyring configured for GitHub login"
+          echo "   - ✅ File-based secret storage (no keyring required)"
+          echo "   - ✅ GitHub login works without keyring"
           echo ""
           echo "📂 Directory structure:"
           echo "   System extensions: /opt/tscode/resources/app/extensions/"
           echo "   User extensions:   ~/.tscode/extensions/"
           echo "   User data:         ~/.local/share/tscode/"
+          echo "   Secrets:           ~/.local/share/tscode/secrets/"
           echo ""
           echo "💡 Extensions persist across reinstallation"
           echo "💡 ~/.tscode/ only contains extensions directory"
@@ -1655,5 +1624,6 @@ jobs:
             echo "  System extensions: /opt/tscode/resources/app/extensions/"
             echo "  User extensions:   ~/.tscode/extensions/"
             echo "  User data:         ~/.local/share/tscode/"
+            echo "  Secrets:           ~/.local/share/tscode/secrets/"
             echo "=========================================="
           fi
