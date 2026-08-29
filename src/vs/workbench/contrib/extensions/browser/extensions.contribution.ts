@@ -6,6 +6,7 @@
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js'; // test-workbench_change
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -14,6 +15,8 @@ import { Disposable, DisposableStore, IDisposable, isDisposable } from '../../..
 import { Schemas } from '../../../../base/common/network.js';
 import { isNative, isWeb } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
+import { decodeProductUrl } from '../../../../base/common/productEncoding.js'; // test-workbench_change
+import { basename } from '../../../../base/common/resources.js'; // test-workbench_change
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { MultiCommand } from '../../../../editor/browser/editorExtensions.js';
 import { CopyAction, CutAction, PasteAction } from '../../../../editor/contrib/clipboard/browser/clipboard.js';
@@ -31,6 +34,7 @@ import { areSameExtensions, getIdAndVersion } from '../../../../platform/extensi
 import { ExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
 import { IExtensionRecommendationNotificationService } from '../../../../platform/extensionRecommendations/common/extensionRecommendations.js';
 import { EXTENSION_CATEGORIES, ExtensionType } from '../../../../platform/extensions/common/extensions.js';
+import { IFileService } from '../../../../platform/files/common/files.js'; // test-workbench_change
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -38,9 +42,9 @@ import * as jsonContributionRegistry from '../../../../platform/jsonschemas/comm
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import product from '../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js'; // test-workbench_change
 import { Extensions, IQuickAccessRegistry } from '../../../../platform/quickinput/common/quickAccess.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js'; // test-workbench_change
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -65,9 +69,10 @@ import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from '../../../services/workspaces/
 import { IPluginInstallService } from '../../chat/common/plugins/pluginInstallService.js';
 import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
 import { CONTEXT_KEYBINDINGS_EDITOR } from '../../preferences/common/preferences.js';
+import { ITsCodeTokenStore } from '../../tsCodeAuth/common/tsCodeAuth.js'; // test-workbench_change
 import { IWebview } from '../../webview/browser/webview.js';
 import { Query } from '../common/extensionQuery.js';
-import { AutoRestartConfigurationKey, AutoUpdateConfigurationKey, CONTEXT_EXTENSIONS_GALLERY_STATUS, CONTEXT_HAS_GALLERY, DefaultViewsContext, ExtensionEditorTab, ExtensionRuntimeActionType, EXTENSIONS_CATEGORY, extensionsFilterSubMenu, extensionsSearchActionsMenu, HasOutdatedExtensionsContext, IExtensionArg, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, INSTALL_ACTIONS_GROUP, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, IWorkspaceRecommendedExtensionsView, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, OUTDATED_EXTENSIONS_VIEW_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, TOGGLE_IGNORE_EXTENSION_ACTION_ID, UPDATE_ACTIONS_GROUP, VIEWLET_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID } from '../common/extensions.js';
+import { AutoRestartConfigurationKey, AutoUpdateConfigurationKey, CONTEXT_EXTENSIONS_GALLERY_STATUS, CONTEXT_HAS_GALLERY, DefaultViewsContext, ExtensionEditorTab, ExtensionRuntimeActionType, EXTENSIONS_CATEGORY, extensionsFilterSubMenu, extensionsSearchActionsMenu, HasOutdatedExtensionsContext, IExtensionArg, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, INSTALL_ACTIONS_GROUP, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, IWorkspaceRecommendedExtensionsView, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, OUTDATED_EXTENSIONS_VIEW_ID, PUBLISH_EXTENSION_COMMAND_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, TOGGLE_IGNORE_EXTENSION_ACTION_ID, UPDATE_ACTIONS_GROUP, VIEWLET_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID } from '../common/extensions.js';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '../common/extensionsFileTemplate.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { KeymapExtensions } from '../common/extensionsUtils.js';
@@ -81,13 +86,18 @@ import { ClearLanguageAction, ConfigureWorkspaceFolderRecommendedExtensionsActio
 import { ExtensionActivationProgress } from './extensionsActivationProgress.js';
 import { ExtensionsCompletionItemsProvider } from './extensionsCompletionItemsProvider.js';
 import { ExtensionDependencyChecker } from './extensionsDependencyChecker.js';
-import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from './extensionsIcons.js';
+import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, publishExtensionIcon, refreshIcon } from './extensionsIcons.js'; // test-workbench_change
 import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from './extensionsQuickAccess.js';
 import { BuiltInExtensionsContext, ExtensionMarketplaceStatusUpdater, ExtensionsSearchValueContext, ExtensionsSortByContext, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, MaliciousExtensionChecker, RecommendedExtensionsContext, SearchHasTextContext, SearchMarketplaceExtensionsContext, StatusUpdater } from './extensionsViewlet.js';
 import { ExtensionsWorkbenchService } from './extensionsWorkbenchService.js';
 import { ExtensionsAutoInstallContribution } from './extensionsAutoInstall.js'; // test-workbench_change
 import './media/extensionManagement.css';
 import { UnsupportedExtensionsMigrationContrib } from './unsupportedExtensionsMigrationContribution.js';
+
+// test-workbench_change start
+const EXTENSION_UPLOAD_API_URL = `${decodeProductUrl('aHR0cHM6Ly90c2NvZGUtdnN4LXJlZ2lzdHJ5LnBhYXN1YXQuY21iY2hpbmEuY24v')}api/-/extension/upload`;
+const INTERNAL_EXTENSION_ALLOWED_PUBLISHERS = ['test-infra', 'test-manage', 'test-tech', 'test-retail', 'test-env', 'test-sale', 'test-data'];
+// test-workbench_change end
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -937,6 +947,133 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				}
 			}
 		});
+
+		this.registerExtensionAction({ // test-workbench_change
+			id: PUBLISH_EXTENSION_COMMAND_ID,
+			// allow-any-unicode-next-line
+			title: localize2('publishExtension', '发布扩展...'),
+			category: ExtensionsLocalizedLabel,
+			icon: publishExtensionIcon, // test-workbench_change
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER)
+			}, {
+				id: MenuId.ViewContainerTitle, // test-workbench_change
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER)),
+				group: 'navigation',
+				order: 3
+			}],
+			run: async (accessor: ServicesAccessor) => {
+				const quickInputService = accessor.get(IQuickInputService);
+				const fileDialogService = accessor.get(IFileDialogService);
+				const extensionManagementService = accessor.get(IExtensionManagementService);
+				const fileService = accessor.get(IFileService);
+				const progressService = accessor.get(IProgressService);
+				const notificationService = accessor.get(INotificationService);
+				const tokenStore = accessor.get(ITsCodeTokenStore);
+
+				// 1. 选择扩展类型
+				const extensionSource = await new Promise<string | undefined>(resolve => {
+					const disposables = new DisposableStore();
+					const quickPick = disposables.add(quickInputService.createQuickPick<IQuickPickItem & { source: string }>());
+					// allow-any-unicode-next-line
+					quickPick.title = localize('publishExtensionTitle', '发布扩展');
+					// allow-any-unicode-next-line
+					quickPick.placeholder = localize('publishExtensionTypePlaceholder', '选择扩展类型');
+					quickPick.items = [
+						// allow-any-unicode-next-line
+						{ label: localize('publishExtensionTypeInternal', '自研扩展'), source: 'Internal' },
+						// allow-any-unicode-next-line
+						{ label: localize('publishExtensionTypeExternal', '外部扩展'), source: 'External' },
+					];
+					quickPick.activeItems = [quickPick.items[0]];
+					disposables.add(quickPick.onDidAccept(() => {
+						const selected = quickPick.selectedItems[0];
+						resolve(selected?.source);
+						quickPick.hide();
+					}));
+					disposables.add(quickPick.onDidHide(() => {
+						disposables.dispose();
+						resolve(undefined);
+					}));
+					quickPick.show();
+				});
+
+				if (!extensionSource) {
+					return; // 取消
+				}
+
+				// 2. 选择 VSIX 文件
+				const vsixPaths = await fileDialogService.showOpenDialog({
+					// allow-any-unicode-next-line
+					title: localize('publishExtensionPickFile', '选择要发布的 VSIX 文件'),
+					filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
+					canSelectFiles: true,
+					canSelectMany: false,
+					// allow-any-unicode-next-line
+					openLabel: mnemonicButtonLabel(localize({ key: 'publishExtensionSelectButton', comment: ['&& denotes a mnemonic'] }, "&&选择"))
+				});
+				if (!vsixPaths || vsixPaths.length === 0) {
+					return; // 取消
+				}
+
+				// 3. 自研扩展校验 publisher 属于团队白名单，外部扩展不做校验
+				if (extensionSource === 'Internal') {
+					let publisher: string | undefined;
+					try {
+						publisher = (await extensionManagementService.getManifest(vsixPaths[0])).publisher;
+					} catch (error) {
+						// allow-any-unicode-next-line
+						notificationService.error(localize('publishExtensionManifestReadError', '发布失败：无法读取 VSIX 的 package.json：{0}', toErrorMessage(error)));
+						return;
+					}
+					if (!publisher || !INTERNAL_EXTENSION_ALLOWED_PUBLISHERS.includes(publisher)) {
+						// allow-any-unicode-next-line
+						notificationService.error(localize('publishExtensionPublisherNotAllowed', '发布失败：自研扩展的 publisher 需属于各团队值[{0}]，当前为 {1}', INTERNAL_EXTENSION_ALLOWED_PUBLISHERS.join(','), publisher ?? '未知'));
+						return;
+					}
+				}
+
+				// 4. 获取用户ID
+				const token = await tokenStore.getToken();
+				const rtcId = token?.rtcId;
+				if (!rtcId) {
+					// allow-any-unicode-next-line
+					notificationService.error(localize('publishExtensionNoUser', '获取用户ID失败，请先登录'));
+					return;
+				}
+
+				// 5. 上传
+				try {
+					await progressService.withProgress({
+						location: ProgressLocation.Notification,
+						// allow-any-unicode-next-line
+						title: localize('publishExtensionUploading', '正在发布扩展...')
+					}, async () => {
+						const content = await fileService.readFile(vsixPaths[0]);
+						const blob = new Blob([content.value.buffer as Uint8Array<ArrayBuffer>], { type: 'application/octet-stream' });
+						const formData = new FormData();
+						formData.append('content', blob, basename(vsixPaths[0]));
+						const apiUrl = `${EXTENSION_UPLOAD_API_URL}?rtcId=${encodeURIComponent(rtcId)}&extensionSource=${encodeURIComponent(extensionSource)}`;
+						const response = await fetch(apiUrl, { method: 'POST', body: formData });
+						const data = await response.json().catch(() => undefined) as { success?: string; error?: string } | undefined;
+						if (data?.error) {
+							// allow-any-unicode-next-line
+							notificationService.error(localize('publishExtensionFailed', '发布失败：{0}', data.error));
+						} else if (data?.success) {
+							// allow-any-unicode-next-line
+							notificationService.info(localize('publishExtensionSucceeded', '发布成功'));
+						} else {
+							// allow-any-unicode-next-line
+							notificationService.error(localize('publishExtensionUnknownError', '发布失败：未知错误'));
+						}
+					});
+				} catch (error) {
+					// allow-any-unicode-next-line
+					notificationService.error(localize('publishExtensionNetworkError', '发布失败：{0}', toErrorMessage(error)));
+				}
+			}
+		}); // test-workbench_change
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installExtensionFromLocation',
