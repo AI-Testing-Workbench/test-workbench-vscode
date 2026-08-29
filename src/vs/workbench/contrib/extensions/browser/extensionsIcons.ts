@@ -14,6 +14,8 @@ export const manageExtensionIcon = registerIcon('extensions-manage', Codicon.gea
 export const clearSearchResultsIcon = registerIcon('extensions-clear-search-results', Codicon.clearAll, localize('clearSearchResultsIcon', 'Icon for the \'Clear Search Result\' action in the extensions view.'));
 export const refreshIcon = registerIcon('extensions-refresh', Codicon.refresh, localize('refreshIcon', 'Icon for the \'Refresh\' action in the extensions view.'));
 export const filterIcon = registerIcon('extensions-filter', Codicon.filter, localize('filterIcon', 'Icon for the \'Filter\' action in the extensions view.'));
+// test-workbench_change
+export const publishExtensionIcon = registerIcon('extensions-publish', Codicon.cloudUpload, localize('publishExtensionIcon', 'Icon for the \'Publish Extension\' action in the extensions view.'));
 
 export const installLocalInRemoteIcon = registerIcon('extensions-install-local-in-remote', Codicon.cloudDownload, localize('installLocalInRemoteIcon', 'Icon for the \'Install Local Extension in Remote\' action in the extensions view.'));
 export const installWorkspaceRecommendedIcon = registerIcon('extensions-install-workspace-recommended', Codicon.cloudDownload, localize('installWorkspaceRecommendedIcon', 'Icon for the \'Install Workspace Recommended Extensions\' action in the extensions view.'));
