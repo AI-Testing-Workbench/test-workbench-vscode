@@ -733,17 +733,15 @@ jobs:
           export ELECTRON_DISABLE_CRASH_REPORTING=1
           export CRASHPAD_DISABLE=1
 
-          export VSCODE_PASSWORD_STORE=file
-          export ELECTRON_PASSWORD_STORE=file
+          unset GNOME_KEYRING_CONTROL
+          unset DBUS_SESSION_BUS_ADDRESS
+
+          export VSCODE_USE_FILE_SECRET_STORAGE=1
 
           export VSCODE_APPDATA="$HOME/.local/share/tscode"
           export VSCODE_EXTENSIONS_DIR="$HOME/.tscode/extensions"
-          export VSCODE_SECRET_STORAGE_DIR="$VSCODE_APPDATA/secrets"
-
           mkdir -p "$VSCODE_APPDATA" 2>/dev/null || true
           mkdir -p "$VSCODE_EXTENSIONS_DIR" 2>/dev/null || true
-          mkdir -p "$VSCODE_SECRET_STORAGE_DIR" 2>/dev/null || true
-          chmod 700 "$VSCODE_SECRET_STORAGE_DIR" 2>/dev/null || true
 
           export VSCODE_SYSTEM_EXTENSIONS="$SCRIPT_DIR/resources/app/extensions"
 
@@ -752,7 +750,6 @@ jobs:
               --disable-gpu-sandbox \
               --disable-gpu \
               --disable-crash-reporter \
-              --password-store="file" \
               --extensions-dir="$VSCODE_EXTENSIONS_DIR" \
               --user-data-dir="$VSCODE_APPDATA" \
               --builtin-extensions-dir="$VSCODE_SYSTEM_EXTENSIONS" \
@@ -1349,12 +1346,11 @@ jobs:
           echo "=========================================="
           echo "✅ TSCode installed successfully!"
           echo ""
+          echo "🔑 Using file-based secret storage (no keyring required)"
           echo "📁 System extensions: /opt/tscode/resources/app/extensions/"
           echo "📂 User extensions: ~/.tscode/extensions/"
           echo "📂 User data: ~/.local/share/tscode/"
-          echo "📂 Secret storage: ~/.local/share/tscode/secrets/"
           echo ""
-          echo "🔑 Using file-based secret storage (no keyring required)"
           echo "🚀 Run 'tscode' to start"
           echo "=========================================="
 
@@ -1598,7 +1594,6 @@ jobs:
           echo "   System extensions: /opt/tscode/resources/app/extensions/"
           echo "   User extensions:   ~/.tscode/extensions/"
           echo "   User data:         ~/.local/share/tscode/"
-          echo "   Secrets:           ~/.local/share/tscode/secrets/"
           echo ""
           echo "💡 Extensions persist across reinstallation"
           echo "💡 ~/.tscode/ only contains extensions directory"
@@ -1624,6 +1619,5 @@ jobs:
             echo "  System extensions: /opt/tscode/resources/app/extensions/"
             echo "  User extensions:   ~/.tscode/extensions/"
             echo "  User data:         ~/.local/share/tscode/"
-            echo "  Secrets:           ~/.local/share/tscode/secrets/"
             echo "=========================================="
           fi
