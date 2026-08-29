@@ -750,6 +750,7 @@ jobs:
               --disable-gpu-sandbox \
               --disable-gpu \
               --disable-crash-reporter \
+              --use-inmemory-secretstorage \
               --extensions-dir="$VSCODE_EXTENSIONS_DIR" \
               --user-data-dir="$VSCODE_APPDATA" \
               --builtin-extensions-dir="$VSCODE_SYSTEM_EXTENSIONS" \
