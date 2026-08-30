@@ -2,7 +2,7 @@
 
 ## 需求概述
 
-在 VS Code 的 Startup Editor 配置选项中新增一个 `tscodeWelcomePage` 选项，用于显示自定义的欢迎页面。该页面当前与默认的 `welcomePage` 内容完全一致，但为后续自定义提供了独立的实现基础。
+在 VS Code 的 Startup Editor 配置选项中新增一个 `tscodeWelcomePage` 选项，用于显示自定义的欢迎页面。该页面当前与默认的 `welcomePage` 内容完全一致，但为后续自定义提供了独立的实现基础
 
 ## 功能目标
 

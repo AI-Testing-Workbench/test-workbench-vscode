@@ -140,6 +140,9 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private readonly _onDidChangeAuxiliaryBarMaximized = this._register(new Emitter<void>());
 	readonly onDidChangeAuxiliaryBarMaximized = this._onDidChangeAuxiliaryBarMaximized.event;
 
+	private readonly _onDidChangeConciseMode = this._register(new Emitter<boolean>());
+	readonly onDidChangeConciseMode = this._onDidChangeConciseMode.event;
+
 	private readonly _onDidLayoutMainContainer = this._register(new Emitter<IDimension>());
 	readonly onDidLayoutMainContainer = this._onDidLayoutMainContainer.event;
 
@@ -1322,6 +1325,14 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	centerMainEditorLayout(_active: boolean): void {
 		// No-op: Centered layout not supported in this layout
+	}
+
+	toggleConciseMode(): void {
+		// No-op: Concise mode not supported in this layout
+	}
+
+	isConciseModeActive(): boolean {
+		return false; // Concise mode not supported
 	}
 
 	hasMainWindowBorder(): boolean {
