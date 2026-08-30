@@ -117,6 +117,12 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
+
         .btn-primary {
             background: #667eea;
             color: white;
@@ -357,6 +363,7 @@
             <button class="tab" onclick="switchTab('releasenotes')">📢 版本公告</button>
             <button class="tab" onclick="switchTab('autoinstall')">🔌 自动安装插件</button>
             <button class="tab" onclick="switchTab('chattips')">💡 聊天提示</button>
+            <button class="tab" onclick="switchTab('announcements')">📣 公告管理</button>
         </div>
 
         <!-- 发布状态 Tab -->
@@ -753,6 +760,82 @@
                 </div>
             </div>
         </div>
+
+        <!-- 公告管理 Tab -->
+        <div id="announcements-tab" class="tab-content">
+            <div class="controls">
+                <h2>
+                    📣 公告管理
+                    <button class="btn btn-info refresh-btn" onclick="loadAnnouncements()">
+                        <span>🔄</span> 刷新
+                    </button>
+                </h2>
+
+                <div class="form-group">
+                    <label>公告列表（同一时刻仅一个公告处于测试/发布状态）</label>
+                    <div id="announcements-list-display" style="background: #f5f5f5; padding: 15px; border-radius: 4px; border: 1px solid #ddd;">
+                        <p style="color: #999; margin: 0;">加载中...</p>
+                    </div>
+                </div>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+
+                <h3 id="announcement-form-title" style="margin-bottom: 15px;">➕ 新建公告</h3>
+
+                <input type="hidden" id="announcement-id">
+
+                <div class="form-group">
+                    <label>标题</label>
+                    <input type="text" id="announcement-title" placeholder="公告标题">
+                </div>
+
+                <div class="form-group">
+                    <label>类型</label>
+                    <select id="announcement-type">
+                        <option value="notice">通知</option>
+                        <option value="recommend">推荐</option>
+                    </select>
+                    <p style="color: #666; font-size: 0.85em; margin-top: 5px;">
+                        仅作管理记录，客户端展示不区分类型
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label>公告内容（Markdown）</label>
+                    <textarea id="announcement-content" rows="10" placeholder="支持 Markdown：&#10;- 海报: ![图片](url) 或 [![海报](url)](跳转地址)&#10;- 文案: 直接写文本/标题/列表&#10;- 插件推荐/最佳实践: 图文描述 + 跳转链接" style="font-family: 'Courier New', monospace;"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>跳转地址（可选）</label>
+                    <input type="text" id="announcement-link-url" placeholder="点击「查看详情」后打开的地址">
+                </div>
+
+                <div class="form-group">
+                    <label>测试人员工号（逗号或换行分隔）</label>
+                    <textarea id="announcement-testers" rows="3" placeholder="例如:&#10;123456, 789012" style="font-family: 'Courier New', monospace;"></textarea>
+                    <p style="color: #666; font-size: 0.85em; margin-top: 5px;">
+                        必须先配置测试人员名单，测试效果没问题后再发布全员可见
+                    </p>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="saveAnnouncement()">
+                        <span>💾</span> 保存公告
+                    </button>
+                    <button class="btn" onclick="resetAnnouncementForm()">
+                        <span>🆕</span> 新建
+                    </button>
+                </div>
+
+                <div class="form-group" style="margin-top: 20px;">
+                    <label>公开接口地址（客户端调用）</label>
+                    <input type="text" id="announcements-url" readonly style="background: #f5f5f5; cursor: not-allowed; font-family: monospace;">
+                    <p style="color: #666; font-size: 0.85em; margin-top: 5px;">
+                        TestAgent 客户端每次启动时请求一次此接口，弹窗过的公告不会再次展示
+                    </p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -786,6 +869,8 @@
                 loadAutoInstallConfig();
             } else if (tabName === 'chattips') {
                 loadChatTipsConfig();
+            } else if (tabName === 'announcements') {
+                loadAnnouncements();
             }
         }
 
@@ -1985,6 +2070,186 @@
             } catch (error) {
                 // 错误已在 apiRequest 中处理
             }
+        }
+
+        // ============================================================
+        // 公告管理
+        // ============================================================
+
+        const ANNOUNCEMENT_STATUS_LABELS = {
+            draft: '📝 草稿',
+            testing: '🧪 测试中',
+            published: '🚀 已发布'
+        };
+        const ANNOUNCEMENT_TYPE_LABELS = {
+            notice: '通知',
+            recommend: '推荐'
+        };
+
+        // 状态徽章颜色
+        function announcementStatusClass(status) {
+            if (status === 'published') return 'color: #4caf50; font-weight: bold;';
+            if (status === 'testing') return 'color: #ff9800; font-weight: bold;';
+            return 'color: #999;';
+        }
+
+        // 加载公告列表
+        async function loadAnnouncements() {
+            try {
+                const data = await apiRequest('/admin/announcements', 'GET');
+
+                const container = document.getElementById('announcements-list-display');
+                document.getElementById('announcements-url').value = data.url || `${location.origin}/api/announcement`;
+
+                const announcements = data.announcements || [];
+                window.__announcementsData = announcements;
+                if (announcements.length === 0) {
+                    container.innerHTML = '<p style="color: #999; margin: 0;">暂无公告</p>';
+                    return;
+                }
+
+                const rows = announcements.map(ann => {
+                    const testers = (ann.testerEmployeeIds || []).join(', ') || '—';
+                    const buttons = [];
+
+                    if (ann.status === 'draft') {
+                        buttons.push(`<button class="btn btn-primary btn-sm" onclick="setAnnouncementStatus('${ann.id}', 'testing')">🧪 测试</button>`);
+                    }
+                    if (ann.status === 'testing') {
+                        buttons.push(`<button class="btn btn-primary btn-sm" onclick="setAnnouncementStatus('${ann.id}', 'published')">🚀 发布全员</button>`);
+                    }
+                    if (ann.status !== 'draft') {
+                        buttons.push(`<button class="btn btn-sm" onclick="setAnnouncementStatus('${ann.id}', 'draft')">⏹️ 下线</button>`);
+                    }
+                    buttons.push(`<button class="btn btn-info btn-sm" onclick="editAnnouncement('${ann.id}')">✏️ 编辑</button>`);
+
+                    return `<div style="border: 1px solid #ddd; border-radius: 4px; padding: 12px; margin-bottom: 10px; background: #fff;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                            <strong>${escapeHtml(ann.title)}</strong>
+                            <span style="${announcementStatusClass(ann.status)}">${ANNOUNCEMENT_STATUS_LABELS[ann.status] || ann.status}</span>
+                        </div>
+                        <div style="margin-top: 6px; color: #666; font-size: 0.85em;">
+                            类型: ${ANNOUNCEMENT_TYPE_LABELS[ann.type] || ann.type} &nbsp;|&nbsp;
+                            ID: ${escapeHtml(ann.id)} &nbsp;|&nbsp;
+                            测试人员: ${escapeHtml(testers)}
+                        </div>
+                        <div style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap;">
+                            ${buttons.join('')}
+                        </div>
+                    </div>`;
+                });
+
+                container.innerHTML = rows.join('');
+                showMessage(`✅ 已加载 ${announcements.length} 条公告`, 'success');
+            } catch (error) {
+                // 错误已在 apiRequest 中处理
+            }
+        }
+
+        // 编辑公告（填充表单）
+        function editAnnouncement(id) {
+            const announcements = window.__announcementsData || [];
+            const ann = announcements.find(a => a.id === id);
+            if (!ann) return;
+
+            document.getElementById('announcement-id').value = ann.id;
+            document.getElementById('announcement-title').value = ann.title;
+            document.getElementById('announcement-type').value = ann.type;
+            document.getElementById('announcement-content').value = ann.content;
+            document.getElementById('announcement-link-url').value = ann.linkUrl || '';
+            document.getElementById('announcement-testers').value = (ann.testerEmployeeIds || []).join(', ');
+            document.getElementById('announcement-form-title').textContent = `✏️ 编辑公告: ${ann.title}`;
+            document.getElementById('announcement-form-title').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // 重置表单（新建）
+        function resetAnnouncementForm() {
+            document.getElementById('announcement-id').value = '';
+            document.getElementById('announcement-title').value = '';
+            document.getElementById('announcement-type').value = 'notice';
+            document.getElementById('announcement-content').value = '';
+            document.getElementById('announcement-link-url').value = '';
+            document.getElementById('announcement-testers').value = '';
+            document.getElementById('announcement-form-title').textContent = '➕ 新建公告';
+            document.getElementById('announcement-form-title').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // 解析测试人员工号
+        function parseTesterIds() {
+            return document.getElementById('announcement-testers').value
+                .split(/[,，\n]/)
+                .map(t => t.trim())
+                .filter(t => t.length > 0);
+        }
+
+        // 保存公告
+        async function saveAnnouncement() {
+            const title = document.getElementById('announcement-title').value.trim();
+            const content = document.getElementById('announcement-content').value.trim();
+
+            if (!title) {
+                alert('请输入公告标题');
+                return;
+            }
+            if (!content) {
+                alert('请输入公告内容');
+                return;
+            }
+
+            const body = {
+                id: document.getElementById('announcement-id').value || null,
+                type: document.getElementById('announcement-type').value,
+                title: title,
+                content: content,
+                linkUrl: document.getElementById('announcement-link-url').value.trim(),
+                testerEmployeeIds: parseTesterIds()
+            };
+
+            const isNew = !body.id;
+            if (!confirm(`确定要${isNew ? '创建' : '保存'}公告吗？\n\n标题: ${title}\n测试人员: ${body.testerEmployeeIds.join(', ') || '（未配置，无法测试/发布）'}`)) {
+                return;
+            }
+
+            try {
+                const data = await apiRequest('/admin/announcements', 'POST', body);
+                showMessage(`✅ ${data.message}`, 'success');
+                loadAnnouncements();
+            } catch (error) {
+                // 错误已在 apiRequest 中处理
+            }
+        }
+
+        // 状态流转
+        async function setAnnouncementStatus(id, status) {
+            const labels = ANNOUNCEMENT_STATUS_LABELS;
+            const tips = {
+                testing: '进入测试模式后，仅配置的测试人员可见该公告。\n\n同一时刻其他测试/发布中的公告将自动下线。\n确定继续吗？',
+                published: '发布全员可见后，所有用户启动客户端时都会看到该公告。\n\n同一时刻其他测试/发布中的公告将自动下线。\n确定继续吗？',
+                draft: '下线后，所有用户将不再看到该公告。\n确定继续吗？'
+            };
+
+            if (!confirm(`将公告状态更新为「${labels[status]}」？\n\n${tips[status] || ''}`)) {
+                return;
+            }
+
+            try {
+                const data = await apiRequest(`/admin/announcements/${id}/status`, 'POST', { status });
+                showMessage(`✅ ${data.message}`, 'success');
+                loadAnnouncements();
+            } catch (error) {
+                // 错误已在 apiRequest 中处理
+            }
+        }
+
+        // HTML 转义
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
     </script>
 </body>
