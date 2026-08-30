@@ -860,6 +860,171 @@ jobs:
             echo "✅ Debug extensions found!"
           fi
 
+      - name: 🔬 Verify debug functionality
+        run: |
+          echo "=========================================="
+          echo "🔬 Verifying debug functionality"
+          echo "=========================================="
+
+          BUILD_DIR="${BUILD_DIR:-./tscode}"
+
+          echo "📌 Step 1: Checking debug extensions in build..."
+
+          DEBUG_EXTS=$(find "$BUILD_DIR/resources/app/extensions" -maxdepth 1 -type d -name "*debug*" 2>/dev/null)
+          DEBUG_COUNT=$(echo "$DEBUG_EXTS" | grep -v "^$" | wc -l)
+
+          if [ $DEBUG_COUNT -gt 0 ]; then
+            echo "   ✅ Found $DEBUG_COUNT debug extension(s):"
+            echo "$DEBUG_EXTS" | while read -r ext; do
+              echo "      - $(basename "$ext")"
+
+              # 检查扩展是否包含 package.json
+              if [ -f "$ext/package.json" ]; then
+                echo "         ✅ package.json exists"
+                # 检查是否包含调试相关的 contributes
+                if grep -q '"debuggers"' "$ext/package.json" 2>/dev/null; then
+                  echo "         ✅ Contains debugger contribution"
+                fi
+              fi
+            done
+          else
+            echo "   ❌ No debug extensions found!"
+            exit 1
+          fi
+
+          echo ""
+          echo "📌 Step 2: Checking debug adapter files..."
+
+          # 检查 js-debug 扩展的关键文件
+          for ext in "$BUILD_DIR/resources/app/extensions"/*debug*; do
+            if [ -d "$ext" ]; then
+              ext_name=$(basename "$ext")
+              echo "   🔍 Checking $ext_name..."
+
+              # 检查调试适配器脚本
+              if [ -f "$ext/out/debugAdapter.js" ] || [ -f "$ext/out/extension.js" ]; then
+                echo "      ✅ Debug adapter script found"
+              else
+                echo "      ⚠️ No debug adapter script found (may be fine)"
+              fi
+
+              # 检查 package.json 中的 main 入口
+              if [ -f "$ext/package.json" ]; then
+                MAIN=$(grep -o '"main": *"[^"]*"' "$ext/package.json" 2>/dev/null | head -1 | cut -d'"' -f4)
+                if [ -n "$MAIN" ]; then
+                  echo "      ✅ Main entry: $MAIN"
+                fi
+              fi
+            fi
+          done
+
+          echo ""
+          echo "📌 Step 3: Checking debug configuration in product.json..."
+
+          if [ -f "$BUILD_DIR/product.json" ]; then
+            if grep -q '"debug"' "$BUILD_DIR/product.json" 2>/dev/null; then
+              echo "   ✅ debug configuration found in product.json"
+            else
+              echo "   ℹ️ No debug configuration in product.json (may be fine)"
+            fi
+          fi
+
+          echo ""
+          echo "📌 Step 4: Checking extensionHost dependencies..."
+
+          # 检查 extensionHost 相关的 node_modules
+          if [ -d "$BUILD_DIR/resources/app/node_modules" ]; then
+            if [ -d "$BUILD_DIR/resources/app/node_modules/@vscode/extension-debug" ] || \
+               [ -d "$BUILD_DIR/resources/app/node_modules/vscode-extension" ] || \
+               [ -d "$BUILD_DIR/resources/app/node_modules/vscode-extension-host" ]; then
+              echo "   ✅ ExtensionHost dependencies found"
+            else
+              echo "   ⚠️ ExtensionHost dependencies not found (may still work)"
+            fi
+          fi
+
+          echo ""
+          echo "📌 Step 5: Creating debug test script..."
+
+          cat > "$BUILD_DIR/test-debug.sh" << 'DEBUG_TEST_EOF'
+          #!/bin/bash
+          echo "=========================================="
+          echo "🧪 TSCode Debug Functionality Test"
+          echo "=========================================="
+
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+          echo ""
+          echo "📌 1. Checking debug extensions in installed package..."
+          DEBUG_EXTS=$(find "$SCRIPT_DIR/resources/app/extensions" -maxdepth 1 -type d -name "*debug*" 2>/dev/null)
+          DEBUG_COUNT=$(echo "$DEBUG_EXTS" | grep -v "^$" | wc -l)
+
+          if [ $DEBUG_COUNT -gt 0 ]; then
+            echo "   ✅ $DEBUG_COUNT debug extension(s) found:"
+            echo "$DEBUG_EXTS" | while read -r ext; do
+              echo "      - $(basename "$ext")"
+            done
+          else
+            echo "   ❌ No debug extensions found!"
+            exit 1
+          fi
+
+          echo ""
+          echo "📌 2. Checking debug adapter files..."
+          for ext in "$SCRIPT_DIR/resources/app/extensions"/*debug*; do
+            if [ -d "$ext" ]; then
+              if [ -f "$ext/out/debugAdapter.js" ] || [ -f "$ext/out/extension.js" ]; then
+                echo "   ✅ $(basename "$ext"): debug adapter exists"
+              fi
+            fi
+          done
+
+          echo ""
+          echo "📌 3. Checking if extensionHost debug type is registered..."
+          if [ -d "$SCRIPT_DIR/resources/app/extensions/ms-vscode.js-debug" ] || \
+             [ -d "$SCRIPT_DIR/resources/app/extensions/js-debug" ] || \
+             [ -d "$SCRIPT_DIR/resources/app/extensions/extension-debug" ] || \
+             [ -d "$SCRIPT_DIR/resources/app/extensions/ms-vscode.extension-debug" ]; then
+            echo "   ✅ Debug extensions are present"
+          else
+            echo "   ⚠️ No known debug extensions found"
+          fi
+
+          echo ""
+          echo "📌 4. Checking vscode-debug extension (for extensionHost)..."
+          if [ -d "$SCRIPT_DIR/resources/app/extensions/extension-debug" ] || \
+             [ -d "$SCRIPT_DIR/resources/app/extensions/ms-vscode.extension-debug" ]; then
+            echo "   ✅ extension-debug extension found (supports extensionHost debugging)"
+          else
+            echo "   ⚠️ extension-debug not found (extensionHost may still work)"
+          fi
+
+          echo ""
+          echo "=========================================="
+          echo "✅ Debug functionality check completed!"
+          echo ""
+          echo "📋 To test extensionHost debugging manually:"
+          echo "   1. Open a VS Code extension project"
+          echo "   2. Press F5 to start debugging"
+          echo "   3. Check if 'Run Extension' configuration works"
+          echo "=========================================="
+          DEBUG_TEST_EOF
+
+          chmod +x "$BUILD_DIR/test-debug.sh"
+          echo "   ✅ test-debug.sh created"
+
+          echo ""
+          echo "📌 Step 6: Running debug test..."
+          if "$BUILD_DIR/test-debug.sh"; then
+            echo "   ✅ Debug test passed!"
+          else
+            echo "   ❌ Debug test failed!"
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ Debug functionality verification completed!"
+
       - name: 📄 Create launcher and fix all issues
         run: |
           echo "=========================================="
@@ -1186,6 +1351,7 @@ jobs:
           chmod +x "$DEB_ROOT/opt/tscode/run.sh" 2>/dev/null || true
           chmod +x "$DEB_ROOT/opt/tscode/start-tscode.sh" 2>/dev/null || true
           chmod +x "$DEB_ROOT/opt/tscode/validate.sh" 2>/dev/null || true
+          chmod +x "$DEB_ROOT/opt/tscode/test-debug.sh" 2>/dev/null || true
 
           echo ""
           echo "📌 Setting executable permissions for ALL extension binaries..."
@@ -1324,6 +1490,7 @@ jobs:
           chmod +x /opt/tscode/tscode 2>/dev/null || true
           chmod +x /opt/tscode/start-tscode.sh 2>/dev/null || true
           chmod +x /usr/bin/tscode 2>/dev/null || true
+          chmod +x /opt/tscode/test-debug.sh 2>/dev/null || true
 
           if [ -f "/opt/tscode/resources/app/node_modules/@vscode/ripgrep/bin/rg" ]; then
               chmod 755 /opt/tscode/resources/app/node_modules/@vscode/ripgrep/bin/rg
@@ -1564,6 +1731,7 @@ jobs:
           echo ""
           echo "🐛 Extension development:"
           echo "   - Debug type 'extensionHost' should work"
+          echo "   - Run '/opt/tscode/test-debug.sh' to verify"
           echo ""
           echo "🚀 Run 'tscode' to start"
           echo "=========================================="
@@ -1815,6 +1983,7 @@ jobs:
           echo "   - ✅ File-based secret storage (no keyring required)"
           echo "   - ✅ GitHub login works without keyring"
           echo "   - ✅ Debug extensions included (extensionHost works)"
+          echo "   - ✅ test-debug.sh available for verification"
           echo ""
           echo "📂 Directory structure:"
           echo "   System extensions: /opt/tscode/resources/app/extensions/"
@@ -1841,6 +2010,7 @@ jobs:
             echo "  - Find in application menu: TSCode"
             echo "  - GitHub login works without keyring password prompt"
             echo "  - Extension development: debug type 'extensionHost' works"
+            echo "  - Run '/opt/tscode/test-debug.sh' to verify debug functionality"
             echo ""
             echo "📂 Directory structure:"
             echo "  System extensions: /opt/tscode/resources/app/extensions/"
