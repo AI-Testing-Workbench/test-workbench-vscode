@@ -748,17 +748,75 @@ jobs:
           if [ $MISSING_DEBUG -gt 0 ]; then
             echo "   ⚠️ $MISSING_DEBUG debug package(s) are missing"
             echo ""
-            echo "📌 Attempting to restore from official VSCode build..."
+            echo "📌 Attempting to restore from backup node_modules..."
 
-            # 检查是否有官方 VSCode 备份
-            OFFICIAL_DIR=""
-            if [ -d "/tmp/official-vscode" ]; then
-              OFFICIAL_DIR=$(find /tmp/official-vscode -type d -name "VSCode-linux-x64" 2>/dev/null | head -1)
+            # 从备份的 node_modules 中恢复
+            if [ -d "$BUILD_DIR/resources/app/node_modules.bak" ]; then
+              echo "   ✅ Found backup node_modules at: $BUILD_DIR/resources/app/node_modules.bak"
+
+              # 复制 @vscode 目录下的调试包
+              if [ -d "$BUILD_DIR/resources/app/node_modules.bak/@vscode" ]; then
+                mkdir -p "$BUILD_DIR/resources/app/node_modules/@vscode"
+
+                for pkg in js-debug extension-debug; do
+                  if [ -d "$BUILD_DIR/resources/app/node_modules.bak/@vscode/$pkg" ]; then
+                    echo "   📦 Copying @vscode/$pkg from backup..."
+                    rm -rf "$BUILD_DIR/resources/app/node_modules/@vscode/$pkg"
+                    cp -r "$BUILD_DIR/resources/app/node_modules.bak/@vscode/$pkg" "$BUILD_DIR/resources/app/node_modules/@vscode/"
+                    echo "   ✅ @vscode/$pkg restored from backup"
+                  else
+                    echo "   ⚠️ @vscode/$pkg not found in backup"
+                  fi
+                done
+              fi
+
+              # 复制 vscode-extension 相关包
+              for pkg in vscode-extension vscode-extension-host; do
+                if [ -d "$BUILD_DIR/resources/app/node_modules.bak/$pkg" ]; then
+                  echo "   📦 Copying $pkg from backup..."
+                  rm -rf "$BUILD_DIR/resources/app/node_modules/$pkg"
+                  cp -r "$BUILD_DIR/resources/app/node_modules.bak/$pkg" "$BUILD_DIR/resources/app/node_modules/"
+                  echo "   ✅ $pkg restored from backup"
+                fi
+              done
+            else
+              echo "   ⚠️ No backup node_modules found"
             fi
 
-            # 如果找不到，重新下载
-            if [ -z "$OFFICIAL_DIR" ] || [ ! -d "$OFFICIAL_DIR" ]; then
-              echo "   📦 Downloading official VSCode to restore debug deps..."
+            # 如果备份中没有，尝试从根目录的 node_modules 复制（构建时安装的）
+            if [ -d "./node_modules/@vscode" ]; then
+              echo ""
+              echo "📌 Attempting to restore from root node_modules..."
+
+              mkdir -p "$BUILD_DIR/resources/app/node_modules/@vscode"
+
+              for pkg in js-debug extension-debug; do
+                if [ -d "./node_modules/@vscode/$pkg" ]; then
+                  echo "   📦 Copying @vscode/$pkg from root node_modules..."
+                  rm -rf "$BUILD_DIR/resources/app/node_modules/@vscode/$pkg"
+                  cp -r "./node_modules/@vscode/$pkg" "$BUILD_DIR/resources/app/node_modules/@vscode/"
+                  echo "   ✅ @vscode/$pkg restored from root node_modules"
+                fi
+              done
+            fi
+
+            # 如果还是缺失，从官方 VSCode 下载
+            echo ""
+            echo "📌 Checking if debug deps were restored..."
+            STILL_MISSING=0
+            for pkg in js-debug extension-debug; do
+              if [ ! -d "$BUILD_DIR/resources/app/node_modules/@vscode/$pkg" ]; then
+                echo "   ❌ Still missing: @vscode/$pkg"
+                STILL_MISSING=$((STILL_MISSING + 1))
+              else
+                echo "   ✅ @vscode/$pkg present"
+              fi
+            done
+
+            if [ $STILL_MISSING -gt 0 ]; then
+              echo ""
+              echo "📌 Downloading official VSCode to restore debug deps..."
+
               rm -rf /tmp/official-vscode-restore
               rm -f /tmp/official-restore.tar.gz
 
@@ -773,91 +831,70 @@ jobs:
                 mkdir -p /tmp/official-vscode-restore
                 tar -xzf /tmp/official-restore.tar.gz -C /tmp/official-vscode-restore/
                 OFFICIAL_DIR=$(find /tmp/official-vscode-restore -type d -name "VSCode-linux-x64" 2>/dev/null | head -1)
+
+                if [ -n "$OFFICIAL_DIR" ] && [ -d "$OFFICIAL_DIR" ]; then
+                  echo "   ✅ Official VSCode found at: $OFFICIAL_DIR"
+
+                  OFFICIAL_NM="$OFFICIAL_DIR/resources/app/node_modules"
+
+                  for pkg in js-debug extension-debug; do
+                    if [ -d "$OFFICIAL_NM/@vscode/$pkg" ]; then
+                      echo "   📦 Copying @vscode/$pkg from official build..."
+                      rm -rf "$BUILD_DIR/resources/app/node_modules/@vscode/$pkg"
+                      cp -r "$OFFICIAL_NM/@vscode/$pkg" "$BUILD_DIR/resources/app/node_modules/@vscode/"
+                      echo "   ✅ @vscode/$pkg restored from official build"
+                    fi
+                  done
+
+                  for pkg in vscode-extension vscode-extension-host; do
+                    if [ -d "$OFFICIAL_NM/$pkg" ]; then
+                      echo "   📦 Copying $pkg from official build..."
+                      rm -rf "$BUILD_DIR/resources/app/node_modules/$pkg"
+                      cp -r "$OFFICIAL_NM/$pkg" "$BUILD_DIR/resources/app/node_modules/"
+                      echo "   ✅ $pkg restored from official build"
+                    fi
+                  done
+
+                  rm -f /tmp/official-restore.tar.gz
+                  rm -rf /tmp/official-vscode-restore
+                fi
               fi
             fi
 
-            if [ -n "$OFFICIAL_DIR" ] && [ -d "$OFFICIAL_DIR" ]; then
-              echo "   ✅ Official VSCode found at: $OFFICIAL_DIR"
-
-              OFFICIAL_NM="$OFFICIAL_DIR/resources/app/node_modules"
-
-              # 复制 js-debug
-              if [ -d "$OFFICIAL_NM/@vscode/js-debug" ]; then
-                echo "   📦 Copying @vscode/js-debug..."
-                rm -rf "$BUILD_DIR/resources/app/node_modules/@vscode/js-debug"
-                cp -r "$OFFICIAL_NM/@vscode/js-debug" "$BUILD_DIR/resources/app/node_modules/@vscode/"
-                echo "   ✅ @vscode/js-debug restored"
-              else
-                echo "   ⚠️ @vscode/js-debug not found in official build"
-                echo "   📦 Attempting to copy from backup node_modules..."
-                if [ -d "$BUILD_DIR/resources/app/node_modules.bak/@vscode/js-debug" ]; then
-                  cp -r "$BUILD_DIR/resources/app/node_modules.bak/@vscode/js-debug" "$BUILD_DIR/resources/app/node_modules/@vscode/"
-                  echo "   ✅ @vscode/js-debug restored from backup"
-                fi
-              fi
-
-              # 复制 extension-debug
-              if [ -d "$OFFICIAL_NM/@vscode/extension-debug" ]; then
-                echo "   📦 Copying @vscode/extension-debug..."
-                rm -rf "$BUILD_DIR/resources/app/node_modules/@vscode/extension-debug"
-                cp -r "$OFFICIAL_NM/@vscode/extension-debug" "$BUILD_DIR/resources/app/node_modules/@vscode/"
-                echo "   ✅ @vscode/extension-debug restored"
-              else
-                echo "   ⚠️ @vscode/extension-debug not found in official build"
-                echo "   📦 Attempting to copy from backup node_modules..."
-                if [ -d "$BUILD_DIR/resources/app/node_modules.bak/@vscode/extension-debug" ]; then
-                  cp -r "$BUILD_DIR/resources/app/node_modules.bak/@vscode/extension-debug" "$BUILD_DIR/resources/app/node_modules/@vscode/"
-                  echo "   ✅ @vscode/extension-debug restored from backup"
-                fi
-              fi
-
-              # 复制 vscode-extension 相关包
-              for pkg in vscode-extension vscode-extension-host; do
-                if [ -d "$OFFICIAL_NM/$pkg" ]; then
-                  echo "   📦 Copying $pkg..."
-                  rm -rf "$BUILD_DIR/resources/app/node_modules/$pkg"
-                  cp -r "$OFFICIAL_NM/$pkg" "$BUILD_DIR/resources/app/node_modules/"
-                  echo "   ✅ $pkg restored"
-                elif [ -d "$BUILD_DIR/resources/app/node_modules.bak/$pkg" ]; then
-                  echo "   📦 Copying $pkg from backup..."
-                  cp -r "$BUILD_DIR/resources/app/node_modules.bak/$pkg" "$BUILD_DIR/resources/app/node_modules/"
-                  echo "   ✅ $pkg restored from backup"
-                else
-                  echo "   ⚠️ $pkg not found"
-                fi
-              done
-
-              # 清理临时文件
-              rm -f /tmp/official-restore.tar.gz
-              rm -rf /tmp/official-vscode-restore
-
-              echo ""
-              echo "📌 Fixing permissions for debug dependencies..."
-              if [ -d "$BUILD_DIR/resources/app/node_modules/@vscode/js-debug" ]; then
-                chmod -R 755 "$BUILD_DIR/resources/app/node_modules/@vscode/js-debug"
-              fi
-              if [ -d "$BUILD_DIR/resources/app/node_modules/@vscode/extension-debug" ]; then
-                chmod -R 755 "$BUILD_DIR/resources/app/node_modules/@vscode/extension-debug"
-              fi
-
-            else
-              echo "   ❌ Could not find official VSCode to restore debug deps"
-              echo "   ⚠️ Debugging extensionHost may not work"
+            echo ""
+            echo "📌 Fixing permissions for debug dependencies..."
+            if [ -d "$BUILD_DIR/resources/app/node_modules/@vscode/js-debug" ]; then
+              chmod -R 755 "$BUILD_DIR/resources/app/node_modules/@vscode/js-debug"
             fi
+            if [ -d "$BUILD_DIR/resources/app/node_modules/@vscode/extension-debug" ]; then
+              chmod -R 755 "$BUILD_DIR/resources/app/node_modules/@vscode/extension-debug"
+            fi
+
           else
             echo "   ✅ All debug dependencies are present"
           fi
 
           echo ""
           echo "📌 Final debug dependencies status:"
+          DEBUG_OK=0
+          DEBUG_MISSING=0
           for pkg in js-debug extension-debug; do
             if [ -d "$BUILD_DIR/resources/app/node_modules/@vscode/$pkg" ]; then
               SIZE=$(du -sh "$BUILD_DIR/resources/app/node_modules/@vscode/$pkg" 2>/dev/null | cut -f1)
               echo "   ✅ @vscode/$pkg ($SIZE)"
+              DEBUG_OK=$((DEBUG_OK + 1))
             else
               echo "   ❌ @vscode/$pkg (MISSING - debugging will fail!)"
+              DEBUG_MISSING=$((DEBUG_MISSING + 1))
             fi
           done
+
+          if [ $DEBUG_MISSING -gt 0 ]; then
+            echo ""
+            echo "⚠️ WARNING: $DEBUG_MISSING debug dependencies are still missing"
+            echo "   This means extensionHost debugging will not work"
+            echo "   The validation step will fail if debug deps are required"
+          fi
 
           echo ""
           echo "✅ Debug dependencies restoration completed"
