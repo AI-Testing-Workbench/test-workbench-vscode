@@ -355,6 +355,8 @@
             <button class="tab" onclick="switchTab('blacklist')">🚫 黑名单</button>
             <button class="tab" onclick="switchTab('versions')">📋 版本管理</button>
             <button class="tab" onclick="switchTab('releasenotes')">📢 版本公告</button>
+            <button class="tab" onclick="switchTab('autoinstall')">🔌 自动安装插件</button>
+            <button class="tab" onclick="switchTab('chattips')">💡 聊天提示</button>
         </div>
 
         <!-- 发布状态 Tab -->
@@ -662,6 +664,95 @@
                 </div>
             </div>
         </div>
+
+        <!-- 自动安装插件配置 Tab -->
+        <div id="autoinstall-tab" class="tab-content">
+            <div class="controls">
+                <h2>
+                    🔌 自动安装插件配置
+                    <button class="btn btn-info refresh-btn" onclick="loadAutoInstallConfig()">
+                        <span>🔄</span> 刷新
+                    </button>
+                </h2>
+
+                <div class="form-group">
+                    <label>启用/禁用自动安装</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
+                            <input type="checkbox" id="autoinstall-enabled" style="width: 18px; height: 18px;" onchange="updateAutoInstallEnabledLabel(this.checked)">
+                            <span id="autoinstall-enabled-label">🟢 已启用</span>
+                        </label>
+                    </div>
+                    <p style="color: #666; font-size: 0.85em; margin-top: 5px;">
+                        禁用后，客户端将收到空列表，不再自动安装插件
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label>扩展 ID 列表（每行一个，格式: publisher.name）</label>
+                    <textarea id="autoinstall-extensions" rows="10" placeholder="例如:&#10;test-tech.test-task-manager&#10;test-tech.testcase-select" style="font-family: 'Courier New', monospace;"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>公开接口地址（客户端调用）</label>
+                    <input type="text" id="autoinstall-url" readonly style="background: #f5f5f5; cursor: not-allowed; font-family: monospace;">
+                    <p style="color: #666; font-size: 0.85em; margin-top: 5px;">
+                        VS Code 客户端启动时会请求此接口，并将返回的列表与本地 product.json 的 extensionsAutoInstall 列表合并后自动安装
+                    </p>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="saveAutoInstallConfig()">
+                        <span>💾</span> 保存配置
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 聊天提示配置 Tab -->
+        <div id="chattips-tab" class="tab-content">
+            <div class="controls">
+                <h2>
+                    💡 聊天提示配置
+                    <button class="btn btn-info refresh-btn" onclick="loadChatTipsConfig()">
+                        <span>🔄</span> 刷新
+                    </button>
+                </h2>
+
+                <div class="form-group">
+                    <label>启用/禁用聊天提示</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
+                            <input type="checkbox" id="chattips-enabled" style="width: 18px; height: 18px;" onchange="updateChatTipsEnabledLabel(this.checked)">
+                            <span id="chattips-enabled-label">🟢 已启用</span>
+                        </label>
+                    </div>
+                    <p style="color: #666; font-size: 0.85em; margin-top: 5px;">
+                        禁用后，客户端将收到空提示列表，不展示聊天提示
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label>提示内容（每行一条；可选 ID 用方括号前缀，格式: [ID] 提示内容）</label>
+                    <textarea id="chattips-tips" rows="12" placeholder="例如:&#10;[tip1] 输入 /new 开始新的会话，任务完成度更高&#10;[tip2] 试试 @worktree 快速切换工作树&#10;不带 ID 的提示也可以" style="font-family: 'Courier New', monospace;"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>公开接口地址（客户端调用）</label>
+                    <input type="text" id="chattips-url" readonly style="background: #f5f5f5; cursor: not-allowed; font-family: monospace;">
+                    <p style="color: #666; font-size: 0.85em; margin-top: 5px;">
+                        TestAgent 客户端启动时会请求此接口（testagent.new.chatTipsUrl，默认指向 /chatTips），
+                        返回格式为 {"tips": [{"id": ..., "content": ...}]}，与客户端 extractChatTips 解析兼容
+                    </p>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="saveChatTipsConfig()">
+                        <span>💾</span> 保存配置
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -691,6 +782,10 @@
                 loadStableStatus();
             } else if (tabName === 'releasenotes') {
                 loadReleaseNotes();
+            } else if (tabName === 'autoinstall') {
+                loadAutoInstallConfig();
+            } else if (tabName === 'chattips') {
+                loadChatTipsConfig();
             }
         }
 
@@ -1763,6 +1858,132 @@
 
             } catch (error) {
                 showMessage(`发布失败: ${error.message}`, 'error');
+            }
+        }
+
+        // ============================================================
+        // 自动安装插件配置
+        // ============================================================
+
+        // 更新启用状态标签
+        function updateAutoInstallEnabledLabel(enabled) {
+            const label = document.getElementById('autoinstall-enabled-label');
+            label.textContent = enabled ? '🟢 已启用' : '🔴 已禁用';
+            label.style.color = enabled ? '#4caf50' : '#f44336';
+        }
+
+        // 加载自动安装插件配置
+        async function loadAutoInstallConfig() {
+            try {
+                const data = await apiRequest('/admin/extensions-auto-install', 'GET');
+
+                document.getElementById('autoinstall-enabled').checked = !!data.enabled;
+                updateAutoInstallEnabledLabel(!!data.enabled);
+                document.getElementById('autoinstall-extensions').value = (data.extensions || []).join('\n');
+                document.getElementById('autoinstall-url').value = data.url || `${location.origin}/auto-install-extensions`;
+
+                showMessage(`✅ 已加载 ${data.count || 0} 个自动安装插件`, 'success');
+            } catch (error) {
+                // 错误已在 apiRequest 中处理
+            }
+        }
+
+        // 保存自动安装插件配置
+        async function saveAutoInstallConfig() {
+            const enabled = document.getElementById('autoinstall-enabled').checked;
+            const text = document.getElementById('autoinstall-extensions').value;
+
+            const extensions = text.split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+
+            // 校验格式（publisher.name）
+            const invalid = extensions.filter(id => !/^[a-zA-Z0-9][a-zA-Z0-9\-_.]*\.[a-zA-Z0-9][a-zA-Z0-9\-_.]*$/.test(id));
+            if (invalid.length > 0) {
+                showMessage(`❌ 存在无效的扩展 ID（应为 publisher.name 格式）: ${invalid.slice(0, 5).join(', ')}`, 'error');
+                return;
+            }
+
+            if (!confirm(`确定要保存自动安装插件配置吗？\n\n启用状态: ${enabled ? '启用' : '禁用'}\n插件数量: ${extensions.length}`)) {
+                return;
+            }
+
+            try {
+                const data = await apiRequest('/admin/extensions-auto-install', 'POST', {
+                    enabled: enabled,
+                    extensions: extensions
+                });
+
+                showMessage(`✅ ${data.message}`, 'success');
+                loadAutoInstallConfig();
+            } catch (error) {
+                // 错误已在 apiRequest 中处理
+            }
+        }
+
+        // ============================================================
+        // 聊天提示配置
+        // ============================================================
+
+        // 更新启用状态标签
+        function updateChatTipsEnabledLabel(enabled) {
+            const label = document.getElementById('chattips-enabled-label');
+            label.textContent = enabled ? '🟢 已启用' : '🔴 已禁用';
+            label.style.color = enabled ? '#4caf50' : '#f44336';
+        }
+
+        // 加载聊天提示配置
+        async function loadChatTipsConfig() {
+            try {
+                const data = await apiRequest('/admin/chat-tips', 'GET');
+
+                document.getElementById('chattips-enabled').checked = !!data.enabled;
+                updateChatTipsEnabledLabel(!!data.enabled);
+
+                const lines = (data.tips || []).map(tip => {
+                    const content = tip.content || '';
+                    return tip.id ? `[${tip.id}] ${content}` : content;
+                });
+                document.getElementById('chattips-tips').value = lines.join('\n');
+                document.getElementById('chattips-url').value = data.url || `${location.origin}/chatTips`;
+
+                showMessage(`✅ 已加载 ${data.count || 0} 条聊天提示`, 'success');
+            } catch (error) {
+                // 错误已在 apiRequest 中处理
+            }
+        }
+
+        // 保存聊天提示配置
+        async function saveChatTipsConfig() {
+            const enabled = document.getElementById('chattips-enabled').checked;
+            const text = document.getElementById('chattips-tips').value;
+
+            const lines = text.split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+
+            const tips = lines.map(line => {
+                const match = line.match(/^\[([^\]]+)\]\s*(.+)$/);
+                if (match) {
+                    return { id: match[1].trim(), content: match[2].trim() };
+                }
+                return { content: line };
+            });
+
+            if (!confirm(`确定要保存聊天提示配置吗？\n\n启用状态: ${enabled ? '启用' : '禁用'}\n提示数量: ${tips.length}`)) {
+                return;
+            }
+
+            try {
+                const data = await apiRequest('/admin/chat-tips', 'POST', {
+                    enabled: enabled,
+                    tips: tips
+                });
+
+                showMessage(`✅ ${data.message}`, 'success');
+                loadChatTipsConfig();
+            } catch (error) {
+                // 错误已在 apiRequest 中处理
             }
         }
     </script>

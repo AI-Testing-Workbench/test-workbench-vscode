@@ -10,6 +10,7 @@ Python 3.7+ 兼容版本
 import os
 import sys
 import json
+import re
 import hashlib
 import logging
 import glob
@@ -60,6 +61,15 @@ CONFIG = {
     'ADMIN_PASSWORD_MD5': os.getenv('ADMIN_PASSWORD_MD5', '0192023a7bbd73250516f069df18b500'),  # 默认: admin123
     'RELEASENOTES_DIR': os.getenv('RELEASENOTES_DIR', './releasenotes'),
 }
+
+# test-workbench_change start
+# 自动安装插件配置文件路径（服务器根目录，避免 docker 只读挂载问题）
+AUTO_INSTALL_CONFIG_FILE = Path(__file__).parent / 'auto-install-extensions.json'
+# 扩展 ID 格式校验（publisher.name）
+EXTENSION_ID_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9\-_.]*\.[a-zA-Z0-9][a-zA-Z0-9\-_.]*$')
+# 聊天提示配置文件路径（供 TestAgent 客户端 /chatTips 接口使用）
+CHAT_TIPS_CONFIG_FILE = Path(__file__).parent / 'chat-tips.json'
+# test-workbench_change end
 
 # 打印配置信息（调试用）
 print("=" * 60)
@@ -128,6 +138,150 @@ def generate_admin_token() -> str:
     from datetime import timedelta
     admin_tokens[token] = datetime.now() + timedelta(hours=24)
     return token
+
+
+# test-workbench_change start
+def load_auto_install_config() -> Dict[str, Any]:
+    """
+    读取自动安装插件配置
+
+    Returns:
+        {
+            "enabled": bool,
+            "extensions": ["publisher.name", ...],
+            "updated_at": str | None
+        }
+    """
+    default_config: Dict[str, Any] = {'enabled': True, 'extensions': [], 'updated_at': None}
+
+    if not AUTO_INSTALL_CONFIG_FILE.exists():
+        return default_config
+
+    try:
+        with open(AUTO_INSTALL_CONFIG_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        if not isinstance(data, dict):
+            logger.warning(f"自动安装插件配置文件格式错误，使用默认配置: {AUTO_INSTALL_CONFIG_FILE}")
+            return default_config
+
+        extensions = data.get('extensions', [])
+        if not isinstance(extensions, list):
+            extensions = []
+        extensions = [str(e).strip() for e in extensions if isinstance(e, str) and e.strip()]
+
+        return {
+            'enabled': bool(data.get('enabled', True)),
+            'extensions': extensions,
+            'updated_at': data.get('updated_at')
+        }
+    except Exception as e:
+        logger.error(f"读取自动安装插件配置失败: {e}")
+        return default_config
+
+
+def save_auto_install_config(enabled: bool, extensions: List[str]) -> Dict[str, Any]:
+    """
+    保存自动安装插件配置（原子写入）
+
+    Args:
+        enabled: 是否启用自动安装
+        extensions: 扩展 ID 列表（已去重）
+
+    Returns:
+        保存后的配置字典
+    """
+    config: Dict[str, Any] = {
+        'enabled': bool(enabled),
+        'extensions': list(extensions),
+        'updated_at': datetime.now().isoformat()
+    }
+
+    tmp_path = AUTO_INSTALL_CONFIG_FILE.with_name(AUTO_INSTALL_CONFIG_FILE.name + '.tmp')
+    with open(tmp_path, 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+    tmp_path.replace(AUTO_INSTALL_CONFIG_FILE)
+
+    logger.info(f"自动安装插件配置已保存: {len(extensions)} 个插件, enabled={enabled}")
+    return config
+
+
+def load_chat_tips_config() -> Dict[str, Any]:
+    """
+    读取聊天提示配置
+
+    Returns:
+        {
+            "enabled": bool,
+            "tips": [{"id": str | None, "content": str}, ...],
+            "updated_at": str | None
+        }
+    """
+    default_config: Dict[str, Any] = {'enabled': True, 'tips': [], 'updated_at': None}
+
+    if not CHAT_TIPS_CONFIG_FILE.exists():
+        return default_config
+
+    try:
+        with open(CHAT_TIPS_CONFIG_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        if not isinstance(data, dict):
+            logger.warning(f"聊天提示配置文件格式错误，使用默认配置: {CHAT_TIPS_CONFIG_FILE}")
+            return default_config
+
+        tips = data.get('tips', [])
+        if not isinstance(tips, list):
+            tips = []
+
+        cleaned: List[Dict[str, str]] = []
+        for item in tips:
+            if not isinstance(item, dict):
+                continue
+            content = item.get('content')
+            if not isinstance(content, str) or not content.strip():
+                continue
+            tip: Dict[str, str] = {'content': content.strip()}
+            tip_id = item.get('id')
+            if isinstance(tip_id, str) and tip_id.strip():
+                tip['id'] = tip_id.strip()
+            cleaned.append(tip)
+
+        return {
+            'enabled': bool(data.get('enabled', True)),
+            'tips': cleaned,
+            'updated_at': data.get('updated_at')
+        }
+    except Exception as e:
+        logger.error(f"读取聊天提示配置失败: {e}")
+        return default_config
+
+
+def save_chat_tips_config(enabled: bool, tips: List[Dict[str, str]]) -> Dict[str, Any]:
+    """
+    保存聊天提示配置（原子写入）
+
+    Args:
+        enabled: 是否启用聊天提示
+        tips: 提示列表，每项为 {"content": str, "id"?: str}
+
+    Returns:
+        保存后的配置字典
+    """
+    config: Dict[str, Any] = {
+        'enabled': bool(enabled),
+        'tips': list(tips),
+        'updated_at': datetime.now().isoformat()
+    }
+
+    tmp_path = CHAT_TIPS_CONFIG_FILE.with_name(CHAT_TIPS_CONFIG_FILE.name + '.tmp')
+    with open(tmp_path, 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+    tmp_path.replace(CHAT_TIPS_CONFIG_FILE)
+
+    logger.info(f"聊天提示配置已保存: {len(tips)} 条提示, enabled={enabled}")
+    return config
+# test-workbench_change end
 
 
 def detect_platform_from_filename(filename: str) -> Optional[str]:
@@ -422,7 +576,11 @@ async def api_info():
             "update_check": "/api/update/{platform}/{quality}/{commit}",
             "download": "/download/{filename}",
             "versions": "/versions",
-            "rescan": "/admin/rescan"
+            "rescan": "/admin/rescan",
+            "auto_install_extensions": "/auto-install-extensions",
+            "admin_extensions_auto_install": "/admin/extensions-auto-install",
+            "chat_tips": "/chatTips",
+            "admin_chat_tips": "/admin/chat-tips"
         }
     }
 
@@ -431,6 +589,47 @@ async def api_info():
 async def health_check():
     """健康检查端点"""
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+
+# test-workbench_change start
+@app.get("/auto-install-extensions")
+async def get_auto_install_extensions():
+    """
+    自动安装插件列表（供 VS Code 客户端调用，无需认证）
+
+    VS Code 客户端启动时会请求此接口（product.json 的 extensionsAutoInstallUrl），
+    期望返回纯 JSON 数组，元素为扩展 ID（publisher.name 格式）。
+    客户端会将返回的列表与本地 product.json 的 extensionsAutoInstall 列表合并后自动安装。
+
+    当配置中 enabled=false 时返回空数组，客户端不会自动安装插件。
+    """
+    config = load_auto_install_config()
+    extensions = config['extensions'] if config['enabled'] else []
+    return JSONResponse(
+        content=extensions,
+        headers={'Cache-Control': 'no-cache'}
+    )
+
+
+@app.get("/chatTips")
+async def get_chat_tips():
+    """
+    聊天提示列表（供 TestAgent 客户端调用，无需认证）
+
+    TestAgent 客户端（KiloProvider.ts）启动时会请求此接口
+    （testagent.new.chatTipsUrl，默认指向 /chatTips），返回格式需兼容客户端解析：
+    - 纯数组：[{"id": "tip1", "content": "..."}, ...]
+    - 或对象：{"tips": [...]} / {"data": [...]}
+
+    本接口返回 {"tips": [...]} 形式。当配置中 enabled=false 时返回空提示列表。
+    """
+    config = load_chat_tips_config()
+    tips = config['tips'] if config['enabled'] else []
+    return JSONResponse(
+        content={'tips': tips},
+        headers={'Cache-Control': 'no-cache'}
+    )
+# test-workbench_change end
 
 
 # test-workbench_change start
@@ -1927,6 +2126,208 @@ async def get_stable_version_status(request: Request):
 
     except Exception as e:
         logger.error(f"查询稳定版本状态失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# 自动安装插件管理 API
+# ============================================================================
+
+@app.get("/admin/extensions-auto-install")
+async def get_extensions_auto_install(request: Request):
+    """
+    获取自动安装插件配置（管理接口）
+
+    Returns:
+        {
+            "enabled": true,
+            "extensions": ["test-tech.test-task-manager", ...],
+            "count": N,
+            "updated_at": "...",
+            "url": "http://.../auto-install-extensions"
+        }
+    """
+    require_admin_auth(request)
+
+    config = load_auto_install_config()
+    return {
+        **config,
+        "count": len(config['extensions']),
+        "url": f"{CONFIG['BASE_URL']}/auto-install-extensions"
+    }
+
+
+@app.post("/admin/extensions-auto-install")
+async def update_extensions_auto_install(request: Request):
+    """
+    更新自动安装插件配置（管理接口）
+
+    Request Body:
+    {
+        "enabled": true,                 // 是否启用自动安装
+        "extensions": ["test-tech.test-task-manager", "..."]  // 扩展 ID 列表（publisher.name 格式）
+    }
+
+    说明：
+    - 扩展 ID 必须符合 publisher.name 格式，否则返回 400 并指明无效项
+    - 自动去重，保留原始顺序
+    - 配置保存到服务器根目录 auto-install-extensions.json
+    """
+    require_admin_auth(request)
+
+    try:
+        data = await request.json()
+        enabled = data.get('enabled', True)
+        extensions = data.get('extensions', [])
+
+        if not isinstance(enabled, bool):
+            raise HTTPException(status_code=400, detail="enabled 必须是布尔值")
+
+        if not isinstance(extensions, list):
+            raise HTTPException(status_code=400, detail="extensions 必须是数组")
+
+        # 校验扩展 ID 格式并去重
+        invalid: List[str] = []
+        cleaned: List[str] = []
+        seen = set()
+        for item in extensions:
+            if not isinstance(item, str):
+                invalid.append(str(item))
+                continue
+            ext_id = item.strip()
+            if not EXTENSION_ID_PATTERN.match(ext_id):
+                invalid.append(ext_id)
+                continue
+            if ext_id not in seen:
+                seen.add(ext_id)
+                cleaned.append(ext_id)
+
+        if invalid:
+            raise HTTPException(
+                status_code=400,
+                detail=f"存在无效的扩展 ID（应为 publisher.name 格式）: {', '.join(invalid[:10])}"
+            )
+
+        config = save_auto_install_config(enabled, cleaned)
+
+        return {
+            "status": "success",
+            "message": f"自动安装插件配置已保存: {len(cleaned)} 个插件",
+            "config": {
+                **config,
+                "count": len(cleaned),
+                "url": f"{CONFIG['BASE_URL']}/auto-install-extensions"
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"保存自动安装插件配置失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# 聊天提示管理 API
+# ============================================================================
+
+@app.get("/admin/chat-tips")
+async def get_chat_tips_config(request: Request):
+    """
+    获取聊天提示配置（管理接口）
+
+    Returns:
+        {
+            "enabled": true,
+            "tips": [{"id": "tip1", "content": "..."}, ...],
+            "count": N,
+            "updated_at": "...",
+            "url": "http://.../chatTips"
+        }
+    """
+    require_admin_auth(request)
+
+    config = load_chat_tips_config()
+    return {
+        **config,
+        "count": len(config['tips']),
+        "url": f"{CONFIG['BASE_URL']}/chatTips"
+    }
+
+
+@app.post("/admin/chat-tips")
+async def update_chat_tips_config(request: Request):
+    """
+    更新聊天提示配置（管理接口）
+
+    Request Body:
+    {
+        "enabled": true,                       // 是否启用聊天提示
+        "tips": [{"id": "tip1", "content": "..."}, ...]  // 提示列表
+    }
+
+    说明：
+    - 每条提示必须包含非空 content 字符串
+    - id 可选（去重），如重复自动保留第一个
+    - 配置保存到服务器根目录 chat-tips.json
+    """
+    require_admin_auth(request)
+
+    try:
+        data = await request.json()
+        enabled = data.get('enabled', True)
+        tips = data.get('tips', [])
+
+        if not isinstance(enabled, bool):
+            raise HTTPException(status_code=400, detail="enabled 必须是布尔值")
+
+        if not isinstance(tips, list):
+            raise HTTPException(status_code=400, detail="tips 必须是数组")
+
+        # 校验提示格式并去重 id
+        invalid: List[str] = []
+        cleaned: List[Dict[str, str]] = []
+        seen_ids = set()
+        for item in tips:
+            if not isinstance(item, dict):
+                invalid.append(str(item))
+                continue
+            content = item.get('content')
+            if not isinstance(content, str) or not content.strip():
+                invalid.append(str(item.get('id', item))[:50])
+                continue
+
+            tip: Dict[str, str] = {'content': content.strip()}
+            tip_id = item.get('id')
+            if isinstance(tip_id, str) and tip_id.strip():
+                tid = tip_id.strip()
+                if tid not in seen_ids:
+                    seen_ids.add(tid)
+                    tip['id'] = tid
+            cleaned.append(tip)
+
+        if invalid:
+            raise HTTPException(
+                status_code=400,
+                detail=f"存在无效的提示项（缺少 content 或格式错误）: {', '.join(invalid[:10])}"
+            )
+
+        config = save_chat_tips_config(enabled, cleaned)
+
+        return {
+            "status": "success",
+            "message": f"聊天提示配置已保存: {len(cleaned)} 条提示",
+            "config": {
+                **config,
+                "count": len(cleaned),
+                "url": f"{CONFIG['BASE_URL']}/chatTips"
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"保存聊天提示配置失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
