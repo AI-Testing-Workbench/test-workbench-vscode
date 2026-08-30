@@ -733,8 +733,18 @@ jobs:
           export ELECTRON_DISABLE_CRASH_REPORTING=1
           export CRASHPAD_DISABLE=1
 
+          # ============================================================
+          # 🔑 完全禁用密钥环 - 不需要用户输入任何密码
+          # ============================================================
           unset GNOME_KEYRING_CONTROL
           unset DBUS_SESSION_BUS_ADDRESS
+          export GNOME_KEYRING_CONTROL=
+          export DBUS_SESSION_BUS_ADDRESS=
+          export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
+          export SECRETS_BACKEND=basic
+          export DISABLE_VAULT=1
+          export VSCODE_PASSWORD_STORE=basic
+          export ELECTRON_PASSWORD_STORE=basic
 
           export VSCODE_USE_FILE_SECRET_STORAGE=1
 
@@ -750,6 +760,7 @@ jobs:
               --disable-gpu-sandbox \
               --disable-gpu \
               --disable-crash-reporter \
+              --password-store="basic" \
               --use-inmemory-secretstorage \
               --extensions-dir="$VSCODE_EXTENSIONS_DIR" \
               --user-data-dir="$VSCODE_APPDATA" \
@@ -1170,6 +1181,60 @@ jobs:
               echo "  ✅ Custom extensions binaries permissions fixed"
           fi
 
+          # ============================================================
+          # 🔑 创建 argv.json - 完全禁用密钥环，确保 debug 功能正常
+          # ============================================================
+          echo ""
+          echo "📌 Creating argv.json with password-store=basic for all users..."
+
+          for USER_HOME in /home/* /root; do
+              if [ -d "$USER_HOME" ] && [ "$USER_HOME" != "/home/*" ]; then
+                  TSC_DIR="$USER_HOME/.tscode"
+                  mkdir -p "$TSC_DIR" 2>/dev/null || true
+
+                  if [ ! -f "$TSC_DIR/argv.json" ]; then
+                      cat > "$TSC_DIR/argv.json" << 'ARGVEOF'
+          {
+              "enable-crash-reporter": false,
+              "disable-gpu": true,
+              "disable-gpu-sandbox": true,
+              "no-sandbox": true,
+              "password-store": "basic"
+          }
+          ARGVEOF
+                      if [ "$USER_HOME" != "/root" ]; then
+                          USER_OWNER=$(stat -c '%u:%g' "$USER_HOME" 2>/dev/null || echo "")
+                          if [ -n "$USER_OWNER" ]; then
+                              chown "$USER_OWNER" "$TSC_DIR/argv.json" 2>/dev/null || true
+                          fi
+                      fi
+                      echo "    ✅ Created argv.json for $(basename "$USER_HOME")"
+                  else
+                      if ! grep -q "password-store" "$TSC_DIR/argv.json" 2>/dev/null; then
+                          mv "$TSC_DIR/argv.json" "$TSC_DIR/argv.json.bak"
+                          cat > "$TSC_DIR/argv.json" << 'ARGVEOF'
+          {
+              "enable-crash-reporter": false,
+              "disable-gpu": true,
+              "disable-gpu-sandbox": true,
+              "no-sandbox": true,
+              "password-store": "basic"
+          }
+          ARGVEOF
+                          if [ "$USER_HOME" != "/root" ]; then
+                              USER_OWNER=$(stat -c '%u:%g' "$USER_HOME" 2>/dev/null || echo "")
+                              if [ -n "$USER_OWNER" ]; then
+                                  chown "$USER_OWNER" "$TSC_DIR/argv.json" 2>/dev/null || true
+                              fi
+                          fi
+                          echo "    ✅ Updated argv.json for $(basename "$USER_HOME")"
+                      else
+                          echo "    ✅ argv.json already has password-store for $(basename "$USER_HOME")"
+                      fi
+                  fi
+              fi
+          done
+
           echo ""
           echo "📁 Creating and fixing user directories..."
 
@@ -1275,7 +1340,7 @@ jobs:
           fi
 
           echo ""
-          echo "🧹 Cleaning up user directories..."
+          echo "🧹 Cleaning up user directories (preserving extensions and argv.json)..."
 
           for USER_HOME in /home/* /root; do
               if [ -d "$USER_HOME" ] && [ "$USER_HOME" != "/home/*" ]; then
@@ -1289,10 +1354,17 @@ jobs:
                       for item in "$TSC_DIR"/*; do
                           if [ -e "$item" ]; then
                               item_name=$(basename "$item")
-                              if [ "$item_name" != "extensions" ]; then
-                                  echo "    🗑️ Removing: $item_name"
-                                  rm -rf "$item" 2>/dev/null || true
+                              # 保留 extensions 目录和 argv.json 文件
+                              if [ -d "$item" ] && [ "$item_name" = "extensions" ]; then
+                                  echo "    ✅ Preserving: extensions for $USER_NAME"
+                                  continue
                               fi
+                              if [ -f "$item" ] && [ "$item_name" = "argv.json" ]; then
+                                  echo "    ✅ Preserving: argv.json for $USER_NAME"
+                                  continue
+                              fi
+                              echo "    🗑️ Removing: $item_name"
+                              rm -rf "$item" 2>/dev/null || true
                           fi
                       done
 
@@ -1351,8 +1423,9 @@ jobs:
           echo "📁 System extensions: /opt/tscode/resources/app/extensions/"
           echo "📂 User extensions: ~/.tscode/extensions/"
           echo "📂 User data: ~/.local/share/tscode/"
+          echo "📄 argv.json: ~/.tscode/argv.json (password-store=basic)"
           echo ""
-          echo "🚀 Run 'tscode' to start"
+          echo "🚀 Run 'tscode' to start (no password required)"
           echo "=========================================="
 
           exit 0
@@ -1590,14 +1663,16 @@ jobs:
           echo "   - ✅ User directory permissions fixed"
           echo "   - ✅ File-based secret storage (no keyring required)"
           echo "   - ✅ GitHub login works without keyring"
+          echo "   - ✅ Debug功能正常 (password-store=basic, argv.json已配置)"
           echo ""
           echo "📂 Directory structure:"
           echo "   System extensions: /opt/tscode/resources/app/extensions/"
           echo "   User extensions:   ~/.tscode/extensions/"
           echo "   User data:         ~/.local/share/tscode/"
+          echo "   Config:            ~/.tscode/argv.json"
           echo ""
           echo "💡 Extensions persist across reinstallation"
-          echo "💡 ~/.tscode/ only contains extensions directory"
+          echo "💡 ~/.tscode/ contains extensions directory and argv.json"
           echo "==========================================="
 
           if [ "${{ job.status }}" = "success" ]; then
@@ -1615,10 +1690,12 @@ jobs:
             echo "  - Run: tscode (no password)"
             echo "  - Find in application menu: TSCode"
             echo "  - GitHub login works without keyring password prompt"
+            echo "  - Debug功能正常工作"
             echo ""
             echo "📂 Directory structure:"
             echo "  System extensions: /opt/tscode/resources/app/extensions/"
             echo "  User extensions:   ~/.tscode/extensions/"
             echo "  User data:         ~/.local/share/tscode/"
+            echo "  Config:            ~/.tscode/argv.json"
             echo "=========================================="
           fi
