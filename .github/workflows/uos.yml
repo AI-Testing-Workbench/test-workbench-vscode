@@ -1,4 +1,4 @@
-name: Build for Debian 10
+name: Build for UOS
 
 on:
   workflow_dispatch:
