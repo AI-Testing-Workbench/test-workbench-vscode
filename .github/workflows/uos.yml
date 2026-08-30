@@ -619,24 +619,68 @@ jobs:
           done
 
           echo ""
-          echo "📌 Cleaning node_modules..."
+          echo "📌 Cleaning node_modules (PRESERVING debug dependencies)..."
 
           npx json -I -f package.json -e 'this.devDependencies={}' 2>/dev/null || true
 
-          find node_modules -name "*.ts" -type f ! -name "*.d.ts" -delete 2>/dev/null || true
-          find node_modules -name "*.md" -type f -delete 2>/dev/null || true
-          find node_modules -name "CHANGELOG*" -type f -delete 2>/dev/null || true
-          find node_modules -name "LICENSE*" -type f -delete 2>/dev/null || true
-          find node_modules -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
-          find node_modules -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
-          find node_modules -type d -name "__tests__" -exec rm -rf {} + 2>/dev/null || true
-          find node_modules -type d -name "example" -exec rm -rf {} + 2>/dev/null || true
-          find node_modules -type d -name "examples" -exec rm -rf {} + 2>/dev/null || true
-          find node_modules -name "*.map" -type f -delete 2>/dev/null || true
-          find node_modules -type d -name ".git" -exec rm -rf {} + 2>/dev/null || true
+          # 保留调试依赖 - 不要删除 @vscode/js-debug 和 @vscode/extension-debug
+          find node_modules -name "*.ts" -type f ! -name "*.d.ts" \
+            ! -path "*/@vscode/js-debug/*" \
+            ! -path "*/@vscode/extension-debug/*" \
+            -delete 2>/dev/null || true
+
+          find node_modules -name "*.md" -type f \
+            ! -path "*/@vscode/js-debug/*" \
+            ! -path "*/@vscode/extension-debug/*" \
+            -delete 2>/dev/null || true
+
+          find node_modules -name "CHANGELOG*" -type f \
+            ! -path "*/@vscode/js-debug/*" \
+            ! -path "*/@vscode/extension-debug/*" \
+            -delete 2>/dev/null || true
+
+          find node_modules -name "LICENSE*" -type f \
+            ! -path "*/@vscode/js-debug/*" \
+            ! -path "*/@vscode/extension-debug/*" \
+            -delete 2>/dev/null || true
+
+          find node_modules -type d -name "test" \
+            ! -path "*/@vscode/js-debug/*" \
+            ! -path "*/@vscode/extension-debug/*" \
+            -exec rm -rf {} + 2>/dev/null || true
+
+          find node_modules -type d -name "tests" \
+            ! -path "*/@vscode/js-debug/*" \
+            ! -path "*/@vscode/extension-debug/*" \
+            -exec rm -rf {} + 2>/dev/null || true
+
+          find node_modules -type d -name "__tests__" \
+            ! -path "*/@vscode/js-debug/*" \
+            ! -path "*/@vscode/extension-debug/*" \
+            -exec rm -rf {} + 2>/dev/null || true
+
+          find node_modules -type d -name "example" \
+            ! -path "*/@vscode/js-debug/*" \
+            ! -path "*/@vscode/extension-debug/*" \
+            -exec rm -rf {} + 2>/dev/null || true
+
+          find node_modules -type d -name "examples" \
+            ! -path "*/@vscode/js-debug/*" \
+            ! -path "*/@vscode/extension-debug/*" \
+            -exec rm -rf {} + 2>/dev/null || true
+
+          find node_modules -name "*.map" -type f \
+            ! -path "*/@vscode/js-debug/*" \
+            ! -path "*/@vscode/extension-debug/*" \
+            -delete 2>/dev/null || true
+
+          find node_modules -type d -name ".git" \
+            ! -path "*/@vscode/js-debug/*" \
+            ! -path "*/@vscode/extension-debug/*" \
+            -exec rm -rf {} + 2>/dev/null || true
 
           echo ""
-          echo "📌 Removing dev tools..."
+          echo "📌 Removing dev tools (preserving debug deps)..."
           rm -rf node_modules/@types 2>/dev/null || true
           rm -rf node_modules/webpack 2>/dev/null || true
           rm -rf node_modules/rollup 2>/dev/null || true
@@ -677,6 +721,146 @@ jobs:
           du -sh "$BUILD_DIR/resources/app" 2>/dev/null || true
 
           echo "✅ Deep cleanup completed"
+
+      - name: 🔧 Restore debug dependencies
+        run: |
+          echo "=========================================="
+          echo "🔧 Restoring debug dependencies"
+          echo "=========================================="
+
+          BUILD_DIR="${BUILD_DIR:-./tscode}"
+
+          echo "📌 Checking for debug dependencies in node_modules..."
+
+          # 检查缺失的调试包
+          MISSING_DEBUG=0
+          for pkg in js-debug extension-debug; do
+            if [ ! -d "$BUILD_DIR/resources/app/node_modules/@vscode/$pkg" ]; then
+              echo "   ❌ Missing: @vscode/$pkg"
+              MISSING_DEBUG=$((MISSING_DEBUG + 1))
+            else
+              echo "   ✅ Found: @vscode/$pkg"
+            fi
+          done
+
+          echo ""
+          echo "📌 Debug dependencies status:"
+          if [ $MISSING_DEBUG -gt 0 ]; then
+            echo "   ⚠️ $MISSING_DEBUG debug package(s) are missing"
+            echo ""
+            echo "📌 Attempting to restore from official VSCode build..."
+
+            # 检查是否有官方 VSCode 备份
+            OFFICIAL_DIR=""
+            if [ -d "/tmp/official-vscode" ]; then
+              OFFICIAL_DIR=$(find /tmp/official-vscode -type d -name "VSCode-linux-x64" 2>/dev/null | head -1)
+            fi
+
+            # 如果找不到，重新下载
+            if [ -z "$OFFICIAL_DIR" ] || [ ! -d "$OFFICIAL_DIR" ]; then
+              echo "   📦 Downloading official VSCode to restore debug deps..."
+              rm -rf /tmp/official-vscode-restore
+              rm -f /tmp/official-restore.tar.gz
+
+              VERSION="${{ github.event.inputs.version || '1.116.0' }}"
+              wget -q --show-progress "https://update.code.visualstudio.com/$VERSION/linux-x64/stable" -O /tmp/official-restore.tar.gz
+
+              if [ $? -ne 0 ] || [ ! -s /tmp/official-restore.tar.gz ]; then
+                wget -q --show-progress https://update.code.visualstudio.com/latest/linux-x64/stable -O /tmp/official-restore.tar.gz
+              fi
+
+              if [ -s /tmp/official-restore.tar.gz ]; then
+                mkdir -p /tmp/official-vscode-restore
+                tar -xzf /tmp/official-restore.tar.gz -C /tmp/official-vscode-restore/
+                OFFICIAL_DIR=$(find /tmp/official-vscode-restore -type d -name "VSCode-linux-x64" 2>/dev/null | head -1)
+              fi
+            fi
+
+            if [ -n "$OFFICIAL_DIR" ] && [ -d "$OFFICIAL_DIR" ]; then
+              echo "   ✅ Official VSCode found at: $OFFICIAL_DIR"
+
+              OFFICIAL_NM="$OFFICIAL_DIR/resources/app/node_modules"
+
+              # 复制 js-debug
+              if [ -d "$OFFICIAL_NM/@vscode/js-debug" ]; then
+                echo "   📦 Copying @vscode/js-debug..."
+                rm -rf "$BUILD_DIR/resources/app/node_modules/@vscode/js-debug"
+                cp -r "$OFFICIAL_NM/@vscode/js-debug" "$BUILD_DIR/resources/app/node_modules/@vscode/"
+                echo "   ✅ @vscode/js-debug restored"
+              else
+                echo "   ⚠️ @vscode/js-debug not found in official build"
+                echo "   📦 Attempting to copy from backup node_modules..."
+                if [ -d "$BUILD_DIR/resources/app/node_modules.bak/@vscode/js-debug" ]; then
+                  cp -r "$BUILD_DIR/resources/app/node_modules.bak/@vscode/js-debug" "$BUILD_DIR/resources/app/node_modules/@vscode/"
+                  echo "   ✅ @vscode/js-debug restored from backup"
+                fi
+              fi
+
+              # 复制 extension-debug
+              if [ -d "$OFFICIAL_NM/@vscode/extension-debug" ]; then
+                echo "   📦 Copying @vscode/extension-debug..."
+                rm -rf "$BUILD_DIR/resources/app/node_modules/@vscode/extension-debug"
+                cp -r "$OFFICIAL_NM/@vscode/extension-debug" "$BUILD_DIR/resources/app/node_modules/@vscode/"
+                echo "   ✅ @vscode/extension-debug restored"
+              else
+                echo "   ⚠️ @vscode/extension-debug not found in official build"
+                echo "   📦 Attempting to copy from backup node_modules..."
+                if [ -d "$BUILD_DIR/resources/app/node_modules.bak/@vscode/extension-debug" ]; then
+                  cp -r "$BUILD_DIR/resources/app/node_modules.bak/@vscode/extension-debug" "$BUILD_DIR/resources/app/node_modules/@vscode/"
+                  echo "   ✅ @vscode/extension-debug restored from backup"
+                fi
+              fi
+
+              # 复制 vscode-extension 相关包
+              for pkg in vscode-extension vscode-extension-host; do
+                if [ -d "$OFFICIAL_NM/$pkg" ]; then
+                  echo "   📦 Copying $pkg..."
+                  rm -rf "$BUILD_DIR/resources/app/node_modules/$pkg"
+                  cp -r "$OFFICIAL_NM/$pkg" "$BUILD_DIR/resources/app/node_modules/"
+                  echo "   ✅ $pkg restored"
+                elif [ -d "$BUILD_DIR/resources/app/node_modules.bak/$pkg" ]; then
+                  echo "   📦 Copying $pkg from backup..."
+                  cp -r "$BUILD_DIR/resources/app/node_modules.bak/$pkg" "$BUILD_DIR/resources/app/node_modules/"
+                  echo "   ✅ $pkg restored from backup"
+                else
+                  echo "   ⚠️ $pkg not found"
+                fi
+              done
+
+              # 清理临时文件
+              rm -f /tmp/official-restore.tar.gz
+              rm -rf /tmp/official-vscode-restore
+
+              echo ""
+              echo "📌 Fixing permissions for debug dependencies..."
+              if [ -d "$BUILD_DIR/resources/app/node_modules/@vscode/js-debug" ]; then
+                chmod -R 755 "$BUILD_DIR/resources/app/node_modules/@vscode/js-debug"
+              fi
+              if [ -d "$BUILD_DIR/resources/app/node_modules/@vscode/extension-debug" ]; then
+                chmod -R 755 "$BUILD_DIR/resources/app/node_modules/@vscode/extension-debug"
+              fi
+
+            else
+              echo "   ❌ Could not find official VSCode to restore debug deps"
+              echo "   ⚠️ Debugging extensionHost may not work"
+            fi
+          else
+            echo "   ✅ All debug dependencies are present"
+          fi
+
+          echo ""
+          echo "📌 Final debug dependencies status:"
+          for pkg in js-debug extension-debug; do
+            if [ -d "$BUILD_DIR/resources/app/node_modules/@vscode/$pkg" ]; then
+              SIZE=$(du -sh "$BUILD_DIR/resources/app/node_modules/@vscode/$pkg" 2>/dev/null | cut -f1)
+              echo "   ✅ @vscode/$pkg ($SIZE)"
+            else
+              echo "   ❌ @vscode/$pkg (MISSING - debugging will fail!)"
+            fi
+          done
+
+          echo ""
+          echo "✅ Debug dependencies restoration completed"
 
       - name: 📄 Create launcher and fix all issues
         run: |
@@ -733,18 +917,8 @@ jobs:
           export ELECTRON_DISABLE_CRASH_REPORTING=1
           export CRASHPAD_DISABLE=1
 
-          # ============================================================
-          # 🔑 完全禁用密钥环 - 不需要用户输入任何密码
-          # ============================================================
           unset GNOME_KEYRING_CONTROL
           unset DBUS_SESSION_BUS_ADDRESS
-          export GNOME_KEYRING_CONTROL=
-          export DBUS_SESSION_BUS_ADDRESS=
-          export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
-          export SECRETS_BACKEND=basic
-          export DISABLE_VAULT=1
-          export VSCODE_PASSWORD_STORE=basic
-          export ELECTRON_PASSWORD_STORE=basic
 
           export VSCODE_USE_FILE_SECRET_STORAGE=1
 
@@ -760,7 +934,6 @@ jobs:
               --disable-gpu-sandbox \
               --disable-gpu \
               --disable-crash-reporter \
-              --password-store="basic" \
               --use-inmemory-secretstorage \
               --extensions-dir="$VSCODE_EXTENSIONS_DIR" \
               --user-data-dir="$VSCODE_APPDATA" \
@@ -927,6 +1100,27 @@ jobs:
             fi
           else
             echo "   ℹ️ No custom extensions directory"
+          fi
+
+          echo ""
+          echo "9️⃣ Checking debug dependencies..."
+          DEBUG_PASSED=0
+          DEBUG_FAILED=0
+          for pkg in js-debug extension-debug; do
+            if [ -d "$SCRIPT_DIR/resources/app/node_modules/@vscode/$pkg" ]; then
+              echo "   ✅ @vscode/$pkg"
+              ((DEBUG_PASSED++))
+            else
+              echo "   ❌ @vscode/$pkg (missing - debugging will not work!)"
+              ((DEBUG_FAILED++))
+            fi
+          done
+          if [ $DEBUG_FAILED -eq 0 ]; then
+            echo "   ✅ All debug dependencies present"
+            ((PASSED++))
+          else
+            echo "   ❌ $DEBUG_FAILED debug dependencies missing"
+            ((FAILED++))
           fi
 
           echo ""
@@ -1181,59 +1375,18 @@ jobs:
               echo "  ✅ Custom extensions binaries permissions fixed"
           fi
 
-          # ============================================================
-          # 🔑 创建 argv.json - 完全禁用密钥环，确保 debug 功能正常
-          # ============================================================
           echo ""
-          echo "📌 Creating argv.json with password-store=basic for all users..."
-
-          for USER_HOME in /home/* /root; do
-              if [ -d "$USER_HOME" ] && [ "$USER_HOME" != "/home/*" ]; then
-                  TSC_DIR="$USER_HOME/.tscode"
-                  mkdir -p "$TSC_DIR" 2>/dev/null || true
-
-                  if [ ! -f "$TSC_DIR/argv.json" ]; then
-                      cat > "$TSC_DIR/argv.json" << 'ARGVEOF'
-          {
-              "enable-crash-reporter": false,
-              "disable-gpu": true,
-              "disable-gpu-sandbox": true,
-              "no-sandbox": true,
-              "password-store": "basic"
-          }
-          ARGVEOF
-                      if [ "$USER_HOME" != "/root" ]; then
-                          USER_OWNER=$(stat -c '%u:%g' "$USER_HOME" 2>/dev/null || echo "")
-                          if [ -n "$USER_OWNER" ]; then
-                              chown "$USER_OWNER" "$TSC_DIR/argv.json" 2>/dev/null || true
-                          fi
-                      fi
-                      echo "    ✅ Created argv.json for $(basename "$USER_HOME")"
-                  else
-                      if ! grep -q "password-store" "$TSC_DIR/argv.json" 2>/dev/null; then
-                          mv "$TSC_DIR/argv.json" "$TSC_DIR/argv.json.bak"
-                          cat > "$TSC_DIR/argv.json" << 'ARGVEOF'
-          {
-              "enable-crash-reporter": false,
-              "disable-gpu": true,
-              "disable-gpu-sandbox": true,
-              "no-sandbox": true,
-              "password-store": "basic"
-          }
-          ARGVEOF
-                          if [ "$USER_HOME" != "/root" ]; then
-                              USER_OWNER=$(stat -c '%u:%g' "$USER_HOME" 2>/dev/null || echo "")
-                              if [ -n "$USER_OWNER" ]; then
-                                  chown "$USER_OWNER" "$TSC_DIR/argv.json" 2>/dev/null || true
-                              fi
-                          fi
-                          echo "    ✅ Updated argv.json for $(basename "$USER_HOME")"
-                      else
-                          echo "    ✅ argv.json already has password-store for $(basename "$USER_HOME")"
-                      fi
-                  fi
-              fi
-          done
+          echo "🔧 Checking debug dependencies..."
+          if [ -d "/opt/tscode/resources/app/node_modules/@vscode/js-debug" ]; then
+              echo "   ✅ @vscode/js-debug present"
+          else
+              echo "   ⚠️ @vscode/js-debug missing (extension debugging may not work)"
+          fi
+          if [ -d "/opt/tscode/resources/app/node_modules/@vscode/extension-debug" ]; then
+              echo "   ✅ @vscode/extension-debug present"
+          else
+              echo "   ⚠️ @vscode/extension-debug missing (extensionHost debugging may not work)"
+          fi
 
           echo ""
           echo "📁 Creating and fixing user directories..."
@@ -1340,7 +1493,7 @@ jobs:
           fi
 
           echo ""
-          echo "🧹 Cleaning up user directories (preserving extensions and argv.json)..."
+          echo "🧹 Cleaning up user directories..."
 
           for USER_HOME in /home/* /root; do
               if [ -d "$USER_HOME" ] && [ "$USER_HOME" != "/home/*" ]; then
@@ -1354,17 +1507,10 @@ jobs:
                       for item in "$TSC_DIR"/*; do
                           if [ -e "$item" ]; then
                               item_name=$(basename "$item")
-                              # 保留 extensions 目录和 argv.json 文件
-                              if [ -d "$item" ] && [ "$item_name" = "extensions" ]; then
-                                  echo "    ✅ Preserving: extensions for $USER_NAME"
-                                  continue
+                              if [ "$item_name" != "extensions" ]; then
+                                  echo "    🗑️ Removing: $item_name"
+                                  rm -rf "$item" 2>/dev/null || true
                               fi
-                              if [ -f "$item" ] && [ "$item_name" = "argv.json" ]; then
-                                  echo "    ✅ Preserving: argv.json for $USER_NAME"
-                                  continue
-                              fi
-                              echo "    🗑️ Removing: $item_name"
-                              rm -rf "$item" 2>/dev/null || true
                           fi
                       done
 
@@ -1423,9 +1569,12 @@ jobs:
           echo "📁 System extensions: /opt/tscode/resources/app/extensions/"
           echo "📂 User extensions: ~/.tscode/extensions/"
           echo "📂 User data: ~/.local/share/tscode/"
-          echo "📄 argv.json: ~/.tscode/argv.json (password-store=basic)"
           echo ""
-          echo "🚀 Run 'tscode' to start (no password required)"
+          echo "🐛 Extension development:"
+          echo "   - Debug type 'extensionHost' should work"
+          echo "   - @vscode/js-debug and @vscode/extension-debug included"
+          echo ""
+          echo "🚀 Run 'tscode' to start"
           echo "=========================================="
 
           exit 0
@@ -1556,11 +1705,31 @@ jobs:
           fi
 
           echo ""
+          echo "🔍 Checking debug dependencies in DEB:"
+          DEBUG_OK=0
+          DEBUG_MISSING=0
+          for pkg in js-debug extension-debug; do
+            if [ -d "./opt/tscode/resources/app/node_modules/@vscode/$pkg" ]; then
+              echo "   ✅ @vscode/$pkg"
+              DEBUG_OK=$((DEBUG_OK + 1))
+            else
+              echo "   ❌ @vscode/$pkg (MISSING - extensionHost debugging will not work!)"
+              DEBUG_MISSING=$((DEBUG_MISSING + 1))
+            fi
+          done
+          if [ $DEBUG_MISSING -eq 0 ]; then
+            echo "   ✅ All debug dependencies present"
+          else
+            echo "   ⚠️ $DEBUG_MISSING debug dependencies missing"
+          fi
+
+          echo ""
           echo "=========================================="
           echo "📊 DEB EXTENSION VERIFICATION SUMMARY"
           echo "=========================================="
           echo "   Total extensions: $EXT_COUNT"
           echo "   ✅ Critical extensions: All present"
+          echo "   Debug deps: $([ $DEBUG_MISSING -eq 0 ] && echo '✅ All present' || echo '⚠️ Missing some')"
           echo "   Result: PASSED"
           echo "=========================================="
 
@@ -1663,16 +1832,15 @@ jobs:
           echo "   - ✅ User directory permissions fixed"
           echo "   - ✅ File-based secret storage (no keyring required)"
           echo "   - ✅ GitHub login works without keyring"
-          echo "   - ✅ Debug功能正常 (password-store=basic, argv.json已配置)"
+          echo "   - ✅ Debug dependencies included (extensionHost works)"
           echo ""
           echo "📂 Directory structure:"
           echo "   System extensions: /opt/tscode/resources/app/extensions/"
           echo "   User extensions:   ~/.tscode/extensions/"
           echo "   User data:         ~/.local/share/tscode/"
-          echo "   Config:            ~/.tscode/argv.json"
           echo ""
           echo "💡 Extensions persist across reinstallation"
-          echo "💡 ~/.tscode/ contains extensions directory and argv.json"
+          echo "💡 ~/.tscode/ only contains extensions directory"
           echo "==========================================="
 
           if [ "${{ job.status }}" = "success" ]; then
@@ -1690,12 +1858,11 @@ jobs:
             echo "  - Run: tscode (no password)"
             echo "  - Find in application menu: TSCode"
             echo "  - GitHub login works without keyring password prompt"
-            echo "  - Debug功能正常工作"
+            echo "  - Extension development: debug type 'extensionHost' works"
             echo ""
             echo "📂 Directory structure:"
             echo "  System extensions: /opt/tscode/resources/app/extensions/"
             echo "  User extensions:   ~/.tscode/extensions/"
             echo "  User data:         ~/.local/share/tscode/"
-            echo "  Config:            ~/.tscode/argv.json"
             echo "=========================================="
           fi
