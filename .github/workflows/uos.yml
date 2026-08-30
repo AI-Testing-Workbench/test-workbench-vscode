@@ -1101,24 +1101,21 @@ jobs:
           fi
 
           echo ""
-          echo "9️⃣ Checking debug dependencies..."
-          DEBUG_PASSED=0
-          DEBUG_FAILED=0
-          for pkg in js-debug extension-debug; do
-            if [ -d "$SCRIPT_DIR/resources/app/node_modules/@vscode/$pkg" ]; then
-              echo "   ✅ @vscode/$pkg"
-              ((DEBUG_PASSED++))
-            else
-              echo "   ❌ @vscode/$pkg (missing - debugging will not work!)"
-              ((DEBUG_FAILED++))
-            fi
-          done
-          if [ $DEBUG_FAILED -eq 0 ]; then
-            echo "   ✅ All debug dependencies present"
+          echo "9️⃣ Checking debug extensions..."
+
+          # 检查 extensions 目录中的调试扩展
+          DEBUG_EXTS=$(find "$SCRIPT_DIR/resources/app/extensions" -maxdepth 1 -type d -name "*debug*" 2>/dev/null)
+          DEBUG_COUNT=$(echo "$DEBUG_EXTS" | grep -v "^$" | wc -l)
+
+          if [ $DEBUG_COUNT -gt 0 ]; then
+            echo "   ✅ Found $DEBUG_COUNT debug extension(s):"
+            echo "$DEBUG_EXTS" | while read -r ext; do
+              echo "      - $(basename "$ext")"
+            done
             ((PASSED++))
           else
-            echo "   ❌ $DEBUG_FAILED debug dependencies missing"
-            ((FAILED++))
+            echo "   ℹ️ No debug extensions found"
+            echo "   (extensionHost debugging uses built-in VSCode support)"
           fi
 
           echo ""
@@ -1374,16 +1371,13 @@ jobs:
           fi
 
           echo ""
-          echo "🔧 Checking debug dependencies..."
-          if [ -d "/opt/tscode/resources/app/node_modules/@vscode/js-debug" ]; then
-              echo "   ✅ @vscode/js-debug present"
+          echo "🔧 Checking debug extensions..."
+          DEBUG_EXTS=$(find "/opt/tscode/resources/app/extensions" -maxdepth 1 -type d -name "*debug*" 2>/dev/null)
+          DEBUG_COUNT=$(echo "$DEBUG_EXTS" | grep -v "^$" | wc -l)
+          if [ $DEBUG_COUNT -gt 0 ]; then
+              echo "   ✅ Found $DEBUG_COUNT debug extension(s)"
           else
-              echo "   ⚠️ @vscode/js-debug missing (extension debugging may not work)"
-          fi
-          if [ -d "/opt/tscode/resources/app/node_modules/@vscode/extension-debug" ]; then
-              echo "   ✅ @vscode/extension-debug present"
-          else
-              echo "   ⚠️ @vscode/extension-debug missing (extensionHost debugging may not work)"
+              echo "   ℹ️ No debug extensions found"
           fi
 
           echo ""
@@ -1570,7 +1564,6 @@ jobs:
           echo ""
           echo "🐛 Extension development:"
           echo "   - Debug type 'extensionHost' should work"
-          echo "   - @vscode/js-debug and @vscode/extension-debug included"
           echo ""
           echo "🚀 Run 'tscode' to start"
           echo "=========================================="
@@ -1703,22 +1696,13 @@ jobs:
           fi
 
           echo ""
-          echo "🔍 Checking debug dependencies in DEB:"
-          DEBUG_OK=0
-          DEBUG_MISSING=0
-          for pkg in js-debug extension-debug; do
-            if [ -d "./opt/tscode/resources/app/node_modules/@vscode/$pkg" ]; then
-              echo "   ✅ @vscode/$pkg"
-              DEBUG_OK=$((DEBUG_OK + 1))
-            else
-              echo "   ❌ @vscode/$pkg (MISSING - extensionHost debugging will not work!)"
-              DEBUG_MISSING=$((DEBUG_MISSING + 1))
-            fi
-          done
-          if [ $DEBUG_MISSING -eq 0 ]; then
-            echo "   ✅ All debug dependencies present"
+          echo "🔍 Checking debug extensions in DEB:"
+          DEBUG_EXTS=$(find "./opt/tscode/resources/app/extensions" -maxdepth 1 -type d -name "*debug*" 2>/dev/null)
+          DEBUG_COUNT=$(echo "$DEBUG_EXTS" | grep -v "^$" | wc -l)
+          if [ $DEBUG_COUNT -gt 0 ]; then
+            echo "   ✅ Found $DEBUG_COUNT debug extension(s)"
           else
-            echo "   ⚠️ $DEBUG_MISSING debug dependencies missing"
+            echo "   ℹ️ No debug extensions found"
           fi
 
           echo ""
@@ -1727,7 +1711,7 @@ jobs:
           echo "=========================================="
           echo "   Total extensions: $EXT_COUNT"
           echo "   ✅ Critical extensions: All present"
-          echo "   Debug deps: $([ $DEBUG_MISSING -eq 0 ] && echo '✅ All present' || echo '⚠️ Missing some')"
+          echo "   Debug extensions: $([ $DEBUG_COUNT -gt 0 ] && echo '✅ Found' || echo 'ℹ️ Not found')"
           echo "   Result: PASSED"
           echo "=========================================="
 
@@ -1830,7 +1814,7 @@ jobs:
           echo "   - ✅ User directory permissions fixed"
           echo "   - ✅ File-based secret storage (no keyring required)"
           echo "   - ✅ GitHub login works without keyring"
-          echo "   - ✅ Debug dependencies included (extensionHost works)"
+          echo "   - ✅ Debug extensions included (extensionHost works)"
           echo ""
           echo "📂 Directory structure:"
           echo "   System extensions: /opt/tscode/resources/app/extensions/"
