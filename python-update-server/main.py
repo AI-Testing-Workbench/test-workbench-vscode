@@ -10,6 +10,7 @@ Python 3.7+ 兼容版本
 import os
 import sys
 import json
+import re
 import hashlib
 import logging
 import glob
@@ -60,6 +61,20 @@ CONFIG = {
     'ADMIN_PASSWORD_MD5': os.getenv('ADMIN_PASSWORD_MD5', '0192023a7bbd73250516f069df18b500'),  # 默认: admin123
     'RELEASENOTES_DIR': os.getenv('RELEASENOTES_DIR', './releasenotes'),
 }
+
+# test-workbench_change start
+# 自动安装插件配置文件路径（服务器根目录，避免 docker 只读挂载问题）
+AUTO_INSTALL_CONFIG_FILE = Path(__file__).parent / 'auto-install-extensions.json'
+# 扩展 ID 格式校验（publisher.name）
+EXTENSION_ID_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9\-_.]*\.[a-zA-Z0-9][a-zA-Z0-9\-_.]*$')
+# 聊天提示配置文件路径（供 TestAgent 客户端 /chatTips 接口使用）
+CHAT_TIPS_CONFIG_FILE = Path(__file__).parent / 'chat-tips.json'
+# 公告配置文件路径（供 TestAgent 客户端 /api/announcement 接口使用）
+ANNOUNCEMENTS_CONFIG_FILE = Path(__file__).parent / 'announcements.json'
+# 公告状态常量
+ANNOUNCEMENT_STATUSES = ('draft', 'testing', 'published')
+ANNOUNCEMENT_TYPES = ('notice', 'recommend')
+# test-workbench_change end
 
 # 打印配置信息（调试用）
 print("=" * 60)
@@ -128,6 +143,267 @@ def generate_admin_token() -> str:
     from datetime import timedelta
     admin_tokens[token] = datetime.now() + timedelta(hours=24)
     return token
+
+
+# test-workbench_change start
+def load_auto_install_config() -> Dict[str, Any]:
+    """
+    读取自动安装插件配置
+
+    Returns:
+        {
+            "enabled": bool,
+            "extensions": ["publisher.name", ...],
+            "updated_at": str | None
+        }
+    """
+    default_config: Dict[str, Any] = {'enabled': True, 'extensions': [], 'updated_at': None}
+
+    if not AUTO_INSTALL_CONFIG_FILE.exists():
+        return default_config
+
+    try:
+        with open(AUTO_INSTALL_CONFIG_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        if not isinstance(data, dict):
+            logger.warning(f"自动安装插件配置文件格式错误，使用默认配置: {AUTO_INSTALL_CONFIG_FILE}")
+            return default_config
+
+        extensions = data.get('extensions', [])
+        if not isinstance(extensions, list):
+            extensions = []
+        extensions = [str(e).strip() for e in extensions if isinstance(e, str) and e.strip()]
+
+        return {
+            'enabled': bool(data.get('enabled', True)),
+            'extensions': extensions,
+            'updated_at': data.get('updated_at')
+        }
+    except Exception as e:
+        logger.error(f"读取自动安装插件配置失败: {e}")
+        return default_config
+
+
+def save_auto_install_config(enabled: bool, extensions: List[str]) -> Dict[str, Any]:
+    """
+    保存自动安装插件配置（原子写入）
+
+    Args:
+        enabled: 是否启用自动安装
+        extensions: 扩展 ID 列表（已去重）
+
+    Returns:
+        保存后的配置字典
+    """
+    config: Dict[str, Any] = {
+        'enabled': bool(enabled),
+        'extensions': list(extensions),
+        'updated_at': datetime.now().isoformat()
+    }
+
+    tmp_path = AUTO_INSTALL_CONFIG_FILE.with_name(AUTO_INSTALL_CONFIG_FILE.name + '.tmp')
+    with open(tmp_path, 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+    tmp_path.replace(AUTO_INSTALL_CONFIG_FILE)
+
+    logger.info(f"自动安装插件配置已保存: {len(extensions)} 个插件, enabled={enabled}")
+    return config
+
+
+def load_chat_tips_config() -> Dict[str, Any]:
+    """
+    读取聊天提示配置
+
+    Returns:
+        {
+            "enabled": bool,
+            "tips": [{"id": str | None, "content": str}, ...],
+            "updated_at": str | None
+        }
+    """
+    default_config: Dict[str, Any] = {'enabled': True, 'tips': [], 'updated_at': None}
+
+    if not CHAT_TIPS_CONFIG_FILE.exists():
+        return default_config
+
+    try:
+        with open(CHAT_TIPS_CONFIG_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        if not isinstance(data, dict):
+            logger.warning(f"聊天提示配置文件格式错误，使用默认配置: {CHAT_TIPS_CONFIG_FILE}")
+            return default_config
+
+        tips = data.get('tips', [])
+        if not isinstance(tips, list):
+            tips = []
+
+        cleaned: List[Dict[str, str]] = []
+        for item in tips:
+            if not isinstance(item, dict):
+                continue
+            content = item.get('content')
+            if not isinstance(content, str) or not content.strip():
+                continue
+            tip: Dict[str, str] = {'content': content.strip()}
+            tip_id = item.get('id')
+            if isinstance(tip_id, str) and tip_id.strip():
+                tip['id'] = tip_id.strip()
+            cleaned.append(tip)
+
+        return {
+            'enabled': bool(data.get('enabled', True)),
+            'tips': cleaned,
+            'updated_at': data.get('updated_at')
+        }
+    except Exception as e:
+        logger.error(f"读取聊天提示配置失败: {e}")
+        return default_config
+
+
+def save_chat_tips_config(enabled: bool, tips: List[Dict[str, str]]) -> Dict[str, Any]:
+    """
+    保存聊天提示配置（原子写入）
+
+    Args:
+        enabled: 是否启用聊天提示
+        tips: 提示列表，每项为 {"content": str, "id"?: str}
+
+    Returns:
+        保存后的配置字典
+    """
+    config: Dict[str, Any] = {
+        'enabled': bool(enabled),
+        'tips': list(tips),
+        'updated_at': datetime.now().isoformat()
+    }
+
+    tmp_path = CHAT_TIPS_CONFIG_FILE.with_name(CHAT_TIPS_CONFIG_FILE.name + '.tmp')
+    with open(tmp_path, 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+    tmp_path.replace(CHAT_TIPS_CONFIG_FILE)
+
+    logger.info(f"聊天提示配置已保存: {len(tips)} 条提示, enabled={enabled}")
+    return config
+# test-workbench_change end
+
+
+# test-workbench_change start
+def load_announcements_config() -> Dict[str, Any]:
+    """
+    读取公告配置
+
+    Returns:
+        {
+            "announcements": [
+                {
+                    "id": str,
+                    "type": "notice" | "recommend",
+                    "title": str,
+                    "content": str,          # Markdown 内容
+                    "linkUrl": str,          # 可选跳转地址
+                    "status": "draft" | "testing" | "published",
+                    "testerEmployeeIds": [str, ...],  # 测试人员工号白名单
+                    "updatedAt": str | None
+                }, ...
+            ],
+            "count": N,
+            "updated_at": str | None
+        }
+    """
+    default_config: Dict[str, Any] = {'announcements': [], 'updated_at': None}
+
+    if not ANNOUNCEMENTS_CONFIG_FILE.exists():
+        return default_config
+
+    try:
+        with open(ANNOUNCEMENTS_CONFIG_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        if not isinstance(data, dict):
+            logger.warning(f"公告配置文件格式错误，使用默认配置: {ANNOUNCEMENTS_CONFIG_FILE}")
+            return default_config
+
+        announcements = data.get('announcements', [])
+        if not isinstance(announcements, list):
+            announcements = []
+
+        cleaned: List[Dict[str, Any]] = []
+        for item in announcements:
+            if not isinstance(item, dict):
+                continue
+            title = item.get('title')
+            content = item.get('content')
+            if not isinstance(title, str) or not title.strip():
+                continue
+            if not isinstance(content, str) or not content.strip():
+                continue
+
+            ann_id = item.get('id')
+            if not isinstance(ann_id, str) or not ann_id.strip():
+                ann_id = f"ann-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+            ann_type = item.get('type')
+            if ann_type not in ANNOUNCEMENT_TYPES:
+                ann_type = 'notice'
+
+            status = item.get('status')
+            if status not in ANNOUNCEMENT_STATUSES:
+                status = 'draft'
+
+            link_url = item.get('linkUrl')
+            if not isinstance(link_url, str):
+                link_url = ''
+
+            tester_ids = item.get('testerEmployeeIds', [])
+            if not isinstance(tester_ids, list):
+                tester_ids = []
+            tester_ids = [str(t).strip() for t in tester_ids if isinstance(t, str) and t.strip()]
+
+            cleaned.append({
+                'id': ann_id.strip(),
+                'type': ann_type,
+                'title': title.strip(),
+                'content': content.strip(),
+                'linkUrl': link_url.strip(),
+                'status': status,
+                'testerEmployeeIds': tester_ids,
+                'updatedAt': item.get('updatedAt')
+            })
+
+        return {
+            'announcements': cleaned,
+            'updated_at': data.get('updated_at')
+        }
+    except Exception as e:
+        logger.error(f"读取公告配置失败: {e}")
+        return default_config
+
+
+def save_announcements_config(announcements: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    保存公告配置（原子写入）
+
+    Args:
+        announcements: 公告列表
+
+    Returns:
+        保存后的配置字典
+    """
+    config: Dict[str, Any] = {
+        'announcements': list(announcements),
+        'updated_at': datetime.now().isoformat()
+    }
+
+    tmp_path = ANNOUNCEMENTS_CONFIG_FILE.with_name(ANNOUNCEMENTS_CONFIG_FILE.name + '.tmp')
+    with open(tmp_path, 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+    tmp_path.replace(ANNOUNCEMENTS_CONFIG_FILE)
+
+    logger.info(f"公告配置已保存: {len(announcements)} 条公告")
+    return config
+# test-workbench_change end
 
 
 def detect_platform_from_filename(filename: str) -> Optional[str]:
@@ -422,7 +698,11 @@ async def api_info():
             "update_check": "/api/update/{platform}/{quality}/{commit}",
             "download": "/download/{filename}",
             "versions": "/versions",
-            "rescan": "/admin/rescan"
+            "rescan": "/admin/rescan",
+            "auto_install_extensions": "/auto-install-extensions",
+            "admin_extensions_auto_install": "/admin/extensions-auto-install",
+            "chat_tips": "/chatTips",
+            "admin_chat_tips": "/admin/chat-tips"
         }
     }
 
@@ -431,6 +711,102 @@ async def api_info():
 async def health_check():
     """健康检查端点"""
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+
+# test-workbench_change start
+@app.get("/auto-install-extensions")
+async def get_auto_install_extensions():
+    """
+    自动安装插件列表（供 VS Code 客户端调用，无需认证）
+
+    VS Code 客户端启动时会请求此接口（product.json 的 extensionsAutoInstallUrl），
+    期望返回纯 JSON 数组，元素为扩展 ID（publisher.name 格式）。
+    客户端会将返回的列表与本地 product.json 的 extensionsAutoInstall 列表合并后自动安装。
+
+    当配置中 enabled=false 时返回空数组，客户端不会自动安装插件。
+    """
+    config = load_auto_install_config()
+    extensions = config['extensions'] if config['enabled'] else []
+    return JSONResponse(
+        content=extensions,
+        headers={'Cache-Control': 'no-cache'}
+    )
+
+
+@app.get("/chatTips")
+async def get_chat_tips():
+    """
+    聊天提示列表（供 TestAgent 客户端调用，无需认证）
+
+    TestAgent 客户端（KiloProvider.ts）启动时会请求此接口
+    （testagent.new.chatTipsUrl，默认指向 /chatTips），返回格式需兼容客户端解析：
+    - 纯数组：[{"id": "tip1", "content": "..."}, ...]
+    - 或对象：{"tips": [...]} / {"data": [...]}
+
+    本接口返回 {"tips": [...]} 形式。当配置中 enabled=false 时返回空提示列表。
+    """
+    config = load_chat_tips_config()
+    tips = config['tips'] if config['enabled'] else []
+    return JSONResponse(
+        content={'tips': tips},
+        headers={'Cache-Control': 'no-cache'}
+    )
+# test-workbench_change end
+
+
+# test-workbench_change start
+@app.get("/api/announcement")
+async def get_announcement(request: Request):
+    """
+    公告查询接口（供 TestAgent 客户端调用，无需认证）
+
+    TestAgent 客户端启动时请求一次此接口。服务端根据当前激活的公告
+    及请求头 X-Employee-ID（工号）决定是否返回：
+
+    - 公告处于 testing（测试模式）时，仅当工号在 testerEmployeeIds 白名单内才返回
+    - 公告处于 published（全员发布）时，所有用户均返回
+    - 公告处于 draft 时，不返回
+
+    同一时刻最多一个非 draft 公告（单一激活，由管理接口保证）。
+
+    Returns:
+        {
+            "id": str,
+            "type": "notice" | "recommend",
+            "title": str,
+            "content": str,
+            "linkUrl": str,
+            "updatedAt": str | None
+        } | null
+    """
+    config = load_announcements_config()
+    announcements = config['announcements']
+
+    active = [a for a in announcements if a['status'] in ('testing', 'published')]
+    if not active:
+        return JSONResponse(content=None, headers={'Cache-Control': 'no-cache'})
+
+    # 单一激活：只取第一个（管理接口保证最多一个）
+    announcement = active[0]
+
+    if announcement['status'] == 'testing':
+        employee_id = request.headers.get('X-Employee-ID')
+        testers = announcement['testerEmployeeIds']
+        if not employee_id or employee_id not in testers:
+            return JSONResponse(content=None, headers={'Cache-Control': 'no-cache'})
+
+    return JSONResponse(
+        content={
+            'id': announcement['id'],
+            'type': announcement['type'],
+            'title': announcement['title'],
+            'content': announcement['content'],
+            'linkUrl': announcement.get('linkUrl', ''),
+            'updatedAt': announcement.get('updatedAt')
+        },
+        headers={'Cache-Control': 'no-cache'}
+    )
+# test-workbench_change end
 
 
 # test-workbench_change start
@@ -1927,6 +2303,398 @@ async def get_stable_version_status(request: Request):
 
     except Exception as e:
         logger.error(f"查询稳定版本状态失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# 自动安装插件管理 API
+# ============================================================================
+
+@app.get("/admin/extensions-auto-install")
+async def get_extensions_auto_install(request: Request):
+    """
+    获取自动安装插件配置（管理接口）
+
+    Returns:
+        {
+            "enabled": true,
+            "extensions": ["test-tech.test-task-manager", ...],
+            "count": N,
+            "updated_at": "...",
+            "url": "http://.../auto-install-extensions"
+        }
+    """
+    require_admin_auth(request)
+
+    config = load_auto_install_config()
+    return {
+        **config,
+        "count": len(config['extensions']),
+        "url": f"{CONFIG['BASE_URL']}/auto-install-extensions"
+    }
+
+
+@app.post("/admin/extensions-auto-install")
+async def update_extensions_auto_install(request: Request):
+    """
+    更新自动安装插件配置（管理接口）
+
+    Request Body:
+    {
+        "enabled": true,                 // 是否启用自动安装
+        "extensions": ["test-tech.test-task-manager", "..."]  // 扩展 ID 列表（publisher.name 格式）
+    }
+
+    说明：
+    - 扩展 ID 必须符合 publisher.name 格式，否则返回 400 并指明无效项
+    - 自动去重，保留原始顺序
+    - 配置保存到服务器根目录 auto-install-extensions.json
+    """
+    require_admin_auth(request)
+
+    try:
+        data = await request.json()
+        enabled = data.get('enabled', True)
+        extensions = data.get('extensions', [])
+
+        if not isinstance(enabled, bool):
+            raise HTTPException(status_code=400, detail="enabled 必须是布尔值")
+
+        if not isinstance(extensions, list):
+            raise HTTPException(status_code=400, detail="extensions 必须是数组")
+
+        # 校验扩展 ID 格式并去重
+        invalid: List[str] = []
+        cleaned: List[str] = []
+        seen = set()
+        for item in extensions:
+            if not isinstance(item, str):
+                invalid.append(str(item))
+                continue
+            ext_id = item.strip()
+            if not EXTENSION_ID_PATTERN.match(ext_id):
+                invalid.append(ext_id)
+                continue
+            if ext_id not in seen:
+                seen.add(ext_id)
+                cleaned.append(ext_id)
+
+        if invalid:
+            raise HTTPException(
+                status_code=400,
+                detail=f"存在无效的扩展 ID（应为 publisher.name 格式）: {', '.join(invalid[:10])}"
+            )
+
+        config = save_auto_install_config(enabled, cleaned)
+
+        return {
+            "status": "success",
+            "message": f"自动安装插件配置已保存: {len(cleaned)} 个插件",
+            "config": {
+                **config,
+                "count": len(cleaned),
+                "url": f"{CONFIG['BASE_URL']}/auto-install-extensions"
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"保存自动安装插件配置失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# 聊天提示管理 API
+# ============================================================================
+
+@app.get("/admin/chat-tips")
+async def get_chat_tips_config(request: Request):
+    """
+    获取聊天提示配置（管理接口）
+
+    Returns:
+        {
+            "enabled": true,
+            "tips": [{"id": "tip1", "content": "..."}, ...],
+            "count": N,
+            "updated_at": "...",
+            "url": "http://.../chatTips"
+        }
+    """
+    require_admin_auth(request)
+
+    config = load_chat_tips_config()
+    return {
+        **config,
+        "count": len(config['tips']),
+        "url": f"{CONFIG['BASE_URL']}/chatTips"
+    }
+
+
+@app.post("/admin/chat-tips")
+async def update_chat_tips_config(request: Request):
+    """
+    更新聊天提示配置（管理接口）
+
+    Request Body:
+    {
+        "enabled": true,                       // 是否启用聊天提示
+        "tips": [{"id": "tip1", "content": "..."}, ...]  // 提示列表
+    }
+
+    说明：
+    - 每条提示必须包含非空 content 字符串
+    - id 可选（去重），如重复自动保留第一个
+    - 配置保存到服务器根目录 chat-tips.json
+    """
+    require_admin_auth(request)
+
+    try:
+        data = await request.json()
+        enabled = data.get('enabled', True)
+        tips = data.get('tips', [])
+
+        if not isinstance(enabled, bool):
+            raise HTTPException(status_code=400, detail="enabled 必须是布尔值")
+
+        if not isinstance(tips, list):
+            raise HTTPException(status_code=400, detail="tips 必须是数组")
+
+        # 校验提示格式并去重 id
+        invalid: List[str] = []
+        cleaned: List[Dict[str, str]] = []
+        seen_ids = set()
+        for item in tips:
+            if not isinstance(item, dict):
+                invalid.append(str(item))
+                continue
+            content = item.get('content')
+            if not isinstance(content, str) or not content.strip():
+                invalid.append(str(item.get('id', item))[:50])
+                continue
+
+            tip: Dict[str, str] = {'content': content.strip()}
+            tip_id = item.get('id')
+            if isinstance(tip_id, str) and tip_id.strip():
+                tid = tip_id.strip()
+                if tid not in seen_ids:
+                    seen_ids.add(tid)
+                    tip['id'] = tid
+            cleaned.append(tip)
+
+        if invalid:
+            raise HTTPException(
+                status_code=400,
+                detail=f"存在无效的提示项（缺少 content 或格式错误）: {', '.join(invalid[:10])}"
+            )
+
+        config = save_chat_tips_config(enabled, cleaned)
+
+        return {
+            "status": "success",
+            "message": f"聊天提示配置已保存: {len(cleaned)} 条提示",
+            "config": {
+                **config,
+                "count": len(cleaned),
+                "url": f"{CONFIG['BASE_URL']}/chatTips"
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"保存聊天提示配置失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# 公告管理 API（test-workbench_change）
+# ============================================================================
+
+
+@app.get("/admin/announcements")
+async def list_announcements(request: Request):
+    """
+    公告列表（管理接口）
+
+    Returns:
+        {
+            "announcements": [ ... ],
+            "count": N,
+            "url": "http://.../api/announcement"
+        }
+    """
+    require_admin_auth(request)
+
+    config = load_announcements_config()
+    return {
+        "announcements": config['announcements'],
+        "count": len(config['announcements']),
+        "url": f"{CONFIG['BASE_URL']}/api/announcement"
+    }
+
+
+@app.post("/admin/announcements")
+async def create_or_update_announcement(request: Request):
+    """
+    新建或编辑公告（管理接口）
+
+    Request Body:
+    {
+        "id": str | null,              // 编辑时必填，新建时传 null
+        "type": "notice" | "recommend",
+        "title": str,
+        "content": str,                // Markdown 内容
+        "linkUrl": str,                // 可选跳转地址
+        "testerEmployeeIds": [str, ...] // 测试人员工号白名单
+    }
+
+    说明：
+    - id 为空或不存在时为新建，否则更新已有公告（保留 status/updatedAt）
+    - 新建公告默认 status=draft
+    - 编辑草稿或测试中公告时可修改测试名单
+    """
+    require_admin_auth(request)
+
+    try:
+        data = await request.json()
+
+        ann_type = data.get('type', 'notice')
+        if ann_type not in ANNOUNCEMENT_TYPES:
+            raise HTTPException(status_code=400, detail="type 必须是 notice 或 recommend")
+
+        title = data.get('title', '')
+        if not isinstance(title, str) or not title.strip():
+            raise HTTPException(status_code=400, detail="title 不能为空")
+
+        content = data.get('content', '')
+        if not isinstance(content, str) or not content.strip():
+            raise HTTPException(status_code=400, detail="content 不能为空")
+
+        link_url = data.get('linkUrl', '')
+        if not isinstance(link_url, str):
+            link_url = ''
+
+        tester_ids = data.get('testerEmployeeIds', [])
+        if not isinstance(tester_ids, list):
+            raise HTTPException(status_code=400, detail="testerEmployeeIds 必须是数组")
+        tester_ids = [str(t).strip() for t in tester_ids if isinstance(t, str) and t.strip()]
+
+        config = load_announcements_config()
+        announcements = config['announcements']
+
+        ann_id = data.get('id')
+        if isinstance(ann_id, str) and ann_id.strip():
+            ann_id = ann_id.strip()
+            found = False
+            for i, ann in enumerate(announcements):
+                if ann['id'] == ann_id:
+                    announcements[i].update({
+                        'type': ann_type,
+                        'title': title.strip(),
+                        'content': content.strip(),
+                        'linkUrl': link_url.strip(),
+                        'testerEmployeeIds': tester_ids,
+                        'updatedAt': datetime.now().isoformat()
+                    })
+                    found = True
+                    break
+            if not found:
+                raise HTTPException(status_code=404, detail=f"公告不存在: {ann_id}")
+        else:
+            ann_id = f"ann-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            # 避免同一秒内创建重复 id（追加递增后缀）
+            existing_ids = {a['id'] for a in announcements}
+            suffix = 1
+            while ann_id in existing_ids:
+                ann_id = f"ann-{datetime.now().strftime('%Y%m%d%H%M%S')}-{suffix}"
+                suffix += 1
+            announcements.append({
+                'id': ann_id,
+                'type': ann_type,
+                'title': title.strip(),
+                'content': content.strip(),
+                'linkUrl': link_url.strip(),
+                'status': 'draft',
+                'testerEmployeeIds': tester_ids,
+                'updatedAt': datetime.now().isoformat()
+            })
+
+        save_announcements_config(announcements)
+
+        return {
+            "status": "success",
+            "message": "公告已保存",
+            "id": ann_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"保存公告失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/announcements/{announcement_id}/status")
+async def update_announcement_status(request: Request, announcement_id: str):
+    """
+    公告状态流转（管理接口）
+
+    Request Body:
+    {
+        "status": "draft" | "testing" | "published"
+    }
+
+    流转规则：
+    - draft -> testing 必须已配置测试人员名单
+    - testing -> published 必须已有测试人员名单（证明测试过）
+    - 任意 -> draft 下线
+    - 进入 testing/published 时自动下线其他公告（单一激活）
+    """
+    require_admin_auth(request)
+
+    try:
+        data = await request.json()
+        new_status = data.get('status')
+        if new_status not in ANNOUNCEMENT_STATUSES:
+            raise HTTPException(status_code=400, detail=f"status 必须是 {', '.join(ANNOUNCEMENT_STATUSES)} 之一")
+
+        config = load_announcements_config()
+        announcements = config['announcements']
+
+        target = None
+        for ann in announcements:
+            if ann['id'] == announcement_id:
+                target = ann
+                break
+        if not target:
+            raise HTTPException(status_code=404, detail=f"公告不存在: {announcement_id}")
+
+        if new_status in ('testing', 'published') and not target.get('testerEmployeeIds'):
+            raise HTTPException(status_code=400, detail="必须先配置测试人员名单才能测试或发布")
+
+        # 下线其他公告（单一激活）
+        if new_status in ('testing', 'published'):
+            for ann in announcements:
+                if ann['id'] != announcement_id and ann['status'] in ('testing', 'published'):
+                    ann['status'] = 'draft'
+
+        target['status'] = new_status
+        target['updatedAt'] = datetime.now().isoformat()
+
+        save_announcements_config(announcements)
+
+        return {
+            "status": "success",
+            "message": f"公告状态已更新为 {new_status}",
+            "announcement": target
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"更新公告状态失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

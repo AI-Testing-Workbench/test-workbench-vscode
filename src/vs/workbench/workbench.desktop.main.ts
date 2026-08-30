@@ -169,6 +169,9 @@ import './contrib/tscode/browser/tscodeExternalUriOpener.js';
 // test-workbench_change - TSCode remote workspace banner
 import './contrib/tscode/browser/tscodeRemoteBanner.contribution.js';
 
+// test-workbench_change - TSCode announcement popup
+import './contrib/tscode/browser/tscodeAnnouncement.contribution.js';
+
 // Splash
 import './contrib/splash/electron-browser/splash.contribution.js';
 
