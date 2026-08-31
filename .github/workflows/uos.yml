@@ -1080,10 +1080,14 @@ jobs:
           export ELECTRON_DISABLE_CRASH_REPORTING=1
           export CRASHPAD_DISABLE=1
 
-          unset GNOME_KEYRING_CONTROL
-          unset DBUS_SESSION_BUS_ADDRESS
-
-          export VSCODE_USE_FILE_SECRET_STORAGE=1
+          # 禁用密钥环
+          export GNOME_KEYRING_CONTROL=
+          export DBUS_SESSION_BUS_ADDRESS=
+          export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
+          export SECRETS_BACKEND=basic
+          export DISABLE_VAULT=1
+          export VSCODE_PASSWORD_STORE=basic
+          export ELECTRON_PASSWORD_STORE=basic
 
           export VSCODE_APPDATA="$HOME/.local/share/tscode"
           export VSCODE_EXTENSIONS_DIR="$HOME/.tscode/extensions"
@@ -1097,7 +1101,7 @@ jobs:
               --disable-gpu-sandbox \
               --disable-gpu \
               --disable-crash-reporter \
-              --use-inmemory-secretstorage \
+              --password-store="basic" \
               --extensions-dir="$VSCODE_EXTENSIONS_DIR" \
               --user-data-dir="$VSCODE_APPDATA" \
               --builtin-extensions-dir="$VSCODE_SYSTEM_EXTENSIONS" \
