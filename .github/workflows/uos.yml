@@ -1409,25 +1409,6 @@ jobs:
           echo "   ✅ All permissions fixed"
 
           echo ""
-          echo "🔍 Verifying custom-extensions in DEB root..."
-          if [ -d "$DEB_ROOT/opt/tscode/resources/app/custom-extensions" ]; then
-              echo "  ✅ custom-extensions directory exists in DEB root"
-              echo "  📋 Contents:"
-              ls -la "$DEB_ROOT/opt/tscode/resources/app/custom-extensions/"
-              EXT_COUNT=$(find "$DEB_ROOT/opt/tscode/resources/app/custom-extensions" -maxdepth 1 -type d ! -path "$DEB_ROOT/opt/tscode/resources/app/custom-extensions" 2>/dev/null | wc -l | tr -d ' ')
-              echo "  📊 Total extensions in DEB root: $EXT_COUNT"
-              if [ "$EXT_COUNT" -eq 0 ]; then
-                  echo "  ⚠️ WARNING: No custom extensions found in DEB root!"
-                  echo "  This means custom extensions were not properly copied to the build."
-              fi
-          else
-              echo "  ❌ ERROR: custom-extensions directory NOT FOUND in DEB root!"
-              echo "  This means custom extensions were not included in the DEB package."
-              echo "  🔍 Searching for custom-extensions in DEB root..."
-              find "$DEB_ROOT" -name "custom-extensions" -type d 2>/dev/null || echo "  (not found)"
-          fi
-
-          echo ""
           echo "📌 Creating /usr/bin/tscode wrapper script..."
 
           cat > "$DEB_ROOT/usr/bin/tscode" << 'WRAPEOF'
@@ -1548,16 +1529,6 @@ jobs:
           fi
 
           echo ""
-          echo "🔧 Checking debug extensions..."
-          DEBUG_EXTS=$(find "/opt/tscode/resources/app/extensions" -maxdepth 1 -type d -name "*debug*" 2>/dev/null)
-          DEBUG_COUNT=$(echo "$DEBUG_EXTS" | grep -v "^$" | wc -l)
-          if [ $DEBUG_COUNT -gt 0 ]; then
-              echo "   ✅ Found $DEBUG_COUNT debug extension(s)"
-          else
-              echo "   ℹ️ No debug extensions found"
-          fi
-
-          echo ""
           echo "📁 Creating and fixing user directories..."
 
           for USER_HOME in /home/* /root; do
@@ -1577,14 +1548,7 @@ jobs:
                   fi
 
                   mkdir -p "$TSC_DATA_DIR/User"
-                  cat > "$TSC_DATA_DIR/User/settings.json" << 'USERSETTINGS_EOF'
-                  {
-                      "github.authentication": true,
-                      "git.githubAuthentication": true,
-                      "git.enabled": true,
-                      "workbench.startupEditor": "welcomePage"
-                  }
-                  USERSETTINGS_EOF
+                  printf '{\n    "github.authentication": true,\n    "git.githubAuthentication": true,\n    "git.enabled": true,\n    "workbench.startupEditor": "welcomePage"\n}\n' > "$TSC_DATA_DIR/User/settings.json"
 
                   if [ -n "$USER_UID" ] && [ -n "$USER_GID" ]; then
                       chown -R "$USER_UID:$USER_GID" "$TSC_DIR" 2>/dev/null || true
@@ -1600,11 +1564,7 @@ jobs:
                   chmod 644 "$TSC_DATA_DIR/User/settings.json"
                   chmod 644 "$TSC_DATA_DIR/User/globalStorage/github-authentication/secrets.json"
 
-                  if [ "$USER_HOME" != "/root" ]; then
-                      echo "    ✅ Created directories for: $USER_NAME ($USER_UID:$USER_GID)"
-                  else
-                      echo "    ✅ Created directories for root"
-                  fi
+                  echo "    ✅ Created directories for: $USER_NAME"
               fi
           done
 
@@ -1632,7 +1592,7 @@ jobs:
                           for ext in "$CUSTOM_EXT_DIR"/*/; do
                               if [ -d "$ext" ]; then
                                   ext_name=$(basename "$ext")
-                                  echo "    ✅ Copying: $ext_name (from custom-extensions) to $USER_NAME"
+                                  echo "    ✅ Copying: $ext_name to $USER_NAME"
                                   rm -rf "$TSC_EXT_DIR/$ext_name" 2>/dev/null || true
                                   cp -r "$ext" "$TSC_EXT_DIR/" 2>/dev/null || true
                                   if [ -d "$TSC_EXT_DIR/$ext_name" ] && [ "$USER_HOME" != "/root" ]; then
@@ -1709,7 +1669,7 @@ jobs:
                       chmod 755 "$TSC_DIR"
                       chmod 755 "$TSC_DIR/extensions"
 
-                      echo "    ✅ Cleaned: $TSC_DIR (permissions fixed)"
+                      echo "    ✅ Cleaned: $TSC_DIR"
                   else
                       echo "    📁 Creating: $TSC_DIR"
                       mkdir -p "$TSC_DIR/extensions"
@@ -1745,10 +1705,6 @@ jobs:
           echo "📁 System extensions: /opt/tscode/resources/app/extensions/"
           echo "📂 User extensions: ~/.tscode/extensions/"
           echo "📂 User data: ~/.local/share/tscode/"
-          echo ""
-          echo "🐛 Extension development:"
-          echo "   - Debug type 'extensionHost' should work"
-          echo "   - Run '/opt/tscode/test-debug.sh' to verify"
           echo ""
           echo "🚀 Run 'tscode' to start"
           echo "=========================================="
