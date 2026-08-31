@@ -1747,6 +1747,82 @@ jobs:
             exit 1
           fi
 
+      - name: 🧪 Pre-flight checks for DEB package
+        run: |
+          echo "=========================================="
+          echo "🧪 Pre-flight checks for DEB package"
+          echo "=========================================="
+
+          VERSION="${{ github.event.inputs.version || '1.116.0' }}"
+          DEB_FILE="tscode-${VERSION}-1_amd64.deb"
+          DEB_ROOT="$(pwd)/deb_root"
+
+          # 1. 检查 DEB 包是否存在
+          if [ ! -f "$DEB_FILE" ]; then
+            echo "❌ DEB package not found!"
+            exit 1
+          fi
+          echo "✅ DEB package exists"
+
+          # 2. 检查 postinst 语法
+          echo ""
+          echo "🔍 Checking postinst script syntax..."
+          bash -n "$DEB_ROOT/DEBIAN/postinst"
+          if [ $? -eq 0 ]; then
+            echo "✅ postinst syntax OK"
+          else
+            echo "❌ postinst syntax ERROR!"
+            exit 1
+          fi
+
+          # 3. 检查 prerm 语法
+          echo ""
+          echo "🔍 Checking prerm script syntax..."
+          bash -n "$DEB_ROOT/DEBIAN/prerm"
+          if [ $? -eq 0 ]; then
+            echo "✅ prerm syntax OK"
+          else
+            echo "❌ prerm syntax ERROR!"
+            exit 1
+          fi
+
+          # 4. 检查 run.sh 语法
+          echo ""
+          echo "🔍 Checking run.sh syntax..."
+          bash -n "$DEB_ROOT/opt/tscode/run.sh"
+          if [ $? -eq 0 ]; then
+            echo "✅ run.sh syntax OK"
+          else
+            echo "❌ run.sh syntax ERROR!"
+            exit 1
+          fi
+
+          # 5. 检查关键配置
+          echo ""
+          echo "🔍 Checking key configurations..."
+          grep -q "VSCODE_PASSWORD_STORE=basic" "$DEB_ROOT/opt/tscode/run.sh" && echo "✅ basic password store" || { echo "❌ missing basic password store"; exit 1; }
+          grep -q "enable-proposed-api=vscode.github-authentication" "$DEB_ROOT/opt/tscode/run.sh" && echo "✅ github auth enabled" || { echo "❌ missing github auth"; exit 1; }
+          ! grep -q "DBUS_SESSION_BUS_ADDRESS=" "$DEB_ROOT/opt/tscode/run.sh" && echo "✅ D-Bus preserved" || { echo "❌ D-Bus disabled!"; exit 1; }
+
+          # 6. 检查 control 文件
+          echo ""
+          echo "🔍 Checking control file..."
+          if [ -f "$DEB_ROOT/DEBIAN/control" ]; then
+            echo "✅ control file exists"
+            grep -E "^(Package|Version|Architecture)" "$DEB_ROOT/DEBIAN/control"
+          else
+            echo "❌ control file missing!"
+            exit 1
+          fi
+
+          # 7. 使用 lintian 检查
+          echo ""
+          echo "🔍 Running lintian checks..."
+          lintian "$DEB_FILE" 2>/dev/null | grep -E "^[EW]" | head -20 || echo "   (lintian passed or not available)"
+
+          echo ""
+          echo "✅ All pre-flight checks passed!"
+
       - name: 🔍 Verify DEB package extensions
         run: |
           echo "=========================================="
