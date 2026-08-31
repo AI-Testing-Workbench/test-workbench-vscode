@@ -1081,7 +1081,6 @@ jobs:
           export CRASHPAD_DISABLE=1
 
           unset GNOME_KEYRING_CONTROL
-          unset DBUS_SESSION_BUS_ADDRESS
 
           export VSCODE_USE_FILE_SECRET_STORAGE=1
 
