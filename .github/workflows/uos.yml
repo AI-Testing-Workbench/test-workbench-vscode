@@ -1068,7 +1068,6 @@ jobs:
           export CRASHPAD_DISABLE=1
 
           # 保留系统 D-Bus（GitHub OAuth 需要）
-          # 不要设置 DBUS_SESSION_BUS_ADDRESS=""
 
           # 使用 basic 密码存储，避免密钥环弹窗
           export VSCODE_PASSWORD_STORE=basic
