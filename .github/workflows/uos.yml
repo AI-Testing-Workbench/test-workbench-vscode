@@ -1081,6 +1081,7 @@ jobs:
           export CRASHPAD_DISABLE=1
 
           unset GNOME_KEYRING_CONTROL
+          unset DBUS_SESSION_BUS_ADDRESS
 
           export VSCODE_USE_FILE_SECRET_STORAGE=1
 
@@ -1091,7 +1092,7 @@ jobs:
 
           export VSCODE_SYSTEM_EXTENSIONS="$SCRIPT_DIR/resources/app/extensions"
 
-          exec "$SCRIPT_DIR/tscode" \
+          "$SCRIPT_DIR/tscode" \
               --no-sandbox \
               --disable-gpu-sandbox \
               --disable-gpu \
