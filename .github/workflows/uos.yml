@@ -405,7 +405,7 @@ jobs:
 
           echo ""
           echo "   🔍 Verifying critical extensions..."
-          CRITICAL_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features"
+          CRITICAL_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features github-authentication microsoft-authentication"
           MISSING_EXTS=""
           for ext in $CRITICAL_EXTS; do
             if [ -d "$BUILD_DIR/resources/app/extensions/$ext" ]; then
@@ -580,7 +580,7 @@ jobs:
 
           echo ""
           echo "📌 Preserving core extensions..."
-          CORE_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features npm debug-auto-launch merge-conflict search-result @builtin"
+          CORE_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features npm debug-auto-launch merge-conflict search-result github-authentication microsoft-authentication"
 
           mkdir -p /tmp/core-extensions-backup
           for ext in $CORE_EXTS; do
@@ -623,7 +623,6 @@ jobs:
 
           npx json -I -f package.json -e 'this.devDependencies={}' 2>/dev/null || true
 
-          # 保留调试依赖 - 不要删除 @vscode/js-debug 和 @vscode/extension-debug
           find node_modules -name "*.ts" -type f ! -name "*.d.ts" \
             ! -path "*/@vscode/js-debug/*" \
             ! -path "*/@vscode/extension-debug/*" \
@@ -732,7 +731,6 @@ jobs:
 
           echo "📌 Step 1: Downloading official VSCode for debug deps..."
 
-          # 下载官方 VSCode
           rm -rf /tmp/official-vscode-debug
           rm -f /tmp/official-debug.tar.gz
 
@@ -780,11 +778,9 @@ jobs:
           OFFICIAL_EXT_DIR="$OFFICIAL_DIR/resources/app/extensions"
           TARGET_EXT_DIR="$BUILD_DIR/resources/app/extensions"
 
-          # 需要复制的调试扩展列表
           DEBUG_EXTENSIONS="js-debug extension-debug ms-vscode.js-debug ms-vscode.extension-debug"
 
           for ext in $DEBUG_EXTENSIONS; do
-            # 尝试不同的名称格式
             for ext_name in "$ext" "ms-vscode.$ext" "vscode.$ext"; do
               if [ -d "$OFFICIAL_EXT_DIR/$ext_name" ]; then
                 echo "   ✅ Found $ext_name in official build"
@@ -797,11 +793,9 @@ jobs:
             done
           done
 
-          # 也复制整个 extensions 目录中与调试相关的所有扩展
           echo ""
           echo "📌 Step 4: Copying all debug-related extensions..."
 
-          # 查找所有包含 "debug" 或 "js-debug" 的扩展目录
           find "$OFFICIAL_EXT_DIR" -maxdepth 1 -type d -name "*debug*" 2>/dev/null | while read -r ext_dir; do
             ext_name=$(basename "$ext_dir")
             if [ ! -d "$TARGET_EXT_DIR/$ext_name" ]; then
@@ -825,7 +819,6 @@ jobs:
           DEBUG_OK=0
           DEBUG_MISSING=0
 
-          # 检查是否找到了调试扩展
           FOUND_DEBUG_EXTS=$(find "$TARGET_EXT_DIR" -maxdepth 1 -type d -name "*debug*" 2>/dev/null | wc -l)
 
           if [ $FOUND_DEBUG_EXTS -gt 0 ]; then
@@ -878,10 +871,8 @@ jobs:
             echo "$DEBUG_EXTS" | while read -r ext; do
               echo "      - $(basename "$ext")"
 
-              # 检查扩展是否包含 package.json
               if [ -f "$ext/package.json" ]; then
                 echo "         ✅ package.json exists"
-                # 检查是否包含调试相关的 contributes
                 if grep -q '"debuggers"' "$ext/package.json" 2>/dev/null; then
                   echo "         ✅ Contains debugger contribution"
                 fi
@@ -895,20 +886,17 @@ jobs:
           echo ""
           echo "📌 Step 2: Checking debug adapter files..."
 
-          # 检查 js-debug 扩展的关键文件
           for ext in "$BUILD_DIR/resources/app/extensions"/*debug*; do
             if [ -d "$ext" ]; then
               ext_name=$(basename "$ext")
               echo "   🔍 Checking $ext_name..."
 
-              # 检查调试适配器脚本
               if [ -f "$ext/out/debugAdapter.js" ] || [ -f "$ext/out/extension.js" ]; then
                 echo "      ✅ Debug adapter script found"
               else
                 echo "      ⚠️ No debug adapter script found (may be fine)"
               fi
 
-              # 检查 package.json 中的 main 入口
               if [ -f "$ext/package.json" ]; then
                 MAIN=$(grep -o '"main": *"[^"]*"' "$ext/package.json" 2>/dev/null | head -1 | cut -d'"' -f4)
                 if [ -n "$MAIN" ]; then
@@ -932,7 +920,6 @@ jobs:
           echo ""
           echo "📌 Step 4: Checking extensionHost dependencies..."
 
-          # 检查 extensionHost 相关的 node_modules
           if [ -d "$BUILD_DIR/resources/app/node_modules" ]; then
             if [ -d "$BUILD_DIR/resources/app/node_modules/@vscode/extension-debug" ] || \
                [ -d "$BUILD_DIR/resources/app/node_modules/vscode-extension" ] || \
@@ -1080,14 +1067,15 @@ jobs:
           export ELECTRON_DISABLE_CRASH_REPORTING=1
           export CRASHPAD_DISABLE=1
 
-          # 禁用密钥环
-          export GNOME_KEYRING_CONTROL=
-          export DBUS_SESSION_BUS_ADDRESS=
-          export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
-          export SECRETS_BACKEND=basic
-          export DISABLE_VAULT=1
+          # 保留系统 D-Bus（GitHub OAuth 需要）
+          # 不要设置 DBUS_SESSION_BUS_ADDRESS=""
+
+          # 使用 basic 密码存储，避免密钥环弹窗
           export VSCODE_PASSWORD_STORE=basic
-          export ELECTRON_PASSWORD_STORE=basic
+          export VSCODE_USE_FILE_SECRET_STORAGE=1
+
+          # 启用 GitHub 认证
+          export VSCODE_GITHUB_AUTHENTICATION=true
 
           export VSCODE_APPDATA="$HOME/.local/share/tscode"
           export VSCODE_EXTENSIONS_DIR="$HOME/.tscode/extensions"
@@ -1096,15 +1084,34 @@ jobs:
 
           export VSCODE_SYSTEM_EXTENSIONS="$SCRIPT_DIR/resources/app/extensions"
 
-          "$SCRIPT_DIR/tscode" \
+          # 创建用户设置，启用 GitHub 认证
+          mkdir -p "$VSCODE_APPDATA/User"
+          cat > "$VSCODE_APPDATA/User/settings.json" << 'SETTINGS_EOF'
+          {
+              "github.authentication": true,
+              "git.githubAuthentication": true,
+              "git.enabled": true,
+              "workbench.startupEditor": "welcomePage"
+          }
+          SETTINGS_EOF
+
+          # 创建 GitHub 认证存储
+          GITHUB_STORAGE="$VSCODE_APPDATA/User/globalStorage/github-authentication"
+          mkdir -p "$GITHUB_STORAGE"
+          if [ ! -f "$GITHUB_STORAGE/secrets.json" ]; then
+              echo '{}' > "$GITHUB_STORAGE/secrets.json"
+          fi
+
+          exec "$SCRIPT_DIR/tscode" \
               --no-sandbox \
               --disable-gpu-sandbox \
               --disable-gpu \
               --disable-crash-reporter \
-              --password-store="basic" \
+              --password-store=basic \
               --extensions-dir="$VSCODE_EXTENSIONS_DIR" \
               --user-data-dir="$VSCODE_APPDATA" \
               --builtin-extensions-dir="$VSCODE_SYSTEM_EXTENSIONS" \
+              --enable-proposed-api=vscode.github-authentication \
               "$@"
           RUNEOF
 
@@ -1245,7 +1252,7 @@ jobs:
 
           echo ""
           echo "7️⃣ Checking core extensions..."
-          for ext in typescript-language-features git json-language-features; do
+          for ext in typescript-language-features git json-language-features github-authentication microsoft-authentication; do
             if [ -d "$SCRIPT_DIR/resources/app/extensions/$ext" ]; then
               echo "   ✅ $ext (system)"
               ((PASSED++))
@@ -1272,7 +1279,6 @@ jobs:
           echo ""
           echo "9️⃣ Checking debug extensions..."
 
-          # 检查 extensions 目录中的调试扩展
           DEBUG_EXTS=$(find "$SCRIPT_DIR/resources/app/extensions" -maxdepth 1 -type d -name "*debug*" 2>/dev/null)
           DEBUG_COUNT=$(echo "$DEBUG_EXTS" | grep -v "^$" | wc -l)
 
@@ -1564,7 +1570,21 @@ jobs:
                   USER_GID=$(stat -c '%g' "$USER_HOME" 2>/dev/null || echo "")
 
                   mkdir -p "$TSC_DIR/extensions"
-                  mkdir -p "$TSC_DATA_DIR"
+                  mkdir -p "$TSC_DATA_DIR/User/globalStorage/github-authentication"
+
+                  if [ ! -f "$TSC_DATA_DIR/User/globalStorage/github-authentication/secrets.json" ]; then
+                      echo '{}' > "$TSC_DATA_DIR/User/globalStorage/github-authentication/secrets.json"
+                  fi
+
+                  mkdir -p "$TSC_DATA_DIR/User"
+                  cat > "$TSC_DATA_DIR/User/settings.json" << 'USERSETTINGS_EOF'
+                  {
+                      "github.authentication": true,
+                      "git.githubAuthentication": true,
+                      "git.enabled": true,
+                      "workbench.startupEditor": "welcomePage"
+                  }
+                  USERSETTINGS_EOF
 
                   if [ -n "$USER_UID" ] && [ -n "$USER_GID" ]; then
                       chown -R "$USER_UID:$USER_GID" "$TSC_DIR" 2>/dev/null || true
@@ -1574,6 +1594,11 @@ jobs:
                   chmod 755 "$TSC_DIR"
                   chmod 755 "$TSC_DIR/extensions"
                   chmod 755 "$TSC_DATA_DIR"
+                  chmod 755 "$TSC_DATA_DIR/User"
+                  chmod 755 "$TSC_DATA_DIR/User/globalStorage"
+                  chmod 755 "$TSC_DATA_DIR/User/globalStorage/github-authentication"
+                  chmod 644 "$TSC_DATA_DIR/User/settings.json"
+                  chmod 644 "$TSC_DATA_DIR/User/globalStorage/github-authentication/secrets.json"
 
                   if [ "$USER_HOME" != "/root" ]; then
                       echo "    ✅ Created directories for: $USER_NAME ($USER_UID:$USER_GID)"
@@ -1701,19 +1726,6 @@ jobs:
               fi
           done
 
-          REAL_USER="${SUDO_USER:-$USER}"
-          if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ]; then
-              REAL_HOME=$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6)
-              if [ -n "$REAL_HOME" ]; then
-                  mkdir -p "$REAL_HOME/.local/share/keyrings" 2>/dev/null || true
-                  echo "[keyring]" > "$REAL_HOME/.local/share/keyrings/login.keyring" 2>/dev/null || true
-                  echo "display-name=Login" >> "$REAL_HOME/.local/share/keyrings/login.keyring" 2>/dev/null || true
-                  echo "locked=false" >> "$REAL_HOME/.local/share/keyrings/login.keyring" 2>/dev/null || true
-                  chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.local/share/keyrings" 2>/dev/null || true
-                  echo "  ✅ Keyring pre-configured for $REAL_USER"
-              fi
-          fi
-
           if command -v update-desktop-database >/dev/null 2>&1; then
               update-desktop-database /usr/share/applications/
               echo "  ✅ Desktop database updated"
@@ -1729,6 +1741,7 @@ jobs:
           echo "✅ TSCode installed successfully!"
           echo ""
           echo "🔑 Using file-based secret storage (no keyring required)"
+          echo "🔐 GitHub login works without keyring password prompt"
           echo "📁 System extensions: /opt/tscode/resources/app/extensions/"
           echo "📂 User extensions: ~/.tscode/extensions/"
           echo "📂 User data: ~/.local/share/tscode/"
@@ -1833,7 +1846,7 @@ jobs:
 
           echo ""
           echo "🔍 Checking critical extensions in DEB:"
-          CRITICAL_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features npm debug-auto-launch merge-conflict"
+          CRITICAL_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features npm debug-auto-launch merge-conflict github-authentication microsoft-authentication"
           CRITICAL_MISSING=""
 
           for ext in $CRITICAL_EXTS; do
@@ -1977,7 +1990,8 @@ jobs:
           echo "Format: DEB (Debian 10)"
           echo ""
           echo "✅ Features:"
-          echo "   - No password required on startup"
+          echo "   - No keyring password prompt on startup"
+          echo "   - GitHub login works without keyring"
           echo "   - No sandbox password prompt"
           echo "   - Desktop entry in application menu"
           echo "   - /usr/bin/tscode is a wrapper script (not a symlink)"
@@ -1985,7 +1999,6 @@ jobs:
           echo "   - ✅ test-tech.* extensions copied to user directory"
           echo "   - ✅ User directory permissions fixed"
           echo "   - ✅ File-based secret storage (no keyring required)"
-          echo "   - ✅ GitHub login works without keyring"
           echo "   - ✅ Debug extensions included (extensionHost works)"
           echo "   - ✅ test-debug.sh available for verification"
           echo ""
@@ -2010,7 +2023,7 @@ jobs:
             echo "  sudo apt-get install -f"
             echo ""
             echo "🚀 After installation:"
-            echo "  - Run: tscode (no password)"
+            echo "  - Run: tscode (no keyring password)"
             echo "  - Find in application menu: TSCode"
             echo "  - GitHub login works without keyring password prompt"
             echo "  - Extension development: debug type 'extensionHost' works"
