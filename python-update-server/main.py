@@ -69,7 +69,7 @@ AUTO_INSTALL_CONFIG_FILE = Path(__file__).parent / 'auto-install-extensions.json
 EXTENSION_ID_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9\-_.]*\.[a-zA-Z0-9][a-zA-Z0-9\-_.]*$')
 # 聊天提示配置文件路径（供 TestAgent 客户端 /chatTips 接口使用）
 CHAT_TIPS_CONFIG_FILE = Path(__file__).parent / 'chat-tips.json'
-# 公告配置文件路径（供 TestAgent 客户端 /api/announcement 接口使用）
+# 公告配置文件路径（供 TestAgent 客户端 /announcement 接口使用）
 ANNOUNCEMENTS_CONFIG_FILE = Path(__file__).parent / 'announcements.json'
 # 公告状态常量
 ANNOUNCEMENT_STATUSES = ('draft', 'testing', 'published')
@@ -755,7 +755,7 @@ async def get_chat_tips():
 
 
 # test-workbench_change start
-@app.get("/api/announcement")
+@app.get("/announcement")
 async def get_announcement(request: Request):
     """
     公告查询接口（供 TestAgent 客户端调用，无需认证）
