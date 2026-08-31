@@ -16,8 +16,8 @@ on:
         default: 'win32-x64'
         type: choice
         options:
+          - all
           - win32-x64
-          - win32-arm64
           - darwin
           - linux
       target:
@@ -164,130 +164,6 @@ jobs:
           name: vscode-win32-x64-user-setup
           path: .build/win32-x64/user-setup/*.exe
 
-  build-win32-arm64:
-    name: Build Windows arm64
-    runs-on: windows-2022
-    if: >-
-      (github.event_name == 'workflow_dispatch' && (contains('win32-arm64,all', github.event.inputs.platforms) || github.event.inputs.platforms == '')) ||
-      (github.event_name == 'push' && !startsWith(github.ref, 'refs/heads/dependabot/'))
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          lfs: true
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: .nvmrc
-
-      - name: Prepare node_modules cache key
-        shell: pwsh
-        run: |
-          mkdir .build -ea 0
-          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 arm64 $(node -p process.arch) > .build/packagelockhash
-
-      - name: Restore node_modules cache
-        uses: actions/cache@v5
-        id: node-modules-cache
-        with:
-          path: .build/node_modules_cache
-          key: "node_modules-windows-arm64-${{ hashFiles('**/package-lock.json') }}"
-
-      - name: Extract node_modules cache
-        if: steps.node-modules-cache.outputs.cache-hit == 'true'
-        shell: pwsh
-        run: 7z.exe x .build/node_modules_cache/cache.7z -aoa
-
-      - name: Install dependencies
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          for ($i = 1; $i -le 5; $i++) {
-            try {
-              npm ci
-              break
-            }
-            catch {
-              if ($i -eq 5) {
-                Write-Error "npm ci failed after 5 attempts"
-                throw
-              }
-              Write-Host "npm ci failed attempt $i, retrying..."
-              Start-Sleep -Seconds 2
-            }
-          }
-        env:
-          npm_config_arch: arm64
-          npm_config_foreground_scripts: "true"
-          VSCODE_ARCH: arm64
-          npm_config_build_from_source: "false"
-          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
-
-      - name: Create node_modules archive
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -Force .build/node_modules_cache
-          7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt
-
-      - name: Create .build folder
-        shell: pwsh
-        run: mkdir .build -ea 0
-
-      - name: Prepare built-in extensions cache key
-        shell: pwsh
-        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
-
-      - name: Restore built-in extensions cache
-        id: cache-builtin-extensions
-        uses: actions/cache/restore@v5
-        with:
-          enableCrossOsArchive: true
-          path: .build/builtInExtensions
-          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
-
-      - name: Download built-in extensions
-        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
-        run: node build/lib/builtInExtensions.ts
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Prepare prebuilt extensions
-        shell: pwsh
-        run: node build/prepare-prebuilt-extensions.ts --platform=win32 --arch=arm64
-
-      - name: Compile core (esbuild)
-        shell: pwsh
-        run: npm run gulp core-ci
-
-      - name: Compile Copilot extension
-        shell: pwsh
-        run: npm run gulp compile-copilot-extension-build
-
-      - name: Build Windows arm64 Application
-        shell: pwsh
-        run: npm run gulp vscode-win32-arm64-min-ci
-
-      - name: Prepare Windows arm64 Inno Updater
-        shell: pwsh
-        run: npm run gulp vscode-win32-arm64-inno-updater
-
-      - name: Build Windows arm64 User Setup
-        shell: pwsh
-        run: npm run gulp vscode-win32-arm64-user-setup
-
-      - name: Upload User Setup Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vscode-win32-arm64-user-setup
-          path: .build/win32-arm64/user-setup/*.exe
-
   build-darwin:
     name: Build macOS
     runs-on: macos-latest
@@ -370,7 +246,6 @@ jobs:
 
       - name: Prepare prebuilt extensions
         run: |
-          node build/prepare-prebuilt-extensions.ts --platform=darwin --arch=x64
           node build/prepare-prebuilt-extensions.ts --platform=darwin --arch=arm64
 
       - name: Compile core (esbuild)
@@ -379,25 +254,12 @@ jobs:
       - name: Compile Copilot extension
         run: npm run gulp compile-copilot-extension-build
 
-      - name: Build macOS x64
-        run: npm run gulp vscode-darwin-x64-min-ci
-
       - name: Build macOS arm64
         run: npm run gulp vscode-darwin-arm64-min-ci
-
-      - name: Create macOS x64 archive
-        run: |
-          ditto -c -k --sequesterRsrc --keepParent ../VSCode-darwin-x64 .build/VSCode-darwin-x64.zip
 
       - name: Create macOS arm64 archive
         run: |
           ditto -c -k --sequesterRsrc --keepParent ../VSCode-darwin-arm64 .build/VSCode-darwin-arm64.zip
-
-      - name: Upload x64 Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vscode-darwin-x64
-          path: .build/VSCode-darwin-x64.zip
 
       - name: Upload arm64 Artifact
         uses: actions/upload-artifact@v4
@@ -493,7 +355,6 @@ jobs:
       - name: Prepare prebuilt extensions
         run: |
           node build/prepare-prebuilt-extensions.ts --platform=linux --arch=x64
-          node build/prepare-prebuilt-extensions.ts --platform=linux --arch=arm64
 
       - name: Compile core (esbuild)
         run: npm run gulp core-ci
@@ -520,26 +381,12 @@ jobs:
         run: |
           npm run gulp "vscode-linux-x64-min-ci"
 
-      - name: Build Linux arm64
-        run: |
-          npm run gulp "vscode-linux-arm64-min-ci"
-
       - name: Create Linux x64 archive
         run: |
           tar -czf .build/VSCode-linux-x64.tar.gz -C .. VSCode-linux-x64
-
-      - name: Create Linux arm64 archive
-        run: |
-          tar -czf .build/VSCode-linux-arm64.tar.gz -C .. VSCode-linux-arm64
 
       - name: Upload x64 Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vscode-linux-x64
           path: .build/VSCode-linux-x64.tar.gz
-
-      - name: Upload arm64 Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vscode-linux-arm64
-          path: .build/VSCode-linux-arm64.tar.gz
