@@ -175,20 +175,20 @@ jobs:
 
       - name: ⚙️ Set env
         run: |
-          echo "VSCODE_SKIP_BUILTIN_EXTENSION_DOWNLOAD=1" >> "$GITHUB_ENV"
-          echo "VSCODE_ELECTRON_SKIP_DOWNLOAD=1" >> "$GITHUB_ENV"
-          echo "VSCODE_SKIP_PRELAUNCH=1" >> "$GITHUB_ENV"
-          echo "VSCODE_SKIP_BUNDLED_EXTENSIONS=1" >> "$GITHUB_ENV"
+          echo "TSCODE_SKIP_BUILTIN_EXTENSION_DOWNLOAD=1" >> "$GITHUB_ENV"
+          echo "TSCODE_ELECTRON_SKIP_DOWNLOAD=1" >> "$GITHUB_ENV"
+          echo "TSCODE_SKIP_PRELAUNCH=1" >> "$GITHUB_ENV"
+          echo "TSCODE_SKIP_BUNDLED_EXTENSIONS=1" >> "$GITHUB_ENV"
           echo "ELECTRON_DISABLE_CRASH_REPORTER=1" >> "$GITHUB_ENV"
           echo "ELECTRON_DISABLE_CRASH_REPORTING=1" >> "$GITHUB_ENV"
 
-      - name: 🔨 Build VSCode
+      - name: 🔨 Build TSCode
         run: |
           export NODE_OPTIONS="--max-old-space-size=8192"
-          export VSCODE_SKIP_BUILTIN_EXTENSION_DOWNLOAD=1
-          export VSCODE_ELECTRON_SKIP_DOWNLOAD=1
-          export VSCODE_SKIP_PRELAUNCH=1
-          export VSCODE_SKIP_BUNDLED_EXTENSIONS=1
+          export TSCODE_SKIP_BUILTIN_EXTENSION_DOWNLOAD=1
+          export TSCODE_ELECTRON_SKIP_DOWNLOAD=1
+          export TSCODE_SKIP_PRELAUNCH=1
+          export TSCODE_SKIP_BUNDLED_EXTENSIONS=1
           export ELECTRON_DISABLE_CRASH_REPORTER=1
           export ELECTRON_DISABLE_CRASH_REPORTING=1
           echo "Start: $(date)"
@@ -1084,22 +1084,22 @@ jobs:
           # 不要设置 DBUS_SESSION_BUS_ADDRESS=""
 
           # 使用 basic 密码存储，避免密钥环弹窗
-          export VSCODE_PASSWORD_STORE=basic
-          export VSCODE_USE_FILE_SECRET_STORAGE=1
+          export TSCODE_PASSWORD_STORE=basic
+          export TSCODE_USE_FILE_SECRET_STORAGE=1
 
           # 启用 GitHub 认证
-          export VSCODE_GITHUB_AUTHENTICATION=true
+          export TSCODE_GITHUB_AUTHENTICATION=true
 
-          export VSCODE_APPDATA="$HOME/.local/share/tscode"
-          export VSCODE_EXTENSIONS_DIR="$HOME/.tscode/extensions"
-          mkdir -p "$VSCODE_APPDATA" 2>/dev/null || true
-          mkdir -p "$VSCODE_EXTENSIONS_DIR" 2>/dev/null || true
+          export TSCODE_APPDATA="$HOME/.local/share/tscode"
+          export TSCODE_EXTENSIONS_DIR="$HOME/.tscode/extensions"
+          mkdir -p "$TSCODE_APPDATA" 2>/dev/null || true
+          mkdir -p "$TSCODE_EXTENSIONS_DIR" 2>/dev/null || true
 
-          export VSCODE_SYSTEM_EXTENSIONS="$SCRIPT_DIR/resources/app/extensions"
+          export TSCODE_SYSTEM_EXTENSIONS="$SCRIPT_DIR/resources/app/extensions"
 
           # 创建用户设置，启用 GitHub 认证
-          mkdir -p "$VSCODE_APPDATA/User"
-          cat > "$VSCODE_APPDATA/User/settings.json" << 'SETTINGS_EOF'
+          mkdir -p "$TSCODE_APPDATA/User"
+          cat > "$TSCODE_APPDATA/User/settings.json" << 'SETTINGS_EOF'
           {
               "github.authentication": true,
               "git.githubAuthentication": true,
@@ -1109,7 +1109,7 @@ jobs:
           SETTINGS_EOF
 
           # 创建 GitHub 认证存储
-          GITHUB_STORAGE="$VSCODE_APPDATA/User/globalStorage/github-authentication"
+          GITHUB_STORAGE="$TSCODE_APPDATA/User/globalStorage/github-authentication"
           mkdir -p "$GITHUB_STORAGE"
           if [ ! -f "$GITHUB_STORAGE/secrets.json" ]; then
               echo '{}' > "$GITHUB_STORAGE/secrets.json"
@@ -1121,9 +1121,9 @@ jobs:
               --disable-gpu \
               --disable-crash-reporter \
               --password-store=basic \
-              --extensions-dir="$VSCODE_EXTENSIONS_DIR" \
-              --user-data-dir="$VSCODE_APPDATA" \
-              --builtin-extensions-dir="$VSCODE_SYSTEM_EXTENSIONS" \
+              --extensions-dir="$TSCODE_EXTENSIONS_DIR" \
+              --user-data-dir="$TSCODE_APPDATA" \
+              --builtin-extensions-dir="$TSCODE_SYSTEM_EXTENSIONS" \
               --enable-proposed-api=vscode.github-authentication \
               "$@"
           RUNEOF
