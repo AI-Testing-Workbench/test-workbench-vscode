@@ -758,7 +758,8 @@ jobs:
           for dir in "/tmp/official-vscode-debug/VSCode-linux-x64" "/tmp/official-vscode-debug/vscode/VSCode-linux-x64"; do
             if [ -d "$dir" ]; then
               OFFICIAL_DIR="$dir"
-              break            fi
+              break
+            fi
           done
 
           if [ -z "$OFFICIAL_DIR" ]; then
