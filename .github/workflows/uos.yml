@@ -7,878 +7,87 @@ on:
         description: 'Package version'
         required: false
         default: '1.116.0'
+      branch:
+        description: 'Branch of release.yml to pull the linux artifact from'
+        required: false
+        default: 'main'
+
+permissions:
+  actions: read
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
 
     steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-
-      - name: 📦 Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20.x'
-
-      - name: 🔧 Install system dependencies
+      - name: 🔎 Find release.yml run with linux artifact
+        id: find-artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential pkg-config libgtk-3-dev libxkbfile-dev \
-            libkrb5-dev libgbm-dev rpm libx11-dev libxss-dev libxtst-dev \
-            libnss3-dev libasound2-dev libglib2.0-dev libcairo2-dev \
-            libpango1.0-dev libatk1.0-dev libgdk-pixbuf2.0-dev \
-            python3 git wget curl tree xz-utils \
-            dpkg-dev fakeroot lintian rsync jq
-
-      - name: 🔧 Fix TypeScript scripts
-        run: |
-          echo 'console.log("Preinstall OK");' > build/npm/preinstall.js
-          sed -i 's/"preinstall": "node build\/npm\/preinstall.ts"/"preinstall": "node build\/npm\/preinstall.js"/' package.json
-          echo 'console.log("Postinstall OK");' > build/npm/postinstall.js
-          sed -i 's/"postinstall": "node build\/npm\/postinstall.ts"/"postinstall": "node build\/npm\/postinstall.js"/' package.json
-
-      - name: 📦 Install dependencies
-        run: |
-          echo "=========================================="
-          echo "📦 Installing dependencies"
-          echo "=========================================="
-          npm install --legacy-peer-deps
-
-      - name: 📦 Install build tools
-        run: |
-          npm install -g tsx
-          npm install --legacy-peer-deps \
-            ternary-stream vscode-gulp-watch esbuild jsonc-parser \
-            gulp-merge-json gulp-tsb gulp-sourcemaps gulp-filter \
-            gulp-rename gulp-sort 2>/dev/null || true
-
-      - name: 🔧 Fix extensions.ts
-        run: |
-          cat > build/lib/extensions.ts << 'EOF'
-          import { Stream } from "stream";
-          const empty: any[] = [];
-          function emptyStream(): Stream {
-            const s = new Stream.Readable();
-            s._read = () => s.push(null);
-            return s;
-          }
-          export function isWebExtension(): boolean { return false; }
-          export function getExtensionStream(): Stream { return emptyStream(); }
-          export function getExtensionDownloadStream(): Stream { return emptyStream(); }
-          export function packageMarketplaceExtensionsStream(): Stream { return emptyStream(); }
-          export function packageNativeLocalExtensionsStream(): Stream { return emptyStream(); }
-          export function packageNonNativeLocalExtensionsStream(): Stream { return emptyStream(); }
-          export function packageLocalExtensionsStream(): Stream { return emptyStream(); }
-          export function packageExtensionsStream(): Stream { return emptyStream(); }
-          export function packageCopilotExtensionStream(): Stream { return emptyStream(); }
-          export function packageCopilotChatExtensionStream(): Stream { return emptyStream(); }
-          export function packageCopilotAgentsExtensionStream(): Stream { return emptyStream(); }
-          export function fromMarketplace(): any[] { return empty; }
-          export async function fetchUrls(urls: string[], options: any): Promise<void> {
-            console.log("fetchUrls: disabled");
-            return Promise.resolve();
-          }
-          export function buildExtensionMedia(): void {}
-          export function compileExtensionMedia(): void {}
-          export function buildExtensionMediaTask(done: any): void { done(); }
-          export const builtInExtensions = empty;
-          export const shouldDownloadBuiltInExtensions = false;
-          export const webBuiltInExtensions = empty;
-          export const shouldDownloadWebBuiltInExtensions = false;
-          EOF
-          echo 'export const builtInExtensions: any[] = [];
-          export const shouldDownloadBuiltInExtensions = false;
-          export const webBuiltInExtensions: any[] = [];
-          export const shouldDownloadWebBuiltInExtensions = false;' > build/lib/builtInExtensions.ts
-          echo 'import { Stream } from "stream";
-          export async function fetchUrls(urls: string[], options: any): Promise<void> {
-            console.log("fetchUrls: disabled");
-            return Promise.resolve();
-          }' > build/lib/fetch.ts
-
-      - name: 🔧 Fix gulpfile spawn calls
-        run: |
-          python3 << 'PY_END'
-          import re
-          with open('build/gulpfile.vscode.ts', 'r') as f:
-              content = f.read()
-          content = re.sub(r"spawn\('node'", "spawn('tsx'", content)
-          content = re.sub(r'spawn\("node"', 'spawn("tsx"', content)
-          content = re.sub(r"spawn\(process\.execPath", "spawn('tsx'", content)
-          with open('build/gulpfile.vscode.ts', 'w') as f:
-              f.write(content)
-          print("spawn calls fixed")
-          PY_END
-
-      - name: 🔧 Replace copilot.ts
-        run: |
-          cat > build/lib/copilot.ts << 'EOF'
-          export async function prepareBuiltInCopilotExtensionShims(extRoot: string): Promise<void> {
-              console.log('Copilot extension shims preparation skipped for UOS build');
-              return;
-          }
-          export function copyCopilotNativeDeps(productRoot: string): void {
-              console.log('Copilot native deps copy skipped for UOS build');
-          }
-          export function getCopilotExcludeFilter(): any {
-              return function() { return false; };
-          }
-          EOF
-
-      - name: 🔧 Disable Crashpad
-        run: |
-          echo "Disabling Crashpad"
-          python3 << 'PY_JSON_END'
-          import json
-          import os
-          if os.path.exists('product.json'):
-              with open('product.json', 'r') as f:
-                  data = json.load(f)
-              data['enableCrashReport'] = False
-              if 'crashReporter' not in data:
-                  data['crashReporter'] = {}
-              data['crashReporter']['disabled'] = True
-              with open('product.json', 'w') as f:
-                  json.dump(data, f, indent=2)
-              print("product.json modified")
-          PY_JSON_END
-
-          mkdir -p src/vs/platform/crash/common
-          cat > src/vs/platform/crash/common/crashService.ts << 'CRASH_EOF'
-          import { createDecorator } from '../../../base/common/instantiation.js';
-          export const ICrashService = createDecorator<ICrashService>('crashService');
-          export interface ICrashService { _serviceBrand: undefined; }
-          export class CrashService implements ICrashService {
-              declare readonly _serviceBrand: undefined;
-              constructor() { console.log('Crash service disabled for UOS build'); }
-          }
-          CRASH_EOF
-          echo "crashService.ts created"
-
-      - name: ⚙️ Set env
-        run: |
-          echo "TSCODE_SKIP_BUILTIN_EXTENSION_DOWNLOAD=1" >> "$GITHUB_ENV"
-          echo "TSCODE_ELECTRON_SKIP_DOWNLOAD=1" >> "$GITHUB_ENV"
-          echo "TSCODE_SKIP_PRELAUNCH=1" >> "$GITHUB_ENV"
-          echo "TSCODE_SKIP_BUNDLED_EXTENSIONS=1" >> "$GITHUB_ENV"
-          echo "ELECTRON_DISABLE_CRASH_REPORTER=1" >> "$GITHUB_ENV"
-          echo "ELECTRON_DISABLE_CRASH_REPORTING=1" >> "$GITHUB_ENV"
-
-      - name: 🔨 Build TSCode
-        run: |
-          export NODE_OPTIONS="--max-old-space-size=8192"
-          export TSCODE_SKIP_BUILTIN_EXTENSION_DOWNLOAD=1
-          export TSCODE_ELECTRON_SKIP_DOWNLOAD=1
-          export TSCODE_SKIP_PRELAUNCH=1
-          export TSCODE_SKIP_BUNDLED_EXTENSIONS=1
-          export ELECTRON_DISABLE_CRASH_REPORTER=1
-          export ELECTRON_DISABLE_CRASH_REPORTING=1
-          echo "Start: $(date)"
-          npx tsx node_modules/gulp/bin/gulp.js vscode-linux-x64 --no-color
-          echo "Done: $(date)"
-
-      - name: 🔍 Verify build contents
-        run: |
-          echo "=========================================="
-          echo "🔍 Verify build contents"
-          echo "=========================================="
-
-          BUILD_DIR=""
-          for dir in "./VSCode-linux-x64" "./vscode/VSCode-linux-x64" "../VSCode-linux-x64"; do
-            if [ -d "$dir" ]; then
-              BUILD_DIR="$dir"
-              echo "Found build directory: $BUILD_DIR"
-              break
-            fi
-          done
-
-          if [ -z "$BUILD_DIR" ]; then
-            echo "Build directory not found!"
-            exit 1
-          fi
-
-          TARGET_DIR="./tscode"
-          if [ "$BUILD_DIR" != "$TARGET_DIR" ]; then
-            echo "Renaming $BUILD_DIR to $TARGET_DIR"
-            rm -rf "$TARGET_DIR"
-            mv "$BUILD_DIR" "$TARGET_DIR"
-          fi
-          BUILD_DIR="$TARGET_DIR"
-          echo "BUILD_DIR=$BUILD_DIR" >> "$GITHUB_ENV"
-
-          echo "Initial build size:"
-          du -sh "$BUILD_DIR"
-
-      - name: 📦 Copy node_modules to resources/app
-        run: |
-          echo "=========================================="
-          echo "📦 Copy node_modules to resources/app"
-          echo "=========================================="
-
-          BUILD_DIR="${BUILD_DIR:-./tscode}"
-
-          if [ ! -d "./node_modules" ]; then
-            echo "❌ node_modules not found in root!"
-            echo "Installing node_modules..."
-            npm install --legacy-peer-deps
-          fi
-
-          echo "📌 Copying node_modules to $BUILD_DIR/resources/app/"
-          rm -rf "$BUILD_DIR/resources/app/node_modules"
-          cp -r ./node_modules "$BUILD_DIR/resources/app/"
-
-          echo "✅ node_modules copied"
-
-      - name: 🔥 Replace native modules and copy official extensions
-        run: |
-          set +e
-
-          echo "=========================================="
-          echo "🔥 Replacing native modules & copying official extensions"
-          echo "=========================================="
-
-          BUILD_DIR="${BUILD_DIR:-./tscode}"
-          VERSION="${{ github.event.inputs.version || '1.116.0' }}"
-
-          echo ""
-          echo "📌 Step 1: Downloading official VSCode $VERSION for Linux x64..."
-
-          rm -rf /tmp/official-vscode
-          rm -f /tmp/official.tar.gz
-
-          wget -q --show-progress "https://update.code.visualstudio.com/$VERSION/linux-x64/stable" -O /tmp/official.tar.gz
-
-          if [ $? -ne 0 ] || [ ! -s /tmp/official.tar.gz ]; then
-            echo "⚠️ Failed to download version $VERSION, trying latest..."
-            wget -q --show-progress https://update.code.visualstudio.com/latest/linux-x64/stable -O /tmp/official.tar.gz
-            if [ $? -ne 0 ] || [ ! -s /tmp/official.tar.gz ]; then
-              echo "❌ Failed to download official VSCode!"
-              exit 1
-            fi
-          fi
-
-          echo "📌 Extracting official VSCode..."
-          mkdir -p /tmp/official-vscode
-          tar -xzf /tmp/official.tar.gz -C /tmp/official-vscode/
-
-          OFFICIAL_DIR=""
-          for dir in "/tmp/official-vscode/VSCode-linux-x64" "/tmp/official-vscode/vscode/VSCode-linux-x64"; do
-            if [ -d "$dir" ]; then
-              OFFICIAL_DIR="$dir"
-              break
-            fi
-          done
-
-          if [ -z "$OFFICIAL_DIR" ]; then
-            OFFICIAL_DIR=$(find /tmp/official-vscode -type d -name "VSCode-linux-x64" 2>/dev/null | head -1)
-          fi
-
-          if [ -z "$OFFICIAL_DIR" ] || [ ! -d "$OFFICIAL_DIR" ]; then
-            echo "❌ Could not find official VSCode directory!"
-            echo "   Contents of /tmp/official-vscode:"
-            ls -la /tmp/official-vscode/
-            exit 1
-          fi
-
-          echo "✅ Official VSCode found at: $OFFICIAL_DIR"
-
-          echo ""
-          echo "📌 Step 2: Replacing node_modules with official version..."
-
-          if [ -d "$OFFICIAL_DIR/resources/app/node_modules" ]; then
-            echo "   ✅ Found official node_modules"
-
-            if [ -d "$BUILD_DIR/resources/app/node_modules" ]; then
-              echo "   📦 Backing up old node_modules..."
-              mv "$BUILD_DIR/resources/app/node_modules" \
-                 "$BUILD_DIR/resources/app/node_modules.bak"
-            fi
-
-            echo "   📦 Copying official node_modules..."
-            cp -r "$OFFICIAL_DIR/resources/app/node_modules" \
-                  "$BUILD_DIR/resources/app/"
-
-            if [ -d "$BUILD_DIR/resources/app/node_modules" ]; then
-              echo "   ✅ node_modules replaced successfully"
-              echo "   📊 Size: $(du -sh "$BUILD_DIR/resources/app/node_modules" | cut -f1)"
-            else
-              echo "   ❌ Failed to copy node_modules!"
-              exit 1
-            fi
-          else
-            echo "   ⚠️ No node_modules found in official build, skipping..."
-          fi
-
-          echo ""
-          echo "📌 Step 3: Copying official extensions to system directory..."
-
-          mkdir -p "$BUILD_DIR/resources/app/extensions"
-
-          EXT_COPIED=0
-          EXT_SKIPPED=0
-          EXT_FAILED=0
-          EXT_TOTAL=0
-
-          OFFICIAL_EXT_DIR="$OFFICIAL_DIR/resources/app/extensions"
-
-          if [ ! -d "$OFFICIAL_EXT_DIR" ]; then
-            echo "❌ Official extensions directory not found: $OFFICIAL_EXT_DIR"
-            exit 1
-          fi
-
-          echo "   📂 Official extensions directory: $OFFICIAL_EXT_DIR"
-          echo "   📂 Target directory: $BUILD_DIR/resources/app/extensions"
-          echo ""
-
-          echo "   📊 Scanning official extensions..."
-
-          EXT_LIST_FILE="/tmp/ext_list.txt"
-          find "$OFFICIAL_EXT_DIR" -maxdepth 1 -type d ! -path "$OFFICIAL_EXT_DIR" -exec basename {} \; > "$EXT_LIST_FILE" 2>/dev/null
-
-          EXT_TOTAL=$(wc -l < "$EXT_LIST_FILE" 2>/dev/null | tr -d ' ')
-          echo "   📊 Found $EXT_TOTAL extensions in official build"
-          echo ""
-
-          while IFS= read -r ext_name; do
-            [ -z "$ext_name" ] && continue
-
-            ext_path="$OFFICIAL_EXT_DIR/$ext_name"
-
-            if [ ! -d "$ext_path" ]; then
-              echo "      ⚠️ Source directory not found: $ext_name"
-              EXT_FAILED=$((EXT_FAILED + 1))
-              continue
-            fi
-
-            if [ -d "$BUILD_DIR/resources/app/extensions/$ext_name" ]; then
-              echo "      ⏭️ Skipping (already exists): $ext_name"
-              EXT_SKIPPED=$((EXT_SKIPPED + 1))
-              continue
-            fi
-
-            echo "      ✅ Copying: $ext_name"
-
-            if rsync -a --no-owner --no-group "$ext_path/" "$BUILD_DIR/resources/app/extensions/$ext_name/" 2>/dev/null; then
-              echo "         ✅ Success"
-              EXT_COPIED=$((EXT_COPIED + 1))
-            else
-              echo "         ❌ Failed to copy: $ext_name"
-              EXT_FAILED=$((EXT_FAILED + 1))
-            fi
-          done < "$EXT_LIST_FILE"
-
-          rm -f "$EXT_LIST_FILE"
-
-          echo ""
-          echo "   📊 Extension copy summary:"
-          echo "      📦 Total official extensions: $EXT_TOTAL"
-          echo "      ✅ Copied: $EXT_COPIED extensions"
-          echo "      ⏭️ Skipped: $EXT_SKIPPED extensions (already exist)"
-          echo "      ❌ Failed: $EXT_FAILED extensions"
-
-          ACTUAL_TOTAL=$(find "$BUILD_DIR/resources/app/extensions" -maxdepth 1 -type d ! -path "$BUILD_DIR/resources/app/extensions" 2>/dev/null | wc -l | tr -d ' ')
-          echo "      📂 Total in system: $ACTUAL_TOTAL extensions"
-
-          if [ $EXT_TOTAL -gt 0 ] && [ $EXT_COPIED -eq 0 ] && [ $EXT_SKIPPED -eq 0 ]; then
-            echo ""
-            echo "❌ No extensions were copied! This is a critical error."
-            exit 1
-          fi
-
-          echo ""
-          echo "   🔍 Verifying critical extensions..."
-          CRITICAL_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features"
-          MISSING_EXTS=""
-          for ext in $CRITICAL_EXTS; do
-            if [ -d "$BUILD_DIR/resources/app/extensions/$ext" ]; then
-              echo "      ✅ $ext"
-            else
-              echo "      ❌ $ext (NOT FOUND!)"
-              MISSING_EXTS="$MISSING_EXTS $ext"
-            fi
-          done
-
-          if [ -n "$MISSING_EXTS" ]; then
-            echo ""
-            echo "❌ Critical extensions are missing:$MISSING_EXTS"
-            echo "   This may cause issues when running TSCode."
-            exit 1
-          fi
-
-          echo ""
-          echo "📌 Step 4: Cleaning up temporary files..."
-          rm -f /tmp/official.tar.gz
-          rm -rf /tmp/official-vscode
-          echo "   ✅ Cleanup completed"
-
-          echo ""
-          echo "✅ Native modules and extensions replacement completed!"
-
           set -e
-
-      - name: 🧹 Deep cleanup (preserve runtime files)
-        run: |
-          echo "=========================================="
-          echo "🧹 Deep cleanup - preserving runtime files"
-          echo "=========================================="
-
-          BUILD_DIR="${BUILD_DIR:-./tscode}"
-
-          echo "📊 Before cleanup:"
-          du -sh "$BUILD_DIR"
-          du -sh "$BUILD_DIR/resources/app" 2>/dev/null || true
-
-          echo ""
-          echo "📌 Preserving core extensions..."
-          CORE_EXTS="typescript-language-features git json-language-features markdown-language-features html-language-features css-language-features npm debug-auto-launch merge-conflict search-result @builtin"
-
-          mkdir -p /tmp/core-extensions-backup
-          for ext in $CORE_EXTS; do
-            if [ -d "$BUILD_DIR/resources/app/extensions/$ext" ]; then
-              echo "   Backing up: $ext"
-              mv "$BUILD_DIR/resources/app/extensions/$ext" /tmp/core-extensions-backup/ 2>/dev/null || true
-            fi
-          done
-
-          cd "$BUILD_DIR/resources/app"
-
-          echo ""
-          echo "📌 Removing non-Linux TestAgent extensions..."
-          rm -rf extensions/testagent-nodejs-tscode-darwin-arm64 2>/dev/null || true
-          rm -rf extensions/testagent-nodejs-tscode-win32-x64 2>/dev/null || true
-          rm -rf ../custom-extensions/testagent-nodejs-tscode-darwin-arm64 2>/dev/null || true
-          rm -rf ../custom-extensions/testagent-nodejs-tscode-win32-x64 2>/dev/null || true
-
-          echo ""
-          echo "📌 Removing unwanted extensions (copilot)..."
-          rm -rf extensions/copilot 2>/dev/null || true
-
-          echo ""
-          echo "📌 Removing source code from extensions..."
-          for ext in extensions/*/; do
-            if [ -d "$ext" ]; then
-              rm -rf "$ext/src" 2>/dev/null || true
-              find "$ext" -name "*.ts" -type f ! -name "*.d.ts" -delete 2>/dev/null || true
-              find "$ext" -name "*.map" -type f -delete 2>/dev/null || true
-              rm -rf "$ext/test" 2>/dev/null || true
-              rm -rf "$ext/tests" 2>/dev/null || true
-              rm -rf "$ext/__tests__" 2>/dev/null || true
-              rm -rf "$ext/example" 2>/dev/null || true
-              rm -rf "$ext/examples" 2>/dev/null || true
-            fi
-          done
-
-          echo ""
-          echo "📌 Cleaning node_modules (PRESERVING debug dependencies)..."
-
-          npx json -I -f package.json -e 'this.devDependencies={}' 2>/dev/null || true
-
-          # 保留调试依赖 - 不要删除 @vscode/js-debug 和 @vscode/extension-debug
-          find node_modules -name "*.ts" -type f ! -name "*.d.ts" \
-            ! -path "*/@vscode/js-debug/*" \
-            ! -path "*/@vscode/extension-debug/*" \
-            -delete 2>/dev/null || true
-
-          find node_modules -name "*.md" -type f \
-            ! -path "*/@vscode/js-debug/*" \
-            ! -path "*/@vscode/extension-debug/*" \
-            -delete 2>/dev/null || true
-
-          find node_modules -name "CHANGELOG*" -type f \
-            ! -path "*/@vscode/js-debug/*" \
-            ! -path "*/@vscode/extension-debug/*" \
-            -delete 2>/dev/null || true
-
-          find node_modules -name "LICENSE*" -type f \
-            ! -path "*/@vscode/js-debug/*" \
-            ! -path "*/@vscode/extension-debug/*" \
-            -delete 2>/dev/null || true
-
-          find node_modules -type d -name "test" \
-            ! -path "*/@vscode/js-debug/*" \
-            ! -path "*/@vscode/extension-debug/*" \
-            -exec rm -rf {} + 2>/dev/null || true
-
-          find node_modules -type d -name "tests" \
-            ! -path "*/@vscode/js-debug/*" \
-            ! -path "*/@vscode/extension-debug/*" \
-            -exec rm -rf {} + 2>/dev/null || true
-
-          find node_modules -type d -name "__tests__" \
-            ! -path "*/@vscode/js-debug/*" \
-            ! -path "*/@vscode/extension-debug/*" \
-            -exec rm -rf {} + 2>/dev/null || true
-
-          find node_modules -type d -name "example" \
-            ! -path "*/@vscode/js-debug/*" \
-            ! -path "*/@vscode/extension-debug/*" \
-            -exec rm -rf {} + 2>/dev/null || true
-
-          find node_modules -type d -name "examples" \
-            ! -path "*/@vscode/js-debug/*" \
-            ! -path "*/@vscode/extension-debug/*" \
-            -exec rm -rf {} + 2>/dev/null || true
-
-          find node_modules -name "*.map" -type f \
-            ! -path "*/@vscode/js-debug/*" \
-            ! -path "*/@vscode/extension-debug/*" \
-            -delete 2>/dev/null || true
-
-          find node_modules -type d -name ".git" \
-            ! -path "*/@vscode/js-debug/*" \
-            ! -path "*/@vscode/extension-debug/*" \
-            -exec rm -rf {} + 2>/dev/null || true
-
-          echo ""
-          echo "📌 Removing dev tools (preserving debug deps)..."
-          rm -rf node_modules/@types 2>/dev/null || true
-          rm -rf node_modules/webpack 2>/dev/null || true
-          rm -rf node_modules/rollup 2>/dev/null || true
-          rm -rf node_modules/vite 2>/dev/null || true
-          rm -rf node_modules/terser 2>/dev/null || true
-          rm -rf node_modules/eslint 2>/dev/null || true
-          rm -rf node_modules/prettier 2>/dev/null || true
-          rm -rf node_modules/typescript 2>/dev/null || true
-          rm -rf node_modules/@typescript-eslint 2>/dev/null || true
-          rm -rf node_modules/jest 2>/dev/null || true
-          rm -rf node_modules/mocha 2>/dev/null || true
-          rm -rf node_modules/chai 2>/dev/null || true
-          rm -rf node_modules/sinon 2>/dev/null || true
-
-          echo ""
-          echo "📌 Removing build temp..."
-          rm -rf .cache 2>/dev/null || true
-          rm -rf build 2>/dev/null || true
-          rm -rf *.tsbuildinfo 2>/dev/null || true
-
-          cd - > /dev/null
-
-          echo ""
-          echo "📌 Restoring core extensions..."
-          if [ -d "/tmp/core-extensions-backup" ]; then
-            for ext in $CORE_EXTS; do
-              if [ -d "/tmp/core-extensions-backup/$ext" ]; then
-                echo "   Restoring: $ext"
-                mv "/tmp/core-extensions-backup/$ext" "$BUILD_DIR/resources/app/extensions/" 2>/dev/null || true
-              fi
-            done
-            rm -rf /tmp/core-extensions-backup
-          fi
-
-          echo ""
-          echo "📊 After cleanup:"
-          du -sh "$BUILD_DIR"
-          du -sh "$BUILD_DIR/resources/app" 2>/dev/null || true
-
-          echo "✅ Deep cleanup completed"
-
-      - name: 🔧 Restore debug dependencies
-        run: |
-          echo "=========================================="
-          echo "🔧 Restoring debug dependencies"
-          echo "=========================================="
-
-          BUILD_DIR="${BUILD_DIR:-./tscode}"
-
-          echo "📌 Step 1: Downloading official VSCode for debug deps..."
-
-          # 下载官方 VSCode
-          rm -rf /tmp/official-vscode-debug
-          rm -f /tmp/official-debug.tar.gz
-
-          VERSION="${{ github.event.inputs.version || '1.116.0' }}"
-          wget -q --show-progress "https://update.code.visualstudio.com/$VERSION/linux-x64/stable" -O /tmp/official-debug.tar.gz
-
-          if [ $? -ne 0 ] || [ ! -s /tmp/official-debug.tar.gz ]; then
-            echo "⚠️ Failed to download version $VERSION, trying latest..."
-            wget -q --show-progress https://update.code.visualstudio.com/latest/linux-x64/stable -O /tmp/official-debug.tar.gz
-          fi
-
-          if [ ! -s /tmp/official-debug.tar.gz ]; then
-            echo "❌ Failed to download official VSCode!"
-            echo "⚠️ Debug dependencies will be missing"
-            exit 0
-          fi
-
-          echo "📌 Step 2: Extracting official VSCode..."
-          mkdir -p /tmp/official-vscode-debug
-          tar -xzf /tmp/official-debug.tar.gz -C /tmp/official-vscode-debug/
-
-          OFFICIAL_DIR=""
-          for dir in "/tmp/official-vscode-debug/VSCode-linux-x64" "/tmp/official-vscode-debug/vscode/VSCode-linux-x64"; do
-            if [ -d "$dir" ]; then
-              OFFICIAL_DIR="$dir"
+          BRANCH="${{ github.event.inputs.branch || 'main' }}"
+          RUN_ID=""
+          for candidate in $(gh run list --workflow release.yml --branch "$BRANCH" --status success --limit 20 --json databaseId --jq '.[].databaseId'); do
+            FOUND=$(gh api "repos/$GH_REPO/actions/runs/$candidate/artifacts" --jq '.artifacts[] | select(.name=="vscode-linux-x64") | .id' | head -1)
+            if [ -n "$FOUND" ]; then
+              RUN_ID="$candidate"
               break
             fi
           done
-
-          if [ -z "$OFFICIAL_DIR" ]; then
-            OFFICIAL_DIR=$(find /tmp/official-vscode-debug -type d -name "VSCode-linux-x64" 2>/dev/null | head -1)
+          if [ -z "$RUN_ID" ]; then
+            echo "❌ No recent successful release.yml run on branch '$BRANCH' contains the 'vscode-linux-x64' artifact."
+            echo "   Please run the Release Build workflow with platforms: linux or all first."
+            exit 1
           fi
+          echo "✅ Found vscode-linux-x64 artifact in release.yml run: $RUN_ID"
+          echo "run-id=$RUN_ID" >> "$GITHUB_OUTPUT"
 
-          if [ -z "$OFFICIAL_DIR" ] || [ ! -d "$OFFICIAL_DIR" ]; then
-            echo "❌ Could not find official VSCode directory!"
-            echo "⚠️ Debug dependencies will be missing"
-            exit 0
-          fi
+      - name: ⬇️ Download linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vscode-linux-x64
+          run-id: ${{ steps.find-artifact.outputs.run-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/artifact
 
-          echo "✅ Official VSCode found at: $OFFICIAL_DIR"
-
-          echo ""
-          echo "📌 Step 3: Copying debug extensions from official build..."
-
-          OFFICIAL_EXT_DIR="$OFFICIAL_DIR/resources/app/extensions"
-          TARGET_EXT_DIR="$BUILD_DIR/resources/app/extensions"
-
-          # 需要复制的调试扩展列表
-          DEBUG_EXTENSIONS="js-debug extension-debug ms-vscode.js-debug ms-vscode.extension-debug"
-
-          for ext in $DEBUG_EXTENSIONS; do
-            # 尝试不同的名称格式
-            for ext_name in "$ext" "ms-vscode.$ext" "vscode.$ext"; do
-              if [ -d "$OFFICIAL_EXT_DIR/$ext_name" ]; then
-                echo "   ✅ Found $ext_name in official build"
-                echo "   📦 Copying $ext_name..."
-                rm -rf "$TARGET_EXT_DIR/$ext_name"
-                cp -r "$OFFICIAL_EXT_DIR/$ext_name" "$TARGET_EXT_DIR/"
-                echo "   ✅ $ext_name copied"
-                break
-              fi
-            done
-          done
-
-          # 也复制整个 extensions 目录中与调试相关的所有扩展
-          echo ""
-          echo "📌 Step 4: Copying all debug-related extensions..."
-
-          # 查找所有包含 "debug" 或 "js-debug" 的扩展目录
-          find "$OFFICIAL_EXT_DIR" -maxdepth 1 -type d -name "*debug*" 2>/dev/null | while read -r ext_dir; do
-            ext_name=$(basename "$ext_dir")
-            if [ ! -d "$TARGET_EXT_DIR/$ext_name" ]; then
-              echo "   📦 Copying $ext_name..."
-              cp -r "$ext_dir" "$TARGET_EXT_DIR/"
-              echo "   ✅ $ext_name copied"
-            fi
-          done
-
-          echo ""
-          echo "📌 Step 5: Fixing permissions..."
-          find "$TARGET_EXT_DIR" -name "*debug*" -type d -exec chmod -R 755 {} \; 2>/dev/null || true
-
-          echo ""
-          echo "📌 Step 6: Cleaning up..."
-          rm -f /tmp/official-debug.tar.gz
-          rm -rf /tmp/official-vscode-debug
-
-          echo ""
-          echo "📌 Final debug extensions status:"
-          DEBUG_OK=0
-          DEBUG_MISSING=0
-
-          # 检查是否找到了调试扩展
-          FOUND_DEBUG_EXTS=$(find "$TARGET_EXT_DIR" -maxdepth 1 -type d -name "*debug*" 2>/dev/null | wc -l)
-
-          if [ $FOUND_DEBUG_EXTS -gt 0 ]; then
-            echo "   ✅ Found $FOUND_DEBUG_EXTS debug-related extension(s):"
-            find "$TARGET_EXT_DIR" -maxdepth 1 -type d -name "*debug*" -exec basename {} \; 2>/dev/null | while read -r ext; do
-              echo "      - $ext"
-            done
-            DEBUG_OK=1
-          else
-            echo "   ❌ No debug extensions found!"
-            DEBUG_MISSING=1
-          fi
-
-          if [ $DEBUG_MISSING -gt 0 ]; then
-            echo ""
-            echo "⚠️ No debug extensions found in official build."
-            echo "   This may be because the version of VSCode doesn't include them,"
-            echo "   or they are bundled differently."
-            echo ""
-            echo "📌 Attempting to copy from backup extensions..."
-
-            if [ -d "$BUILD_DIR/resources/app/extensions.bak" ]; then
-              find "$BUILD_DIR/resources/app/extensions.bak" -maxdepth 1 -type d -name "*debug*" 2>/dev/null | while read -r ext_dir; do
-                ext_name=$(basename "$ext_dir")
-                echo "   📦 Copying $ext_name from backup..."
-                cp -r "$ext_dir" "$TARGET_EXT_DIR/"
-                echo "   ✅ $ext_name copied from backup"
-              done
-            fi
-          else
-            echo ""
-            echo "✅ Debug extensions found!"
-          fi
-
-      - name: 🔬 Verify debug functionality
+      - name: 📦 Extract and setup build directory
         run: |
-          echo "=========================================="
-          echo "🔬 Verifying debug functionality"
-          echo "=========================================="
-
-          BUILD_DIR="${BUILD_DIR:-./tscode}"
-
-          echo "📌 Step 1: Checking debug extensions in build..."
-
-          DEBUG_EXTS=$(find "$BUILD_DIR/resources/app/extensions" -maxdepth 1 -type d -name "*debug*" 2>/dev/null)
-          DEBUG_COUNT=$(echo "$DEBUG_EXTS" | grep -v "^$" | wc -l)
-
-          if [ $DEBUG_COUNT -gt 0 ]; then
-            echo "   ✅ Found $DEBUG_COUNT debug extension(s):"
-            echo "$DEBUG_EXTS" | while read -r ext; do
-              echo "      - $(basename "$ext")"
-
-              # 检查扩展是否包含 package.json
-              if [ -f "$ext/package.json" ]; then
-                echo "         ✅ package.json exists"
-                # 检查是否包含调试相关的 contributes
-                if grep -q '"debuggers"' "$ext/package.json" 2>/dev/null; then
-                  echo "         ✅ Contains debugger contribution"
-                fi
-              fi
-            done
-          else
-            echo "   ❌ No debug extensions found!"
+          set -e
+          TARBALL=$(find /tmp/artifact -name "VSCode-linux-x64.tar.gz" | head -1)
+          if [ -z "$TARBALL" ]; then
+            echo "❌ VSCode-linux-x64.tar.gz not found in /tmp/artifact!"
+            find /tmp/artifact -maxdepth 3 | head -20
             exit 1
           fi
+          mkdir -p /tmp/extract
+          tar -xzf "$TARBALL" -C /tmp/extract/
 
-          echo ""
-          echo "📌 Step 2: Checking debug adapter files..."
-
-          # 检查 js-debug 扩展的关键文件
-          for ext in "$BUILD_DIR/resources/app/extensions"/*debug*; do
-            if [ -d "$ext" ]; then
-              ext_name=$(basename "$ext")
-              echo "   🔍 Checking $ext_name..."
-
-              # 检查调试适配器脚本
-              if [ -f "$ext/out/debugAdapter.js" ] || [ -f "$ext/out/extension.js" ]; then
-                echo "      ✅ Debug adapter script found"
-              else
-                echo "      ⚠️ No debug adapter script found (may be fine)"
-              fi
-
-              # 检查 package.json 中的 main 入口
-              if [ -f "$ext/package.json" ]; then
-                MAIN=$(grep -o '"main": *"[^"]*"' "$ext/package.json" 2>/dev/null | head -1 | cut -d'"' -f4)
-                if [ -n "$MAIN" ]; then
-                  echo "      ✅ Main entry: $MAIN"
-                fi
-              fi
+          SRC_DIR=""
+          for d in /tmp/extract/VSCode-linux-x64 /tmp/extract/vscode/VSCode-linux-x64; do
+            if [ -d "$d" ]; then
+              SRC_DIR="$d"
+              break
             fi
           done
-
-          echo ""
-          echo "📌 Step 3: Checking debug configuration in product.json..."
-
-          if [ -f "$BUILD_DIR/product.json" ]; then
-            if grep -q '"debug"' "$BUILD_DIR/product.json" 2>/dev/null; then
-              echo "   ✅ debug configuration found in product.json"
-            else
-              echo "   ℹ️ No debug configuration in product.json (may be fine)"
-            fi
-          fi
-
-          echo ""
-          echo "📌 Step 4: Checking extensionHost dependencies..."
-
-          # 检查 extensionHost 相关的 node_modules
-          if [ -d "$BUILD_DIR/resources/app/node_modules" ]; then
-            if [ -d "$BUILD_DIR/resources/app/node_modules/@vscode/extension-debug" ] || \
-               [ -d "$BUILD_DIR/resources/app/node_modules/vscode-extension" ] || \
-               [ -d "$BUILD_DIR/resources/app/node_modules/vscode-extension-host" ]; then
-              echo "   ✅ ExtensionHost dependencies found"
-            else
-              echo "   ⚠️ ExtensionHost dependencies not found (may still work)"
-            fi
-          fi
-
-          echo ""
-          echo "📌 Step 5: Creating debug test script..."
-
-          cat > "$BUILD_DIR/test-debug.sh" << 'DEBUG_TEST_EOF'
-          #!/bin/bash
-          echo "=========================================="
-          echo "🧪 TSCode Debug Functionality Test"
-          echo "=========================================="
-
-          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-          echo ""
-          echo "📌 1. Checking debug extensions in installed package..."
-          DEBUG_EXTS=$(find "$SCRIPT_DIR/resources/app/extensions" -maxdepth 1 -type d -name "*debug*" 2>/dev/null)
-          DEBUG_COUNT=$(echo "$DEBUG_EXTS" | grep -v "^$" | wc -l)
-
-          if [ $DEBUG_COUNT -gt 0 ]; then
-            echo "   ✅ $DEBUG_COUNT debug extension(s) found:"
-            echo "$DEBUG_EXTS" | while read -r ext; do
-              echo "      - $(basename "$ext")"
-            done
-          else
-            echo "   ❌ No debug extensions found!"
+          if [ -z "$SRC_DIR" ]; then
+            echo "❌ VSCode-linux-x64 directory not found in artifact!"
+            ls -la /tmp/extract/
             exit 1
           fi
 
-          echo ""
-          echo "📌 2. Checking debug adapter files..."
-          for ext in "$SCRIPT_DIR/resources/app/extensions"/*debug*; do
-            if [ -d "$ext" ]; then
-              if [ -f "$ext/out/debugAdapter.js" ] || [ -f "$ext/out/extension.js" ]; then
-                echo "   ✅ $(basename "$ext"): debug adapter exists"
-              fi
-            fi
-          done
+          rm -rf ./tscode
+          mv "$SRC_DIR" ./tscode
+          echo "BUILD_DIR=./tscode" >> "$GITHUB_ENV"
 
-          echo ""
-          echo "📌 3. Checking if extensionHost debug type is registered..."
-          if [ -d "$SCRIPT_DIR/resources/app/extensions/ms-vscode.js-debug" ] || \
-             [ -d "$SCRIPT_DIR/resources/app/extensions/js-debug" ] || \
-             [ -d "$SCRIPT_DIR/resources/app/extensions/extension-debug" ] || \
-             [ -d "$SCRIPT_DIR/resources/app/extensions/ms-vscode.extension-debug" ]; then
-            echo "   ✅ Debug extensions are present"
-          else
-            echo "   ⚠️ No known debug extensions found"
-          fi
+          VERSION=$(node -p "require('./tscode/resources/app/package.json').version" 2>/dev/null || echo "${{ github.event.inputs.version || '1.116.0' }}")
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
-          echo ""
-          echo "📌 4. Checking vscode-debug extension (for extensionHost)..."
-          if [ -d "$SCRIPT_DIR/resources/app/extensions/extension-debug" ] || \
-             [ -d "$SCRIPT_DIR/resources/app/extensions/ms-vscode.extension-debug" ]; then
-            echo "   ✅ extension-debug extension found (supports extensionHost debugging)"
-          else
-            echo "   ⚠️ extension-debug not found (extensionHost may still work)"
-          fi
-
-          echo ""
-          echo "=========================================="
-          echo "✅ Debug functionality check completed!"
-          echo ""
-          echo "📋 To test extensionHost debugging manually:"
-          echo "   1. Open a VS Code extension project"
-          echo "   2. Press F5 to start debugging"
-          echo "   3. Check if 'Run Extension' configuration works"
-          echo "=========================================="
-          DEBUG_TEST_EOF
-
-          chmod +x "$BUILD_DIR/test-debug.sh"
-          echo "   ✅ test-debug.sh created"
-
-          echo ""
-          echo "📌 Step 6: Running debug test..."
-          if "$BUILD_DIR/test-debug.sh"; then
-            echo "   ✅ Debug test passed!"
-          else
-            echo "   ❌ Debug test failed!"
-            exit 1
-          fi
-
-          echo ""
-          echo "✅ Debug functionality verification completed!"
+          echo "✅ Build dir: ./tscode (version $VERSION)"
+          du -sh ./tscode
 
       - name: 📄 Create launcher and fix all issues
         run: |
@@ -893,7 +102,7 @@ jobs:
           [ -f "resources/app/product.json" ] && cp "resources/app/product.json" . && echo "✅ product.json"
 
           REAL_EXEC=""
-          for name in code code-oss; do
+          for name in tscode code code-oss; do
             if [ -f "./$name" ]; then
               REAL_EXEC="$name"
               break
@@ -1203,7 +412,7 @@ jobs:
           echo "=========================================="
 
           BUILD_DIR="${BUILD_DIR:-./tscode}"
-          VERSION="${{ github.event.inputs.version || '1.116.0' }}"
+          VERSION="${VERSION:-1.116.0}"
           DEB_VERSION="${VERSION}-1"
           DEB_ARCH="amd64"
           DEB_ROOT="$(pwd)/deb_root"
@@ -1290,10 +499,7 @@ jobs:
                   echo "  This means custom extensions were not properly copied to the build."
               fi
           else
-              echo "  ❌ ERROR: custom-extensions directory NOT FOUND in DEB root!"
-              echo "  This means custom extensions were not included in the DEB package."
-              echo "  🔍 Searching for custom-extensions in DEB root..."
-              find "$DEB_ROOT" -name "custom-extensions" -type d 2>/dev/null || echo "  (not found)"
+              echo "  ℹ️ custom-extensions directory not found in DEB root (prebuilt extensions are bundled under resources/app/extensions)"
           fi
 
           echo ""
@@ -1659,7 +865,7 @@ jobs:
           echo "🔍 Verifying DEB package extensions"
           echo "=========================================="
 
-          VERSION="${{ github.event.inputs.version || '1.116.0' }}"
+          VERSION="${VERSION:-1.116.0}"
           DEB_VERSION="${VERSION}-1"
           DEB_ARCH="amd64"
           DEB_FILE="tscode-${DEB_VERSION}_${DEB_ARCH}.deb"
@@ -1774,7 +980,7 @@ jobs:
           echo "🔍 Verifying custom extensions in DEB package"
           echo "=========================================="
 
-          VERSION="${{ github.event.inputs.version || '1.116.0' }}"
+          VERSION="${VERSION:-1.116.0}"
           DEB_VERSION="${VERSION}-1"
           DEB_ARCH="amd64"
           DEB_FILE="tscode-${DEB_VERSION}_${DEB_ARCH}.deb"
@@ -1808,7 +1014,7 @@ jobs:
           CUSTOM_EXT_DIR="./opt/tscode/resources/app/custom-extensions"
 
           if [ ! -d "$CUSTOM_EXT_DIR" ]; then
-            echo "ℹ️ custom-extensions directory not found in DEB package (may be empty)"
+            echo "ℹ️ custom-extensions directory not found in DEB package (prebuilt extensions are bundled under resources/app/extensions)"
           else
             echo "✅ custom-extensions directory exists in DEB package"
             echo ""
@@ -1848,7 +1054,7 @@ jobs:
           echo "📊 BUILD SUMMARY"
           echo "=========================================="
           echo "Status: ${{ job.status }}"
-          echo "Version: ${{ github.event.inputs.version || '1.116.0' }}"
+          echo "Version: ${VERSION:-1.116.0}"
           echo "Format: DEB (Debian 10)"
           echo ""
           echo "✅ Features:"

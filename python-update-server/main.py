@@ -62,6 +62,12 @@ CONFIG = {
     'RELEASENOTES_DIR': os.getenv('RELEASENOTES_DIR', './releasenotes'),
 }
 
+# 平台别名映射：客户端发送的平台标识与服务端文件名推断不一致时的兼容
+# macOS x64 客户端发送 "darwin"，而服务端按文件名推断为 "darwin-x64"
+PLATFORM_ALIASES = {
+    'darwin': 'darwin-x64',
+}
+
 # test-workbench_change start
 # 自动安装插件配置文件路径（服务器根目录，避免 docker 只读挂载问题）
 AUTO_INSTALL_CONFIG_FILE = Path(__file__).parent / 'auto-install-extensions.json'
@@ -874,6 +880,9 @@ async def check_update(
 
     # 重新扫描目录（支持热更新）
     config = scan_packages_directory()
+
+    # 平台别名映射（兼容客户端平台标识与文件名推断不一致的情况，如 macOS x64 发送 darwin）
+    platform = PLATFORM_ALIASES.get(platform, platform)
 
     # 构建版本键
     version_key = f"{platform}/{quality}"
@@ -1976,34 +1985,49 @@ async def get_rollback_status():
 @app.post("/admin/upload-package")
 async def upload_package(
     request: Request,
-    exe_file: UploadFile = File(...),
-    product_file: UploadFile = File(...)
+    product_file: UploadFile = File(...),
+    installer_files: List[UploadFile] = File(...)
 ):
     """
-    上传新版本更新包
+    上传新版本更新包（支持 .exe 和 .deb 多平台安装包）
 
     功能：
-    1. 将当前 packages 目录中的文件移动到 backup 目录
+    1. 将当前 packages 目录中的安装包和 product.json 移动到 backup 目录
     2. 如果 backup 目录已存在，重命名为 backup_YYYYMMDD_HHMMSS
-    3. 上传新的 exe 和 product.json 文件到 packages 目录
+    3. 上传新的安装包（.exe / .deb）和 product.json 文件到 packages 目录
 
     参数：
-    - exe_file: TestAgentStudio.exe 文件
+    - installer_files: 一个或多个安装包文件（.exe / .deb），保留原始文件名以按文件名识别平台
     - product_file: product.json 文件
     """
     # 验证管理员权限
     require_admin_auth(request)
+
+    # 支持的安装包扩展名
+    installer_extensions = ('.exe', '.deb')
 
     try:
         packages_dir = Path(CONFIG['PACKAGES_DIR'])
         backup_dir = packages_dir / "backup"
 
         # 验证文件类型
-        if not exe_file.filename.endswith('.exe'):
-            raise HTTPException(status_code=400, detail="exe_file 必须是 .exe 文件")
-
         if not product_file.filename.endswith('.json'):
             raise HTTPException(status_code=400, detail="product_file 必须是 .json 文件")
+
+        # 校验并收集安装包文件
+        installers: List[UploadFile] = []
+        for f in installer_files:
+            filename = f.filename or ''
+            ext = Path(filename).suffix.lower()
+            if ext not in installer_extensions:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"不支持的文件类型: {filename}，仅支持 {' / '.join(installer_extensions)} 文件"
+                )
+            installers.append(f)
+
+        if not installers:
+            raise HTTPException(status_code=400, detail="至少需要选择一个安装包文件（.exe / .deb）")
 
         # 0. 读取当前版本信息（用于备份目录命名）
         old_version = ""
@@ -2036,20 +2060,19 @@ async def upload_package(
         # 2. 创建新的 backup 目录
         backup_dir.mkdir(exist_ok=True)
 
-        # 3. 移动当前文件到 backup 目录
-        current_exe = packages_dir / "TestAgentStudio.exe"
-        current_product = packages_dir / "product.json"
-
+        # 3. 移动当前所有安装包和 product.json 到 backup 目录
         files_moved = []
-        if current_exe.exists():
-            current_exe.rename(backup_dir / "TestAgentStudio.exe")
-            files_moved.append("TestAgentStudio.exe")
-            logger.info(f"已移动 TestAgentStudio.exe 到 backup 目录")
-
-        if current_product.exists():
-            current_product.rename(backup_dir / "product.json")
-            files_moved.append("product.json")
-            logger.info(f"已移动 product.json 到 backup 目录")
+        for file_path in packages_dir.iterdir():
+            if not file_path.is_file():
+                continue
+            if file_path.name == 'product.json':
+                file_path.rename(backup_dir / "product.json")
+                files_moved.append("product.json")
+                logger.info("已移动 product.json 到 backup 目录")
+            elif file_path.suffix.lower() in installer_extensions:
+                file_path.rename(backup_dir / file_path.name)
+                files_moved.append(file_path.name)
+                logger.info(f"已移动 {file_path.name} 到 backup 目录")
 
         # 创建 backup 目录的 README
         readme_path = backup_dir / "README.md"
@@ -2060,20 +2083,19 @@ async def upload_package(
             for file in files_moved:
                 f.write(f"- {file}\n")
 
-        # 4. 保存上传的新文件
-        new_exe_path = packages_dir / "TestAgentStudio.exe"
-        new_product_path = packages_dir / "product.json"
-
-        # 保存 exe 文件
-        with open(new_exe_path, 'wb') as f:
-            content = await exe_file.read()
-            f.write(content)
-        logger.info(f"已保存新的 TestAgentStudio.exe ({len(content)} bytes)")
+        # 4. 保存上传的新文件（保留原始文件名，便于按文件名识别平台）
+        for f in installers:
+            new_installer_path = packages_dir / (f.filename or '')
+            with open(new_installer_path, 'wb') as out:
+                content = await f.read()
+                out.write(content)
+            logger.info(f"已保存安装包 {f.filename} ({len(content)} bytes)")
 
         # 保存 product.json 文件
-        with open(new_product_path, 'wb') as f:
+        new_product_path = packages_dir / "product.json"
+        with open(new_product_path, 'wb') as out:
             content = await product_file.read()
-            f.write(content)
+            out.write(content)
         logger.info(f"已保存新的 product.json")
 
         # 5. 读取新版本信息
@@ -2097,7 +2119,8 @@ async def upload_package(
             "backup_info": {
                 "files_moved": files_moved,
                 "backup_location": str(backup_dir)
-            }
+            },
+            "installers": [f.filename for f in installers]
         }
 
     except HTTPException:
