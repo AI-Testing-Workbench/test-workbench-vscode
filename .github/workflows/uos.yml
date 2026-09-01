@@ -3,22 +3,10 @@ name: Build for UOS SUCCESS
 on:
   workflow_dispatch:
     inputs:
-      branch:
-        description: 'Branch to build'
-        required: true
-        default: 'feature/uos-workflow'
       version:
         description: 'Package version'
         required: false
         default: '1.116.0'
-      custom_extension_repo:
-        description: 'Custom extension repository (optional)'
-        required: false
-        default: 'https://github.com/AI-Testing-Workbench/test-workbench-vsix.git'
-      custom_extension_branch:
-        description: 'Custom extension branch'
-        required: false
-        default: 'feature/uos-workflow'
 
 jobs:
   build:
@@ -29,7 +17,6 @@ jobs:
       - name: 📥 Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.branch }}
           fetch-depth: 1
 
       - name: 📦 Setup Node.js
@@ -433,138 +420,6 @@ jobs:
           echo "✅ Native modules and extensions replacement completed!"
 
           set -e
-
-      - name: 📦 Download and prepare custom extensions
-        run: |
-          echo "=========================================="
-          echo "📦 Downloading and preparing custom extensions"
-          echo "=========================================="
-
-          CUSTOM_REPO="${{ github.event.inputs.custom_extension_repo }}"
-          CUSTOM_BRANCH="${{ github.event.inputs.custom_extension_branch || 'feature/uos-workflow' }}"
-
-          echo "CUSTOM_REPO: [$CUSTOM_REPO]"
-          echo "CUSTOM_BRANCH: [$CUSTOM_BRANCH]"
-
-          BUILD_DIR="${BUILD_DIR:-./tscode}"
-
-          mkdir -p "$BUILD_DIR/resources/app/custom-extensions"
-
-          if [ -n "$CUSTOM_REPO" ] && [ "$CUSTOM_REPO" != "null" ]; then
-            echo "📌 Cloning custom extension from: $CUSTOM_REPO"
-            rm -rf /tmp/custom-ext-temp
-            git clone --depth 1 \
-              --branch "$CUSTOM_BRANCH" \
-              "$CUSTOM_REPO" \
-              /tmp/custom-ext-temp 2>/dev/null || true
-
-            if [ -d "/tmp/custom-ext-temp" ] && [ -n "$(ls -A /tmp/custom-ext-temp 2>/dev/null)" ]; then
-              echo "✅ Cloned successfully"
-              echo "📋 Contents of cloned repository:"
-              ls -la /tmp/custom-ext-temp/
-
-              VSIX_FILES=$(find /tmp/custom-ext-temp -name "*.vsix" -type f 2>/dev/null)
-              VSIX_COUNT=$(echo "$VSIX_FILES" | grep -v "^$" | wc -l | tr -d ' ')
-
-              if [ "$VSIX_COUNT" -gt 0 ]; then
-                echo "📦 Found $VSIX_COUNT VSIX file(s)"
-
-                for vsix_file in $VSIX_FILES; do
-                  vsix_name=$(basename "$vsix_file" .vsix)
-
-                  if [[ "$vsix_name" == *"darwin"* ]] || [[ "$vsix_name" == *"win32"* ]]; then
-                    echo "  ⏭️ Skipping non-Linux: $vsix_name"
-                    continue
-                  fi
-
-                  echo "  📌 Extracting: $vsix_name"
-
-                  mkdir -p "/tmp/extract-vsix-$vsix_name"
-                  unzip -q "$vsix_file" -d "/tmp/extract-vsix-$vsix_name" 2>/dev/null
-
-                  if [ -d "/tmp/extract-vsix-$vsix_name/extension" ]; then
-                    mkdir -p "$BUILD_DIR/resources/app/custom-extensions/$vsix_name"
-                    cp -r "/tmp/extract-vsix-$vsix_name/extension/"* "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/"
-                    echo "    ✅ Extracted to: $vsix_name (from extension/ directory)"
-                  elif [ -f "/tmp/extract-vsix-$vsix_name/package.json" ]; then
-                    mkdir -p "$BUILD_DIR/resources/app/custom-extensions/$vsix_name"
-                    cp -r "/tmp/extract-vsix-$vsix_name/"* "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/"
-                    echo "    ✅ Extracted to: $vsix_name (from root)"
-                  elif [ -d "/tmp/extract-vsix-$vsix_name/contents" ]; then
-                    mkdir -p "$BUILD_DIR/resources/app/custom-extensions/$vsix_name"
-                    cp -r "/tmp/extract-vsix-$vsix_name/contents/"* "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/"
-                    echo "    ✅ Extracted to: $vsix_name (from contents/ directory)"
-                  elif [ -n "$(ls -A /tmp/extract-vsix-$vsix_name 2>/dev/null)" ]; then
-                    mkdir -p "$BUILD_DIR/resources/app/custom-extensions/$vsix_name"
-                    cp -r "/tmp/extract-vsix-$vsix_name/"* "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/"
-                    echo "    ✅ Extracted to: $vsix_name (all contents)"
-                  else
-                    echo "    ❌ Failed to extract: $vsix_name (empty directory)"
-                  fi
-
-                  if [ -d "$BUILD_DIR/resources/app/custom-extensions/$vsix_name" ] && [ -f "$BUILD_DIR/resources/app/custom-extensions/$vsix_name/package.json" ]; then
-                    echo "    ✅ Verification: package.json found"
-                    rm -f "$BUILD_DIR/resources/app/custom-extensions/.empty" 2>/dev/null || true
-                  else
-                    echo "    ⚠️ Verification: package.json NOT found"
-                  fi
-
-                  rm -rf "/tmp/extract-vsix-$vsix_name"
-                done
-              else
-                echo "ℹ️ No VSIX files found in repository"
-
-                for ext_dir in /tmp/custom-ext-temp/*/; do
-                  if [ -d "$ext_dir" ] && [ -f "$ext_dir/package.json" ]; then
-                    ext_name=$(basename "$ext_dir")
-                    cp -r "$ext_dir" "$BUILD_DIR/resources/app/custom-extensions/"
-                    echo "✅ Copied extension from directory: $ext_name"
-                    rm -f "$BUILD_DIR/resources/app/custom-extensions/.empty" 2>/dev/null || true
-                  fi
-                done
-              fi
-
-              rm -rf /tmp/custom-ext-temp
-            else
-              echo "⚠️ Clone failed or empty"
-            fi
-          else
-            echo "ℹ️ No custom extensions provided (CUSTOM_REPO is empty or null)"
-          fi
-
-          echo ""
-          echo "📋 Custom extensions prepared in build:"
-          if [ -d "$BUILD_DIR/resources/app/custom-extensions" ]; then
-            echo "📂 Directory: $BUILD_DIR/resources/app/custom-extensions"
-
-            if [ "$(find "$BUILD_DIR/resources/app/custom-extensions" -mindepth 1 -type d 2>/dev/null | wc -l)" -gt 0 ]; then
-              rm -f "$BUILD_DIR/resources/app/custom-extensions/.empty" 2>/dev/null || true
-            fi
-
-            ls -la "$BUILD_DIR/resources/app/custom-extensions/" 2>/dev/null || echo "  (empty)"
-
-            echo ""
-            echo "📦 Extensions found (Linux only):"
-            EXT_COUNT=0
-            for ext_dir in "$BUILD_DIR/resources/app/custom-extensions"/*/; do
-              if [ -d "$ext_dir" ]; then
-                ext_name=$(basename "$ext_dir")
-                if [ -f "$ext_dir/package.json" ]; then
-                  ext_version=$(grep -o '"version": *"[^"]*"' "$ext_dir/package.json" 2>/dev/null | head -1 | cut -d'"' -f4 || echo "unknown")
-                  echo "  ✅ $ext_name (v$ext_version)"
-                  EXT_COUNT=$((EXT_COUNT + 1))
-                else
-                  echo "  ⚠️ $ext_name (no package.json)"
-                fi
-              fi
-            done
-
-            echo ""
-            echo "📊 Summary:"
-            echo "   Valid extensions (Linux only): $EXT_COUNT"
-          else
-            echo "  ❌ custom-extensions directory not found!"
-          fi
 
       - name: 🧹 Deep cleanup (preserve runtime files)
         run: |
