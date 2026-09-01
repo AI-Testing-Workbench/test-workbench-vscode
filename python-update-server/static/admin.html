@@ -381,9 +381,10 @@
                         <option value="">-- 选择平台 --</option>
                         <option value="win32-x64-user/stable" selected>Windows x64 Stable</option>
                         <option value="win32-x64-user/insider">Windows x64 Insider</option>
-                        <option value="darwin-x64-user/stable">macOS x64 Stable</option>
-                        <option value="darwin-arm64-user/stable">macOS ARM64 Stable</option>
-                        <option value="linux-x64-user/stable">Linux x64 Stable</option>
+                        <option value="darwin-x64/stable">macOS x64 Stable</option>
+                        <option value="darwin-arm64/stable">macOS ARM64 Stable</option>
+                        <option value="linux-x64/stable">Linux x64 Stable</option>
+                        <option value="linux-arm64/stable">Linux ARM64 Stable</option>
                     </select>
                 </div>
             </div>
@@ -401,9 +402,10 @@
                     <select id="rollout-platform" onchange="loadRolloutStages()">
                         <option value="win32-x64-user/stable">Windows x64 Stable</option>
                         <option value="win32-x64-user/insider">Windows x64 Insider</option>
-                        <option value="darwin-x64-user/stable">macOS x64 Stable</option>
-                        <option value="darwin-arm64-user/stable">macOS ARM64 Stable</option>
-                        <option value="linux-x64-user/stable">Linux x64 Stable</option>
+                        <option value="darwin-x64/stable">macOS x64 Stable</option>
+                        <option value="darwin-arm64/stable">macOS ARM64 Stable</option>
+                        <option value="linux-x64/stable">Linux x64 Stable</option>
+                        <option value="linux-arm64/stable">Linux ARM64 Stable</option>
                     </select>
                 </div>
 
@@ -500,8 +502,8 @@
                 </div>
 
                 <div class="form-group">
-                    <label>TestAgentStudio.exe</label>
-                    <input type="file" id="upload-exe-file" accept=".exe" style="padding: 8px;">
+                    <label>安装包（支持 .exe / .deb，可多选）</label>
+                    <input type="file" id="upload-installer-files" accept=".exe,.deb" multiple style="padding: 8px;">
                 </div>
 
                 <div class="form-group">
@@ -1133,13 +1135,13 @@
 
         // 上传更新包
         async function uploadPackage() {
-            const exeFileInput = document.getElementById('upload-exe-file');
+            const installerFileInput = document.getElementById('upload-installer-files');
             const productFileInput = document.getElementById('upload-product-file');
             const statusDiv = document.getElementById('upload-status');
 
             // 验证文件是否选择
-            if (!exeFileInput.files || exeFileInput.files.length === 0) {
-                showMessage('请选择 TestAgentStudio.exe 文件', 'error');
+            if (!installerFileInput.files || installerFileInput.files.length === 0) {
+                showMessage('请选择至少一个安装包文件（.exe / .deb）', 'error');
                 return;
             }
 
@@ -1148,11 +1150,15 @@
                 return;
             }
 
-            const exeFile = exeFileInput.files[0];
+            const installerFiles = Array.from(installerFileInput.files);
             const productFile = productFileInput.files[0];
 
+            const installersInfo = installerFiles
+                .map(f => `${f.name} (${(f.size / 1024 / 1024).toFixed(2)} MB)`)
+                .join('\n');
+
             // 确认上传
-            if (!confirm(`确定要上传新版本吗？\n\n当前版本将被备份到 backup 目录。\n\nEXE 文件: ${exeFile.name} (${(exeFile.size / 1024 / 1024).toFixed(2)} MB)\nJSON 文件: ${productFile.name}`)) {
+            if (!confirm(`确定要上传新版本吗？\n\n当前版本将被备份到 backup 目录。\n\n安装包:\n${installersInfo}\nJSON 文件: ${productFile.name}`)) {
                 return;
             }
 
@@ -1169,7 +1175,7 @@
 
                 // 创建 FormData
                 const formData = new FormData();
-                formData.append('exe_file', exeFile);
+                installerFiles.forEach(f => formData.append('installer_files', f));
                 formData.append('product_file', productFile);
 
                 // 发送请求
@@ -1205,13 +1211,14 @@
                         <p style="margin: 5px 0;"><strong>日期:</strong> ${data.new_version.date}</p>
                         <p style="margin: 5px 0;"><strong>备份位置:</strong> ${data.backup_info.backup_location}</p>
                         <p style="margin: 5px 0;"><strong>备份文件:</strong> ${data.backup_info.files_moved.join(', ')}</p>
+                        ${data.installers && data.installers.length ? `<p style="margin: 5px 0;"><strong>安装包:</strong> ${data.installers.join(', ')}</p>` : ''}
                     </div>
                 `;
 
                 showMessage('✅ 更新包上传成功', 'success');
 
                 // 清空文件选择
-                exeFileInput.value = '';
+                installerFileInput.value = '';
                 productFileInput.value = '';
 
                 // 刷新状态
@@ -1291,7 +1298,7 @@
 
             const enabledBadge = data.enabled
                 ? '<span class="badge badge-success">已启用</span>'
-                : '<span class="badge badge-danger">已禁用</span>';
+                : '<span class="badge badge-danger">未配置</span>';
 
             const pausedBadge = data.paused
                 ? '<span class="badge badge-warning">已暂停</span>'
@@ -1301,9 +1308,22 @@
                 ? '<span class="badge badge-danger">🔙 回滚中</span>'
                 : '';
 
+            const stageInfo = (data.total_stages || data.stages.length) > 0
+                ? `${data.current_stage + 1} / ${data.total_stages || data.stages.length}`
+                : '未配置';
+
+            const updatedAt = data.updated_at
+                ? new Date(data.updated_at).toLocaleString('zh-CN')
+                : '从未';
+
+            const unconfiguredHint = !data.enabled
+                ? '<p style="color: #e65100; background: #fff3e0; padding: 10px; border-radius: 4px; border-left: 3px solid #ff9800; margin: 10px 0;">⚠️ 该平台尚未配置灰度发布，请到「🎯 灰度发布控制」Tab 创建配置后生效</p>'
+                : '';
+
             container.innerHTML = `
                 <div class="status-card">
                     <h3>${data.platform_quality}</h3>
+                    ${unconfiguredHint}
                     <div class="status-item">
                         <span class="status-label">状态</span>
                         <span class="status-value">${enabledBadge} ${pausedBadge} ${rollbackBadge}</span>
@@ -1322,7 +1342,7 @@
                     </div>
                     <div class="status-item">
                         <span class="status-label">当前阶段</span>
-                        <span class="status-value">${data.current_stage + 1} / ${data.stages.length}</span>
+                        <span class="status-value">${stageInfo}</span>
                     </div>
                     <div class="status-item">
                         <span class="status-label">白名单数量</span>
@@ -1334,7 +1354,7 @@
                     </div>
                     <div class="status-item">
                         <span class="status-label">更新时间</span>
-                        <span class="status-value">${new Date(data.updated_at).toLocaleString('zh-CN')}</span>
+                        <span class="status-value">${updatedAt}</span>
                     </div>
                 </div>
             `;

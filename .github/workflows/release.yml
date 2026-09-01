@@ -142,10 +142,6 @@ jobs:
         shell: pwsh
         run: npm run gulp core-ci
 
-      - name: Compile Copilot extension
-        shell: pwsh
-        run: npm run gulp compile-copilot-extension-build
-
       - name: Build Windows x64 Application
         shell: pwsh
         run: npm run gulp vscode-win32-x64-min-ci
@@ -250,9 +246,6 @@ jobs:
 
       - name: Compile core (esbuild)
         run: npm run gulp core-ci
-
-      - name: Compile Copilot extension
-        run: npm run gulp compile-copilot-extension-build
 
       - name: Build macOS arm64
         run: npm run gulp vscode-darwin-arm64-min-ci
@@ -413,9 +406,6 @@ jobs:
 
       - name: Compile core (esbuild)
         run: npm run gulp core-ci
-
-      - name: Compile Copilot extension
-        run: npm run gulp compile-copilot-extension-build
 
       - name: Build Linux Servers
         run: |
