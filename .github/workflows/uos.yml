@@ -22,28 +22,49 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: ⬇️ Download linux artifact from release.yml
+      - name: 🔎 Find release.yml run with linux artifact
+        id: find-artifact
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -e
           BRANCH="${{ github.event.inputs.branch || 'main' }}"
-          RUN_ID=$(gh run list --workflow release.yml --branch "$BRANCH" --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          RUN_ID=""
+          for candidate in $(gh run list --workflow release.yml --branch "$BRANCH" --status success --limit 20 --json databaseId --jq '.[].databaseId'); do
+            FOUND=$(gh api "repos/$GH_REPO/actions/runs/$candidate/artifacts" --jq '.artifacts[] | select(.name=="vscode-linux-x64") | .id' | head -1)
+            if [ -n "$FOUND" ]; then
+              RUN_ID="$candidate"
+              break
+            fi
+          done
           if [ -z "$RUN_ID" ]; then
-            echo "❌ No successful release.yml run found on branch '$BRANCH'"
-            echo "   Please run the Release Build workflow (platforms: linux or all) first."
+            echo "❌ No recent successful release.yml run on branch '$BRANCH' contains the 'vscode-linux-x64' artifact."
+            echo "   Please run the Release Build workflow with platforms: linux or all first."
             exit 1
           fi
-          echo "✅ Using release.yml run: $RUN_ID"
-          gh run download "$RUN_ID" -n vscode-linux-x64 -D /tmp/artifact
-          ls -la /tmp/artifact/vscode-linux-x64/
+          echo "✅ Found vscode-linux-x64 artifact in release.yml run: $RUN_ID"
+          echo "run-id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: ⬇️ Download linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vscode-linux-x64
+          run-id: ${{ steps.find-artifact.outputs.run-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/artifact
 
       - name: 📦 Extract and setup build directory
         run: |
           set -e
+          TARBALL=$(find /tmp/artifact -name "VSCode-linux-x64.tar.gz" | head -1)
+          if [ -z "$TARBALL" ]; then
+            echo "❌ VSCode-linux-x64.tar.gz not found in /tmp/artifact!"
+            find /tmp/artifact -maxdepth 3 | head -20
+            exit 1
+          fi
           mkdir -p /tmp/extract
-          tar -xzf /tmp/artifact/vscode-linux-x64/VSCode-linux-x64.tar.gz -C /tmp/extract/
+          tar -xzf "$TARBALL" -C /tmp/extract/
 
           SRC_DIR=""
           for d in /tmp/extract/VSCode-linux-x64 /tmp/extract/vscode/VSCode-linux-x64; do
