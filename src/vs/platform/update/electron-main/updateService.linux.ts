@@ -15,7 +15,7 @@ import { asJson, IRequestService } from '../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, IUpdate, State, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, enhanceUpdateRequestHeadersWithEmployeeId, IUpdateURLOptions } from './abstractUpdateService.js'; // test-workbench_change
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -48,7 +48,11 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		const url = this.buildUpdateFeedUrl(this.quality, this.productService.commit!, { background, internalOrg });
 		this.setState(State.CheckingForUpdates(explicit));
 
-		this.requestService.request({ url, callSite: 'updateService.linux.checkForUpdates' }, CancellationToken.None)
+		// test-workbench_change start
+		const baseHeaders = getUpdateRequestHeaders(this.productService.version);
+		enhanceUpdateRequestHeadersWithEmployeeId(baseHeaders, this.applicationStorageMainService)
+			.then(headers => this.requestService.request({ url, headers, callSite: 'updateService.linux.checkForUpdates' }, CancellationToken.None))
+			// test-workbench_change end
 			.then<IUpdate | null>(asJson)
 			.then(update => {
 				if (!update || !update.url || !update.version || !update.productVersion) {
