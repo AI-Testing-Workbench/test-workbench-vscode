@@ -64,7 +64,7 @@ export const ConfirmTerminalCommandToolData: IToolData = {
 };
 
 export class ConfirmTerminalCommandTool extends RunInTerminalTool {
-	override get _enableCommandLineSandboxRewriting() {
+	protected override get _enableCommandLineSandboxRewriting() { // test-workbench_change
 		return false;
 	}
 

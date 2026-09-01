@@ -256,7 +256,7 @@ gulp.task(compileExtensionMediaBuildTask);
 /**
  * Get list of prebuilt extension directories that should be preserved during clean
  */
-function getPrebuiltExtensions(): string[] {
+export function getPrebuiltExtensions(): string[] {
 	// test-workbench_change start
 	const extensionsDir = path.join(root, '.build/extensions');
 	const prebuiltMarker = '.prebuilt-extension'; // Marker file to identify prebuilt extensions

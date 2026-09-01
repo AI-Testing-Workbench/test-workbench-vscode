@@ -28,7 +28,7 @@ import glob from 'glob';
 import { promisify } from 'util';
 import rceditCallback from 'rcedit';
 import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
-import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
+import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask, compileCopilotExtensionBuildTask, getPrebuiltExtensions } from './gulpfile.extensions.ts';
 import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.ts';
 import { preparePrebuiltExtensions } from './prepare-prebuilt-extensions.ts'; // test-workbench_change
 import * as cp from 'child_process';
@@ -301,7 +301,10 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.filter(entry => !entry.platforms || new Set(entry.platforms).has(platform))
 			.filter(entry => !entry.clientOnly)
 			.map(entry => entry.name);
-		const extensionPaths = [...localWorkspaceExtensions, ...marketplaceExtensions]
+		// test-workbench_change start - Include prebuilt extensions (extracted to .build/extensions) in the server package
+		const prebuiltExtensions = getPrebuiltExtensions();
+		// test-workbench_change end
+		const extensionPaths = [...localWorkspaceExtensions, ...marketplaceExtensions, ...prebuiltExtensions]
 			.map(name => `.build/extensions/${name}/**`);
 
 		const extensions = gulp.src(extensionPaths, { base: '.build', dot: true });
@@ -475,6 +478,28 @@ function copyCopilotNativeDepsTaskREH(platform: string, arch: string, destinatio
 	};
 }
 
+// test-workbench_change start - Update git version task
+function updateGitVersion(): task.CallbackTask {
+	return (cb) => {
+		const updateScript = path.join(REPO_ROOT, 'build', 'update-git-version.cjs');
+		cp.exec(`node "${updateScript}"`, (err, stdout, stderr) => {
+			if (stdout) {
+				console.log(stdout);
+			}
+			if (stderr) {
+				console.error(stderr);
+			}
+			if (cb) {
+				cb(err || undefined);
+			}
+		});
+	};
+}
+
+const updateGitVersionTask = task.define('update-git-version-reh', updateGitVersion());
+gulp.task(updateGitVersionTask);
+// test-workbench_change end
+
 // test-workbench_change start - Prepare prebuilt extensions task for REH
 function preparePrebuiltExtensionsTask(platform: string, arch: string): task.Task {
 	const taskName = `prepare-prebuilt-extensions-reh-${platform}-${arch}`;
@@ -533,6 +558,7 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			const prepareExtensionsTask = preparePrebuiltExtensionsTask(platform, arch);
 
 			const packageTasks: task.Task[] = [
+				updateGitVersionTask, // test-workbench_change - Update git version in product.json before packaging
 				compileNativeExtensionsBuildTask,
 				gulp.task(`node-${platform}-${arch}`) as task.Task,
 				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
@@ -547,8 +573,9 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			const serverTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));
 			gulp.task(serverTaskCI);
 
-			// test-workbench_change - Add prebuilt extensions before build
+			// test-workbench_change - Add git version update and prebuilt extensions before build
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+				updateGitVersionTask,
 				prepareExtensionsTask,
 				compileBuildWithManglingTask,
 				cleanExtensionsBuildTask,
