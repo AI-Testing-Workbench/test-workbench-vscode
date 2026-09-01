@@ -1,4 +1,4 @@
-name: Build for UOS
+name: Build for UOS SUCCESS
 
 on:
   workflow_dispatch:
