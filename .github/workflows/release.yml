@@ -289,7 +289,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update -y
-          sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev libsecret-1-dev libxshmfence-dev
+          sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev libsecret-1-dev libxshmfence-dev python-is-python3
 
       - name: Prepare node_modules cache key
         run: |
@@ -301,14 +301,16 @@ jobs:
         id: node-modules-cache
         with:
           path: .build/node_modules_cache
-          key: "node_modules-linux-${{ hashFiles('**/package-lock.json') }}"
+          # key includes glibc228 suffix so old caches (built without the glibc-2.28 sysroot) are invalidated
+          key: "node_modules-linux-glibc228-${{ hashFiles('**/package-lock.json') }}"
 
       - name: Extract node_modules cache
         if: steps.node-modules-cache.outputs.cache-hit == 'true'
         run: tar -xzf .build/node_modules_cache/cache.tgz
 
-      - name: Install dependencies
+      - name: Install build dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        working-directory: build
         run: |
           set -e
           for i in {1..5}; do
@@ -320,9 +322,62 @@ jobs:
             echo "Npm install failed $i, trying again..."
           done
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore sysroot toolchain cache
+        uses: actions/cache/restore@v5
+        id: sysroot-toolchain-cache
+        with:
+          path: |
+            .build/sysroots
+            .build/CR_Clang
+            .build/libcxx-objects
+            .build/libcxx_headers
+            .build/libcxxabi_headers
+          key: linux-sysroot-glibc228
+
+      - name: Download vscode sysroots
+        run: |
+          set -e
+          mkdir -p .build/sysroots
+          export VSCODE_SYSROOT_DIR="${{ github.workspace }}/.build/sysroots/glibc-2.28-gcc-8.5.0"
+          node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot("amd64"); })()'
+        env:
+          VSCODE_SYSROOT_PREFIX: "-glibc-2.28-gcc-8.5.0"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          source ./build/azure-pipelines/linux/setup-env.sh
+          for i in {1..5}; do
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          npm_config_arch: x64
+          VSCODE_ARCH: x64
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          npm_config_build_from_source: "false"
+          npm_config_build_from_source: "true"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Save sysroot toolchain cache
+        if: steps.sysroot-toolchain-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            .build/sysroots
+            .build/CR_Clang
+            .build/libcxx-objects
+            .build/libcxx_headers
+            .build/libcxxabi_headers
+          key: linux-sysroot-glibc228
 
       - name: Create node_modules archive
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -371,6 +426,16 @@ jobs:
           mv ../vscode-reh-linux-x64 ../vscode-server-linux-x64
           tar --owner=0 --group=0 -czf .build/vscode-server-linux-x64.tar.gz -C .. vscode-server-linux-x64
 
+      - name: Verify GLIBC requirements (server)
+        run: |
+          set -e
+          EXPECTED_GLIBC_VERSION="2.28" \
+          EXPECTED_GLIBCXX_VERSION="3.4.25" \
+          VSCODE_SYSROOT_DIR="${{ github.workspace }}/.build/sysroots/glibc-2.28-gcc-8.5.0" \
+          SEARCH_PATH="${{ github.workspace }}/../vscode-server-linux-x64" \
+          VSCODE_ARCH=x64 \
+          ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+
       - name: Upload Linux x64 Server Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -384,6 +449,21 @@ jobs:
       - name: Create Linux x64 archive
         run: |
           tar -czf .build/VSCode-linux-x64.tar.gz -C .. VSCode-linux-x64
+
+      - name: Verify GLIBC requirements (client)
+        run: |
+          set -e
+          CLIENT_NATIVE_DIR="${{ github.workspace }}/../VSCode-linux-x64/resources/app/node_modules.asar.unpacked"
+          if [ ! -d "$CLIENT_NATIVE_DIR" ]; then
+            echo "ERROR: client native modules dir not found at $CLIENT_NATIVE_DIR" >&2
+            exit 1
+          fi
+          EXPECTED_GLIBC_VERSION="2.28" \
+          EXPECTED_GLIBCXX_VERSION="3.4.25" \
+          VSCODE_SYSROOT_DIR="${{ github.workspace }}/.build/sysroots/glibc-2.28-gcc-8.5.0" \
+          SEARCH_PATH="$CLIENT_NATIVE_DIR" \
+          VSCODE_ARCH=x64 \
+          ./build/azure-pipelines/linux/verify-glibc-requirements.sh
 
       - name: Upload x64 Artifact
         uses: actions/upload-artifact@v4
