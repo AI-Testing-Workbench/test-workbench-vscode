@@ -429,10 +429,21 @@ jobs:
       - name: Verify GLIBC requirements (server)
         run: |
           set -e
+          SERVER_DIR="${{ github.workspace }}/../vscode-server-linux-x64"
+          if [ ! -d "$SERVER_DIR" ]; then
+            echo "ERROR: server dir not found at $SERVER_DIR" >&2
+            exit 1
+          fi
+          echo "Scanning native modules under $SERVER_DIR"
+          find "$SERVER_DIR" -name "*.node" -not -path "*prebuilds*" | head -10
+          if [ -z "$(find "$SERVER_DIR" -name "*.node" -not -path "*prebuilds*" | head -1)" ]; then
+            echo "ERROR: no .node files found under $SERVER_DIR" >&2
+            exit 1
+          fi
           EXPECTED_GLIBC_VERSION="2.28" \
           EXPECTED_GLIBCXX_VERSION="3.4.25" \
           VSCODE_SYSROOT_DIR="${{ github.workspace }}/.build/sysroots/glibc-2.28-gcc-8.5.0" \
-          SEARCH_PATH="${{ github.workspace }}/../vscode-server-linux-x64" \
+          SEARCH_PATH="$SERVER_DIR" \
           VSCODE_ARCH=x64 \
           ./build/azure-pipelines/linux/verify-glibc-requirements.sh
 
@@ -453,15 +464,21 @@ jobs:
       - name: Verify GLIBC requirements (client)
         run: |
           set -e
-          CLIENT_NATIVE_DIR="${{ github.workspace }}/../VSCode-linux-x64/resources/app/node_modules.asar.unpacked"
-          if [ ! -d "$CLIENT_NATIVE_DIR" ]; then
-            echo "ERROR: client native modules dir not found at $CLIENT_NATIVE_DIR" >&2
+          CLIENT_DIR="${{ github.workspace }}/../VSCode-linux-x64"
+          if [ ! -d "$CLIENT_DIR" ]; then
+            echo "ERROR: client build dir not found at $CLIENT_DIR" >&2
+            exit 1
+          fi
+          echo "Scanning native modules under $CLIENT_DIR"
+          find "$CLIENT_DIR" -name "*.node" -not -path "*prebuilds*" | head -10
+          if [ -z "$(find "$CLIENT_DIR" -name "*.node" -not -path "*prebuilds*" | head -1)" ]; then
+            echo "ERROR: no .node files found under $CLIENT_DIR" >&2
             exit 1
           fi
           EXPECTED_GLIBC_VERSION="2.28" \
           EXPECTED_GLIBCXX_VERSION="3.4.25" \
           VSCODE_SYSROOT_DIR="${{ github.workspace }}/.build/sysroots/glibc-2.28-gcc-8.5.0" \
-          SEARCH_PATH="$CLIENT_NATIVE_DIR" \
+          SEARCH_PATH="$CLIENT_DIR" \
           VSCODE_ARCH=x64 \
           ./build/azure-pipelines/linux/verify-glibc-requirements.sh
 
