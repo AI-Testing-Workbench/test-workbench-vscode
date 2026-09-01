@@ -381,9 +381,10 @@
                         <option value="">-- 选择平台 --</option>
                         <option value="win32-x64-user/stable" selected>Windows x64 Stable</option>
                         <option value="win32-x64-user/insider">Windows x64 Insider</option>
-                        <option value="darwin-x64-user/stable">macOS x64 Stable</option>
-                        <option value="darwin-arm64-user/stable">macOS ARM64 Stable</option>
-                        <option value="linux-x64-user/stable">Linux x64 Stable</option>
+                        <option value="darwin-x64/stable">macOS x64 Stable</option>
+                        <option value="darwin-arm64/stable">macOS ARM64 Stable</option>
+                        <option value="linux-x64/stable">Linux x64 Stable</option>
+                        <option value="linux-arm64/stable">Linux ARM64 Stable</option>
                     </select>
                 </div>
             </div>
@@ -401,9 +402,10 @@
                     <select id="rollout-platform" onchange="loadRolloutStages()">
                         <option value="win32-x64-user/stable">Windows x64 Stable</option>
                         <option value="win32-x64-user/insider">Windows x64 Insider</option>
-                        <option value="darwin-x64-user/stable">macOS x64 Stable</option>
-                        <option value="darwin-arm64-user/stable">macOS ARM64 Stable</option>
-                        <option value="linux-x64-user/stable">Linux x64 Stable</option>
+                        <option value="darwin-x64/stable">macOS x64 Stable</option>
+                        <option value="darwin-arm64/stable">macOS ARM64 Stable</option>
+                        <option value="linux-x64/stable">Linux x64 Stable</option>
+                        <option value="linux-arm64/stable">Linux ARM64 Stable</option>
                     </select>
                 </div>
 
@@ -1296,7 +1298,7 @@
 
             const enabledBadge = data.enabled
                 ? '<span class="badge badge-success">已启用</span>'
-                : '<span class="badge badge-danger">已禁用</span>';
+                : '<span class="badge badge-danger">未配置</span>';
 
             const pausedBadge = data.paused
                 ? '<span class="badge badge-warning">已暂停</span>'
@@ -1306,9 +1308,22 @@
                 ? '<span class="badge badge-danger">🔙 回滚中</span>'
                 : '';
 
+            const stageInfo = (data.total_stages || data.stages.length) > 0
+                ? `${data.current_stage + 1} / ${data.total_stages || data.stages.length}`
+                : '未配置';
+
+            const updatedAt = data.updated_at
+                ? new Date(data.updated_at).toLocaleString('zh-CN')
+                : '从未';
+
+            const unconfiguredHint = !data.enabled
+                ? '<p style="color: #e65100; background: #fff3e0; padding: 10px; border-radius: 4px; border-left: 3px solid #ff9800; margin: 10px 0;">⚠️ 该平台尚未配置灰度发布，请到「🎯 灰度发布控制」Tab 创建配置后生效</p>'
+                : '';
+
             container.innerHTML = `
                 <div class="status-card">
                     <h3>${data.platform_quality}</h3>
+                    ${unconfiguredHint}
                     <div class="status-item">
                         <span class="status-label">状态</span>
                         <span class="status-value">${enabledBadge} ${pausedBadge} ${rollbackBadge}</span>
@@ -1327,7 +1342,7 @@
                     </div>
                     <div class="status-item">
                         <span class="status-label">当前阶段</span>
-                        <span class="status-value">${data.current_stage + 1} / ${data.stages.length}</span>
+                        <span class="status-value">${stageInfo}</span>
                     </div>
                     <div class="status-item">
                         <span class="status-label">白名单数量</span>
@@ -1339,7 +1354,7 @@
                     </div>
                     <div class="status-item">
                         <span class="status-label">更新时间</span>
-                        <span class="status-value">${new Date(data.updated_at).toLocaleString('zh-CN')}</span>
+                        <span class="status-value">${updatedAt}</span>
                     </div>
                 </div>
             `;

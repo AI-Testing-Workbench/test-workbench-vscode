@@ -1479,11 +1479,27 @@ async def get_rollout_status(platform_quality: str):
 
     if status:
         return status
-    else:
-        raise HTTPException(
-            status_code=404,
-            detail=f"未找到配置: {platform_quality}"
-        )
+
+    # test-workbench_change: 无配置时返回默认状态，便于管理界面展示"未配置"提示
+    product_info = rollout_engine.get_product_info()
+    return {
+        'platform_quality': platform_quality,
+        'enabled': False,
+        'target_version': product_info.get('version', ''),
+        'target_commit': product_info.get('commit', ''),
+        'rollout_percentage': 0.0,
+        'current_stage': 0,
+        'total_stages': 0,
+        'stages': [],
+        'paused': False,
+        'whitelist': [],
+        'blacklist': [],
+        'whitelist_count': 0,
+        'blacklist_count': 0,
+        'created_at': None,
+        'updated_at': None,
+        'enable_rollback': rollout_engine.is_rollback_enabled()
+    }
 
 
 @app.get("/admin/rollout/list")
