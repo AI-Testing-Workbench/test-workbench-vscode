@@ -12,7 +12,18 @@ import { ILogService } from '../../../log/common/log.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import { MessageKind, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AgentSignal, IAgentActionSignal, IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, ResponsePartKind, TurnState, ToolCallStatus, type Turn, type Message, type ResponsePart, type MessageAttachment, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ModelSelection, type ToolCallState } from '../../common/state/protocol/state.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, ResponsePartKind, TurnState, ToolCallConfirmationReason, ToolCallStatus, type Turn, type Message, type ResponsePart, type MessageAttachment, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ModelSelection, type ToolCallState } from '../../common/state/protocol/state.js';
+
+/** 提取 undici fetch 失败的底层原因(如 ECONNRESET/ETIMEDOUT),便于定位 */
+function formatFetchError(err: unknown): string {
+	if (!(err instanceof Error)) { return ''; }
+	const cause = (err as { cause?: unknown }).cause;
+	if (!cause) { return ''; }
+	const code = (cause as { code?: string; syscall?: string; errno?: string }).code;
+	const syscall = (cause as { syscall?: string }).syscall;
+	if (code) { return ` (cause: ${syscall ? `${syscall} ` : ''}${code}${typeof cause === 'string' ? ` ${cause}` : ''})`; }
+	return ` (cause: ${String(cause)})`;
+}
 
 // ── Interface ────────────────────────────────────────────────────────────────
 
@@ -217,7 +228,10 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		}
 
 		const effectiveTurnId = turnId ?? generateUuid();
+		// 新 turn 起点:清掉上一 turn 遗留的流式/工具状态(含延迟补发窗口)
+		this._resetStreamingState();
 		this._currentTurnId = effectiveTurnId;
+		this._currentTurnStartMs = Date.now();
 		const startedAt = new Date().toISOString();
 
 		const message: Message = {
@@ -232,6 +246,23 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 
 		this._abortController = new AbortController();
 
+		// fork 的 POST /session/:id/message 用 Stream.fromEffect 在 agent loop
+		// 结束后才一次性 flush 最终消息,运行期间 HTTP 流无数据;而 fork 的
+		// /event SSE 在 effect 4.0-beta 下(Channel.fromPubSubArray → takeAll)
+		// 从空队列立即结束,增量事件也收不到。
+		// 因此:HTTP 请求后台跑 + 轮询 GET /session/:id/message 拉增量渲染。 // test-workbench_change
+		const httpPromise = this._postMessage(prompt, workingDirectory, attachments, effectiveTurnId, tools);
+		const pollPromise = this._pollTurn(effectiveTurnId, httpPromise);
+
+		try {
+			await httpPromise;
+		} finally {
+			this._abortController = undefined;
+		}
+		await pollPromise.catch(() => { });
+	}
+
+	private async _postMessage(prompt: string, workingDirectory?: URI, attachments?: readonly MessageAttachment[], turnId?: string, tools?: string[]): Promise<void> {
 		const url = `${this._baseUrl}/session/${this.opencodeSessionId}/message`;
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 		if (this._authHeader) { headers['Authorization'] = this._authHeader; }
@@ -266,7 +297,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				method: 'POST',
 				headers,
 				body: JSON.stringify(body),
-				signal: this._abortController.signal,
+				signal: this._abortController?.signal,
 			});
 
 			if (!resp.ok) {
@@ -283,35 +314,58 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			while (true) {
 				const { done, value } = await reader.read();
 				if (value) { buffer += decoder.decode(value, { stream: true }); }
-				this._processStreamingJSON(buffer, effectiveTurnId);
 				if (done) { break; }
 			}
 
-			this._processFinalResponse(buffer, effectiveTurnId);
+			this._processFinalResponse(buffer, turnId ?? '');
 
 		} catch (err: unknown) {
 			if (err instanceof Error && err.name === 'AbortError') {
-				this._logService.info(`[OpenCode] turn cancelled: ${effectiveTurnId}`);
+				this._logService.info(`[OpenCode] turn cancelled: ${turnId}`);
 				this._resetStreamingState();
 				this._fireAction(ActionType.ChatTurnCancelled, {
-					turnId: effectiveTurnId,
+					turnId: turnId ?? '',
 					duration: 0,
 				});
 				return;
 			}
-			this._logService.error(`[OpenCode] sendMessage error: ${err}`);
+			this._logService.error(`[OpenCode] sendMessage error: ${err}${formatFetchError(err)}`);
 			this._resetStreamingState();
 			this._fireAction(ActionType.ChatError, {
-				turnId: effectiveTurnId,
+				turnId: turnId ?? '',
 				duration: 0,
 				error: {
 					errorType: 'unknown',
 					message: err instanceof Error ? err.message : String(err),
 				},
 			});
-		} finally {
-			this._abortController = undefined;
 		}
+	}
+
+	/** 轮询 GET /session/:id/message,把当前 turn 的新 part 增量渲染(工具状态机 + 文本/推理) */
+	private async _pollTurn(turnId: string, httpDone: Promise<void>): Promise<void> {
+		let finished = false;
+		httpDone.finally(() => { finished = true; }).catch(() => { });
+		while (!finished) {
+			try {
+				const records = await this._request<Array<{ info: ForkMessageInfo; parts?: ForkPart[] }>>(
+					'GET', `/session/${this.opencodeSessionId}/message?limit=20`,
+				);
+				// 只渲染当前 turn 开始后创建的 assistant 消息(避免把历史消息重复渲染进当前 turn)
+				for (const msg of records) {
+					if (msg.info.role !== 'assistant') { continue; }
+					if (msg.info.time?.created !== undefined && msg.info.time.created < this._currentTurnStartMs) { continue; }
+					for (const part of msg.parts ?? []) {
+						this._renderPart(turnId, part as unknown as Record<string, unknown>);
+					}
+				}
+			} catch { /* 轮询失败忽略,下轮重试 */ }
+			await this._sleep(800);
+		}
+	}
+
+	private _sleep(ms: number): Promise<void> {
+		return new Promise(resolve => setTimeout(resolve, ms));
 	}
 
 	// ── Abort ──────────────────────────────────────────────────────────────
@@ -321,6 +375,8 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			this._abortController.abort();
 			this._abortController = undefined;
 		}
+		// 主动取消:立刻结束 turn,清掉流式状态与延迟补发窗口
+		this._resetStreamingState();
 	}
 
 	// ── Messages ──────────────────────────────────────────────────────────
@@ -396,64 +452,126 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 
 	// ── Private streaming helpers ──────────────────────────────────────────
 
-	private _textPartId: string | undefined;
-	private _reasoningPartId: string | undefined;
-	private _processedTextChars = 0;
-	private _processedReasoningChars = 0;
 	private _dispatchedToolCallIds = new Set<string>();
+	private _readyToolCallIds = new Set<string>();
 	private _completedToolCallIds = new Set<string>();
+	private _toolInputs = new Map<string, unknown>();
 	private _currentTurnId: string | undefined;
-	private _sseActive = false;
+	private _currentTurnStartMs = 0;
+	// 轮询/SSE 共用:按 partID 追踪文本/推理增量与 part 类型
+	// (全量 part 与增量 delta 共用一套判重)
+	private _partTypes = new Map<string, 'text' | 'reasoning' | 'tool'>();
+	private _partText = new Map<string, string>();
+	private _partTextSent = new Map<string, number>();
+	private _partTextPartId = new Map<string, string>();
+	private _partReasoning = new Map<string, string>();
+	private _partReasoningSent = new Map<string, number>();
+	private _partReasoningPartId = new Map<string, string>();
 
-	private _processStreamingJSON(buffer: string, turnId: string): void {
-		if (this._sseActive) { return; }
-		const partRegex = /"type"\s*:\s*"(text|reasoning)"\s*,\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)"[^}]*\}/g;
-		let match: RegExpExecArray | null;
+	/**
+	 * 增量推送文本 part:fullText 为当前全量,内部按已发长度切增量。
+	 * 兼容 message.part.delta(增量) 与 message.part.updated(全量) 双源。
+	 */
+	private _emitText(turnId: string, partID: string, fullText: string): void {
+		const sent = this._partTextSent.get(partID) ?? 0;
+		if (fullText.length <= sent) { return; }
+		const delta = fullText.slice(sent);
+		this._partTextSent.set(partID, fullText.length);
+		let protocolPartId = this._partTextPartId.get(partID);
+		if (!protocolPartId) {
+			protocolPartId = generateUuid();
+			this._partTextPartId.set(partID, protocolPartId);
+			this._fireAction(ActionType.ChatResponsePart, {
+				turnId,
+				part: { kind: ResponsePartKind.Markdown, id: protocolPartId, content: delta },
+			});
+		} else {
+			this._fireAction(ActionType.ChatDelta, {
+				turnId,
+				partId: protocolPartId,
+				content: delta,
+			});
+		}
+	}
 
-		while ((match = partRegex.exec(buffer)) !== null) {
-			const type = match[1];
-			const raw = match[2];
-			let text: string;
-			try {
-				text = JSON.parse('"' + raw + '"') as string;
-			} catch {
-				continue;
-			}
+	/** 增量推送推理 part(与 _emitText 同构) */
+	private _emitReasoning(turnId: string, partID: string, fullText: string): void {
+		const sent = this._partReasoningSent.get(partID) ?? 0;
+		if (fullText.length <= sent) { return; }
+		const delta = fullText.slice(sent);
+		this._partReasoningSent.set(partID, fullText.length);
+		let protocolPartId = this._partReasoningPartId.get(partID);
+		if (!protocolPartId) {
+			protocolPartId = generateUuid();
+			this._partReasoningPartId.set(partID, protocolPartId);
+		}
+		this._fireAction(ActionType.ChatReasoning, {
+			turnId,
+			partId: protocolPartId,
+			content: delta,
+		});
+	}
 
-			if (type === 'text') {
-				const alreadyProcessed = this._processedTextChars;
-				if (text.length > alreadyProcessed) {
-					const delta = text.slice(alreadyProcessed);
-					this._processedTextChars = text.length;
-					if (!this._textPartId) {
-						this._textPartId = generateUuid();
-						this._fireAction(ActionType.ChatResponsePart, {
-							turnId,
-							part: { kind: ResponsePartKind.Markdown, id: this._textPartId, content: delta },
-						});
-					} else {
-						this._fireAction(ActionType.ChatDelta, {
-							turnId,
-							partId: this._textPartId,
-							content: delta,
-						});
-					}
-				}
-			} else if (type === 'reasoning') {
-				const alreadyProcessed = this._processedReasoningChars;
-				if (text.length > alreadyProcessed) {
-					const delta = text.slice(alreadyProcessed);
-					this._processedReasoningChars = text.length;
-					if (!this._reasoningPartId) {
-						this._reasoningPartId = generateUuid();
-					}
-					this._fireAction(ActionType.ChatReasoning, {
-						turnId,
-						partId: this._reasoningPartId,
-						content: delta,
-					});
-				}
-			}
+	/**
+	 * 工具调用状态机(message.part.updated 的 tool part 驱动):
+	 * Start → Ready(auto-confirm,直接 running) → Complete。
+	 * 协议 reducer 要求 Start 后必须先 Ready(confirmed) 才能 Complete,
+	 * 否则 Complete 会被忽略、工具卡片停留在 Streaming。
+	 * 权限确认由 fork 的 permission.asked 独立通道处理,不在此重复。
+	 */
+	private _handleToolPart(turnId: string, part: Record<string, unknown>): void {
+		const callID = part.callID as string | undefined;
+		const tool = part.tool as string | undefined;
+		const state = part.state as { status?: string; title?: string; input?: unknown; output?: string; error?: string } | undefined;
+		if (!callID || !tool || !state) { return; }
+
+		const status = state.status;
+		const title = state.title;
+
+		if (!this._dispatchedToolCallIds.has(callID)) {
+			this._dispatchedToolCallIds.add(callID);
+			this._fireAction(ActionType.ChatToolCallStart, {
+				turnId,
+				toolCallId: callID,
+				toolName: tool,
+				displayName: title ?? tool,
+				intention: title ?? tool,
+			});
+		}
+
+		// Ready:首次必发(确保后续 Complete 有效);input 从无到有/变化时补发更新
+		// (轮询场景下 pending 阶段可能尚无 input,之后 running 才带完整参数)
+		const input = state.input;
+		const lastInput = this._toolInputs.get(callID);
+		const inputChanged = input !== undefined && JSON.stringify(input) !== JSON.stringify(lastInput);
+		if (!this._readyToolCallIds.has(callID) || inputChanged) {
+			this._readyToolCallIds.add(callID);
+			if (input !== undefined) { this._toolInputs.set(callID, input); }
+			this._fireAction(ActionType.ChatToolCallReady, {
+				turnId,
+				toolCallId: callID,
+				invocationMessage: title ?? `Running ${tool}`,
+				...(input !== undefined ? { toolInput: typeof input === 'string' ? input : JSON.stringify(input) } : {}),
+				confirmationTitle: tool,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+		}
+
+		if ((status === 'completed' || status === 'error') && !this._completedToolCallIds.has(callID)) {
+			this._completedToolCallIds.add(callID);
+			const output = state.output;
+			const error = state.error;
+			const success = status === 'completed';
+			this._fireAction(ActionType.ChatToolCallComplete, {
+				turnId,
+				toolCallId: callID,
+				result: {
+					success,
+					pastTenseMessage: success ? (title ?? 'Tool completed') : `Tool failed: ${error ?? 'error'}`,
+					content: output ? [{ type: 'text', text: output }] : undefined,
+					error: error ? { message: error } : undefined,
+				},
+			});
 		}
 	}
 
@@ -461,17 +579,18 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		try {
 			const data = JSON.parse(buffer) as {
 				info?: { tokens?: Record<string, number> };
-				parts?: Array<Record<string, unknown>>;
+				parts?: Array<Record<string, unknown> & { id?: string; type?: string }>;
 			};
 
 			if (data.parts) {
 				for (const part of data.parts) {
+					const partID = part.id ?? '';
 					if (part.type === 'tool') {
-						this._dispatchToolCall(turnId, part);
+						this._handleToolPart(turnId, part);
 					} else if (part.type === 'text' && typeof part.text === 'string') {
-						this._dispatchRemainingText(turnId, part.text as string);
+						this._emitText(turnId, partID, part.text as string);
 					} else if (part.type === 'reasoning' && typeof part.text === 'string') {
-						this._dispatchRemainingReasoning(turnId, part.text as string);
+						this._emitReasoning(turnId, partID, part.text as string);
 					}
 				}
 			}
@@ -496,95 +615,25 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			duration: 0,
 		});
 
-		this._resetStreamingState();
-	}
-
-	private _dispatchToolCall(turnId: string, part: Record<string, unknown>): void {
-		const callID = part.callID as string | undefined;
-		const tool = part.tool as string | undefined;
-		const state = part.state as Record<string, unknown> | undefined;
-		if (!callID || !tool || !state) { return; }
-
-		const status = state.status as string | undefined;
-		const title = state.title as string | undefined;
-
-		// Dispatch start (if not already dispatched)
-		if (!this._dispatchedToolCallIds.has(callID)) {
-			this._dispatchedToolCallIds.add(callID);
-			this._fireAction(ActionType.ChatToolCallStart, {
-				turnId,
-				toolCallId: callID,
-				toolName: tool,
-				displayName: title ?? tool,
-				intention: title ?? tool,
-			});
-		}
-
-		// Dispatch complete with result
-		if ((status === 'completed' || status === 'error') && !this._completedToolCallIds.has(callID)) {
-			this._completedToolCallIds.add(callID);
-			const output = state.output as string | undefined;
-			const error = state.error as string | undefined;
-			const success = status === 'completed';
-			this._fireAction(ActionType.ChatToolCallComplete, {
-				turnId,
-				toolCallId: callID,
-				result: {
-					success,
-					pastTenseMessage: success ? (title ?? 'Tool completed') : `Tool failed: ${title ?? 'error'}`,
-					content: output ? [{ type: 'text', text: output }] : undefined,
-					error: error ? { message: error } : undefined,
-				},
-			});
-		}
-	}
-
-	private _dispatchRemainingText(turnId: string, fullText: string): void {
-		const alreadyProcessed = this._processedTextChars;
-		if (fullText.length > alreadyProcessed) {
-			const delta = fullText.slice(alreadyProcessed);
-			this._processedTextChars = fullText.length;
-			if (!this._textPartId) {
-				this._textPartId = generateUuid();
-				this._fireAction(ActionType.ChatResponsePart, {
-					turnId,
-					part: { kind: ResponsePartKind.Markdown, id: this._textPartId, content: delta },
-				});
-			} else {
-				this._fireAction(ActionType.ChatDelta, {
-					turnId,
-					partId: this._textPartId,
-					content: delta,
-				});
-			}
-		}
-	}
-
-	private _dispatchRemainingReasoning(turnId: string, fullText: string): void {
-		const alreadyProcessed = this._processedReasoningChars;
-		if (fullText.length > alreadyProcessed) {
-			const delta = fullText.slice(alreadyProcessed);
-			this._processedReasoningChars = fullText.length;
-			if (!this._reasoningPartId) {
-				this._reasoningPartId = generateUuid();
-			}
-			this._fireAction(ActionType.ChatReasoning, {
-				turnId,
-				partId: this._reasoningPartId,
-				content: delta,
-			});
-		}
+		// 不清 _currentTurnId/工具集合:允许 turn 结束后迟到的
+		// message.part.updated(如工具最终 completed)仍按本 turn 补发。
+		// 状态统一在下次 sendMessage / abort 时重置。 // test-workbench_change
 	}
 
 	private _resetStreamingState(): void {
-		this._textPartId = undefined;
-		this._reasoningPartId = undefined;
-		this._processedTextChars = 0;
-		this._processedReasoningChars = 0;
+		this._partTypes.clear();
+		this._partText.clear();
+		this._partTextSent.clear();
+		this._partTextPartId.clear();
+		this._partReasoning.clear();
+		this._partReasoningSent.clear();
+		this._partReasoningPartId.clear();
 		this._dispatchedToolCallIds.clear();
+		this._readyToolCallIds.clear();
 		this._completedToolCallIds.clear();
+		this._toolInputs.clear();
 		this._currentTurnId = undefined;
-		this._sseActive = false;
+		this._currentTurnStartMs = 0;
 	}
 
 	// ── SSE event handling ─────────────────────────────────────────────────
@@ -592,19 +641,23 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	handleEvent(event: import('./openCodeEventStream.js').IOpenCodeEvent): void {
 		const props = event.properties;
 
-		// 权限 / 问询事件是会话级事件(不依赖当前 turn,遗留/恢复后的请求也能到达),
+		// 权限 / 问询 / 会话错误是会话级事件(不依赖当前 turn,遗留/恢复后的请求也能到达),
 		// 必须先于 turnId 早退处理。 // test-workbench_change
 		switch (event.type) {
 			case 'permission.asked':
 				this._handlePermissionAsked(props);
-				break;
+				return;
 			case 'question.asked':
 				this._handleQuestionAsked(props);
-				break;
+				return;
 			case 'permission.replied':
 			case 'question.replied':
 			case 'question.rejected':
-				break;
+				return;
+			case 'session.error':
+				// turn 级错误:无当前 turn 时丢弃
+				if (this._currentTurnId) { this._handleSessionError(this._currentTurnId, props); }
+				return;
 		}
 
 		// 以下均为 turn 级事件,无当前 turn 时丢弃
@@ -612,133 +665,66 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		if (!turnId) { return; }
 
 		switch (event.type) {
-			// 完整 part 更新(text/reasoning/tool)
+			// 完整 part 更新(text/reasoning/tool),实时工具状态机的唯一可靠源
+			// (fork 的 message.part.updated 走 SyncEvent,默认发布到 bus,不受
+			// OPENCODE_EXPERIMENTAL_EVENT_SYSTEM 开关影响) // test-workbench_change
 			case 'message.part.updated':
 				this._handlePartUpdated(turnId, props);
 				break;
-			// part 增量(message.part.delta 携带 partID+delta;session.next.text.delta 仅 delta)
+			// part 增量(text/reasoning 实时流),fork 直接 bus.publish(PartDelta)
 			case 'message.part.delta':
-			case 'session.next.text.delta':
 				this._handlePartDelta(turnId, props);
-				break;
-			// reasoning 增量
-			case 'session.next.reasoning.delta':
-				this._handleReasoningDelta(turnId, props);
-				break;
-			// 工具调用:called → Start;success/failed → Complete
-			case 'session.next.tool.called':
-			case 'session.next.tool.input.started':
-				this._handleToolCalled(turnId, props);
-				break;
-			case 'session.next.tool.success':
-				this._handleToolEnded(turnId, props, true);
-				break;
-			case 'session.next.tool.failed':
-				this._handleToolEnded(turnId, props, false);
-				break;
-			// 会话错误
-			case 'session.error':
-				this._handleSessionError(turnId, props);
 				break;
 		}
 	}
 
 	private _handlePartUpdated(turnId: string, props: Record<string, unknown>): void {
-		const part = props.part as Record<string, unknown> | undefined;
+		const part = props.part as { id?: string; type?: string; text?: string; callID?: string; tool?: string; state?: Record<string, unknown> } | undefined;
 		if (!part) { return; }
+		this._renderPart(turnId, part as unknown as Record<string, unknown>);
+	}
 
+	/**
+	 * 渲染单个 part(工具状态机 / 文本 / 推理)。
+	 * 轮询(GET /session/:id/message)与 SSE(message.part.updated)共用,
+	 * 内部按 partID/callID 判重,幂等可重入。
+	 */
+	private _renderPart(turnId: string, part: Record<string, unknown>): void {
+		const partID = part.id as string | undefined ?? '';
 		const partType = part.type as string | undefined;
+
 		if (partType === 'tool') {
-			this._handleToolPartEvent(turnId, part);
+			this._partTypes.set(partID, 'tool');
+			this._handleToolPart(turnId, part);
 		} else if (partType === 'text' && typeof part.text === 'string') {
-			// Fallback: if HTTP stream didn't catch this text part, dispatch it
-			this._dispatchRemainingText(turnId, part.text as string);
+			this._partTypes.set(partID, 'text');
+			this._emitText(turnId, partID, part.text);
 		} else if (partType === 'reasoning' && typeof part.text === 'string') {
-			this._dispatchRemainingReasoning(turnId, part.text as string);
+			this._partTypes.set(partID, 'reasoning');
+			this._emitReasoning(turnId, partID, part.text);
 		}
 	}
 
 	private _handlePartDelta(turnId: string, props: Record<string, unknown>): void {
-		this._sseActive = true;
+		// fork PartDelta payload: { sessionID, messageID, partID, field, delta }
+		// reasoning 与 text 的 field 均为 "text",靠 partID→type 映射区分
 		const partID = props.partID as string | undefined;
 		const delta = props.delta as string | undefined;
 		if (!partID || !delta) { return; }
 
-		// Delta for text or reasoning field — dispatch as ChatDelta for the part
-		if (!this._textPartId) {
-			this._textPartId = generateUuid();
-			this._fireAction(ActionType.ChatResponsePart, {
-				turnId,
-				part: { kind: ResponsePartKind.Markdown, id: this._textPartId, content: delta },
-			});
+		const partType = this._partTypes.get(partID) ?? 'text';
+		if (partType === 'reasoning') {
+			const acc = (this._partReasoning.get(partID) ?? '') + delta;
+			this._partReasoning.set(partID, acc);
+			this._emitReasoning(turnId, partID, acc);
 		} else {
-			this._fireAction(ActionType.ChatDelta, {
-				turnId,
-				partId: this._textPartId,
-				content: delta,
-			});
+			const acc = (this._partText.get(partID) ?? '') + delta;
+			this._partText.set(partID, acc);
+			this._emitText(turnId, partID, acc);
 		}
-	}
-
-	// ── fork 事件 handler(session.next.* / session.error)──────────────────
-
-	private _handleReasoningDelta(turnId: string, props: Record<string, unknown>): void {
-		this._sseActive = true;
-		const delta = props.delta as string | undefined;
-		if (!delta) { return; }
-		if (!this._reasoningPartId) {
-			this._reasoningPartId = generateUuid();
-		}
-		this._fireAction(ActionType.ChatReasoning, {
-			turnId,
-			partId: this._reasoningPartId,
-			content: delta,
-		});
-	}
-
-	private _handleToolCalled(turnId: string, props: Record<string, unknown>): void {
-		this._sseActive = true;
-		const callID = props.callID as string | undefined;
-		const tool = props.tool as string | undefined;
-		if (!callID || !tool) { return; }
-
-		if (!this._dispatchedToolCallIds.has(callID)) {
-			this._dispatchedToolCallIds.add(callID);
-			this._fireAction(ActionType.ChatToolCallStart, {
-				turnId,
-				toolCallId: callID,
-				toolName: tool,
-				displayName: tool,
-				intention: tool,
-			});
-		}
-	}
-
-	private _handleToolEnded(turnId: string, props: Record<string, unknown>, success: boolean): void {
-		this._sseActive = true;
-		const callID = props.callID as string | undefined;
-		if (!callID || this._completedToolCallIds.has(callID)) { return; }
-		this._completedToolCallIds.add(callID);
-
-		const tool = props.tool as string | undefined;
-		const error = props.error as string | undefined;
-		const content = props.content as Array<{ type?: string; text?: string }> | undefined;
-		const output = content?.filter(c => typeof c.text === 'string').map(c => c.text).join('\n');
-
-		this._fireAction(ActionType.ChatToolCallComplete, {
-			turnId,
-			toolCallId: callID,
-			result: {
-				success,
-				pastTenseMessage: success ? `${tool ?? 'Tool'} completed` : `Tool failed: ${error ?? 'error'}`,
-				content: output ? [{ type: 'text', text: output }] : undefined,
-				error: error ? { message: error } : undefined,
-			},
-		});
 	}
 
 	private _handleSessionError(turnId: string, props: Record<string, unknown>): void {
-		this._sseActive = true;
 		const error = props.error as { message?: string } | string | undefined;
 		const message = typeof error === 'string' ? error : error?.message;
 		this._fireAction(ActionType.ChatError, {
@@ -837,47 +823,6 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			questions,
 		};
 		this._fireAction(ActionType.ChatInputRequested, { request: inputRequest });
-	}
-
-	private _handleToolPartEvent(turnId: string, part: Record<string, unknown>): void {
-		this._sseActive = true;
-		const callID = part.callID as string | undefined;
-		const tool = part.tool as string | undefined;
-		const state = part.state as Record<string, unknown> | undefined;
-		if (!callID || !tool || !state) { return; }
-
-		const status = state.status as string | undefined;
-		const title = state.title as string | undefined;
-
-		// Start (only dispatch once per callID)
-		if (!this._dispatchedToolCallIds.has(callID)) {
-			this._dispatchedToolCallIds.add(callID);
-			this._fireAction(ActionType.ChatToolCallStart, {
-				turnId,
-				toolCallId: callID,
-				toolName: tool,
-				displayName: title ?? tool,
-				intention: title ?? tool,
-			});
-		}
-
-		// Complete
-		if ((status === 'completed' || status === 'error') && !this._completedToolCallIds.has(callID)) {
-			this._completedToolCallIds.add(callID);
-			const output = state.output as string | undefined;
-			const error = state.error as string | undefined;
-			const success = status === 'completed';
-			this._fireAction(ActionType.ChatToolCallComplete, {
-				turnId,
-				toolCallId: callID,
-				result: {
-					success,
-					pastTenseMessage: success ? (title ?? 'Tool completed') : `Tool failed: ${title ?? 'error'}`,
-					content: output ? [{ type: 'text', text: output }] : undefined,
-					error: error ? { message: error } : undefined,
-				},
-			});
-		}
 	}
 
 	private async _request<T>(method: string, path: string, body?: unknown): Promise<T> {
