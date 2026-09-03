@@ -94,6 +94,11 @@ class SessionsSetUpWidget extends Disposable {
 	}
 
 	private _start(): void {
+		// test-workbench_change start: skip sessions welcome/sign-in entirely
+		this.onCompleted();
+		return;
+		// test-workbench_change end
+
 		if (!this.productService.defaultChatAgent?.chatExtensionId) {
 			this.onCompleted();
 			return;
