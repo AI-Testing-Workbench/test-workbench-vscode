@@ -257,6 +257,11 @@ export class ExtensionHostConnection extends Disposable {
 
 			const env = await buildUserEnvironment(startParams.env, true, startParams.language, this._environmentService, this._logService, this._configurationService);
 			removeDangerousEnvVariables(env);
+			// test-workbench_change start
+			if (this._environmentService.args['disable-client-validation']) {
+				env.VSCODE_DISABLE_CLIENT_VALIDATION = 'true';
+			}
+			// test-workbench_change end
 
 			let extHostNamedPipeServer: net.Server | null;
 
