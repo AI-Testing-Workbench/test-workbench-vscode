@@ -16,15 +16,26 @@ import { OpenCodeSession } from '../../node/openCode/openCodeSession.js';
 interface AnySession {
 	opencodeSessionId: string;
 	_currentTurnId: string;
+	_currentPrompt?: string;
 	handleEvent(event: { type: string; properties: Record<string, unknown> }): void;
+	sendMessage(prompt: string): Promise<void>;
 }
 
-function createSession(): { session: AnySession; actions: Array<{ type: string; toolCallId?: string; confirmed?: string; result?: unknown; content?: string }> } {
+interface CapturedAction {
+	type: string;
+	toolCallId?: string;
+	confirmed?: string;
+	result?: unknown;
+	content?: string;
+	part?: { content?: string };
+}
+
+function createSession(): { session: AnySession; actions: CapturedAction[] } {
 	const emitter = new Emitter<AgentSignal>();
-	const actions: Array<{ type: string; toolCallId?: string; confirmed?: string; result?: unknown; content?: string }> = [];
+	const actions: CapturedAction[] = [];
 	emitter.event(s => {
 		if (s.kind === 'action') {
-			actions.push({ type: s.action.type } as never);
+			actions.push(s.action as unknown as CapturedAction);
 		}
 	});
 	const raw = new OpenCodeSession(
@@ -84,5 +95,51 @@ suite('OpenCodeSession', () => {
 
 		const deltas = actions.filter(a => a.type === ActionType.ChatDelta).map(a => a.content);
 		assert.deepStrictEqual(deltas, ['hello', ' world']);
+	});
+
+	// fork 对用户消息的 part(prompt 原文)也发 message.part.updated/delta,
+	// 用户消息的 message.updated 先于其 part 事件到达,必须按消息角色过滤,
+	// 否则用户输入会被重复渲染进响应
+	test('ignores parts that belong to non-assistant messages', () => {
+		const { session, actions } = createSession();
+		session._currentPrompt = '分析当前项目';
+
+		// 用户消息创建(先于其 part 事件)
+		session.handleEvent({ type: 'message.updated', properties: { sessionID: 'oc-1', info: { id: 'm-user', role: 'user' } } });
+		// 用户消息的 text part(prompt 原文)→ 忽略
+		session.handleEvent({ type: 'message.part.updated', properties: { sessionID: 'oc-1', part: { id: 'p-user', messageID: 'm-user', type: 'text', text: '分析当前项目' } } });
+		// 用户消息的 delta → 忽略
+		session.handleEvent({ type: 'message.part.delta', properties: { sessionID: 'oc-1', messageID: 'm-user', partID: 'p-user2', field: 'text', delta: 'x' } });
+		// 缺 messageID 但文本与 prompt 全等 → 兜底忽略
+		session.handleEvent({ type: 'message.part.updated', properties: { sessionID: 'oc-1', part: { id: 'p-noid', type: 'text', text: '分析当前项目' } } });
+		// assistant 消息创建 + text part → 正常渲染
+		session.handleEvent({ type: 'message.updated', properties: { sessionID: 'oc-1', info: { id: 'm-ast', role: 'assistant' } } });
+		session.handleEvent({ type: 'message.part.updated', properties: { sessionID: 'oc-1', part: { id: 'p-ast', messageID: 'm-ast', type: 'text', text: 'ok' } } });
+
+		const rendered = actions.filter(a => a.type === ActionType.ChatResponsePart).map(a => a.part?.content);
+		assert.deepStrictEqual(rendered, ['ok']);
+	});
+
+	// 每次 POST /session/:id/prompt_async 都携带文件链接契约(fork 的 system 字段,
+	// 追加到 system prompt),强制模型输出 [name](/abs/path) 可点击链接
+	test('message POST carries the file-link system prompt', async () => {
+		const { session } = createSession();
+		let capturedBody: Record<string, unknown> | undefined;
+		const originalFetch = globalThis.fetch;
+		(globalThis as { fetch: unknown }).fetch = (async (input: { url?: string } | string, init?: { method?: string; body?: string }) => {
+			const url = typeof input === 'string' ? input : input.url ?? '';
+			if (init?.method === 'POST' && url.includes('/prompt_async')) {
+				capturedBody = JSON.parse(init.body ?? '{}') as Record<string, unknown>;
+				return new Response('', { status: 200 });
+			}
+			return new Response('[]', { status: 200 });
+		}) as unknown as typeof fetch;
+		try {
+			await session.sendMessage('hi');
+		} finally {
+			(globalThis as { fetch: unknown }).fetch = originalFetch;
+		}
+		assert.ok(capturedBody, 'POST /session/:id/prompt_async 应被调用');
+		assert.ok(typeof capturedBody?.system === 'string' && capturedBody.system.includes('file_folder_and_symbol_links'), 'system 应携带文件链接契约');
 	});
 });

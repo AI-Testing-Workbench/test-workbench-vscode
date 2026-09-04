@@ -30,6 +30,10 @@ import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.j
 import { IChatContentInlineReference } from '../../../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
+// test-workbench_change start
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
+// test-workbench_change end
 import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IViewDescriptorService } from '../../../../../../common/views.js';
@@ -143,6 +147,13 @@ suite('ChatMarkdownContentPart', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		chatSessionsService = new MockChatSessionsService();
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
+		// test-workbench_change: linkify 依赖的工作区/文件服务(测试无工作区,相对路径不链接)
+		instantiationService.stub(IWorkspaceContextService, {
+			getWorkspace: () => ({ id: 'test', folders: [] }),
+		} as unknown as IWorkspaceContextService);
+		instantiationService.stub(IFileService, {
+			stat: () => Promise.reject(new Error('no file service in test')),
+		} as unknown as IFileService);
 		renderedCodeBlocks.length = 0;
 		renderedCodeBlockOutputs.length = 0;
 		outputStateCache = new Map<string, IOutputPartState>();

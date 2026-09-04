@@ -38,6 +38,10 @@ import { IOpenEditorOptions } from '../../../../../../platform/editor/browser/ed
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+// test-workbench_change start
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+// test-workbench_change end
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
@@ -61,6 +65,10 @@ import './media/chatCodeBlockPill.css';
 import { IDisposableReference } from './chatCollections.js';
 import { EditorPool } from './chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+// test-workbench_change start
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { renderFileWidgets } from './chatInlineAnchorWidget.js';
+// test-workbench_change end
 import { ChatEditPillElement, isResourceContentEmpty } from './chatEditPillElement.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
 import { ChatProgressSubPart } from './chatProgressContentPart.js';
@@ -69,6 +77,62 @@ import { IChatOutputPartStateCache, IOutputPartState } from './chatOutputPartSta
 import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
+
+// ── 正文文件路径 linkify ─────────────────────────────────────────────────────
+
+// ponytail: katex 加载失败(上游 Lazy 已缓存加载本身)只在首次记日志,
+// 避免流式期间每次重渲染都刷一条 // test-workbench_change
+let _katexLoadErrorLogged = false;
+
+// ponytail: 模块级 stat 缓存 + 在途去重:part 实例在流式重渲染间会重建,
+// 实例级缓存会触发重复 stat 与链接闪烁;文件存在性在会话内视为稳定 // test-workbench_change
+const _fileRefStatCache = new Map<string, Promise<boolean>>();
+
+function statFileRef(fileService: IFileService, target: URI): Promise<boolean> {
+	const key = target.toString();
+	let p = _fileRefStatCache.get(key);
+	if (!p) {
+		p = fileService.stat(target).then(() => true, () => false);
+		_fileRefStatCache.set(key, p);
+	}
+	return p;
+}
+
+/**
+ * 把 markdown 普通文本中的文件路径(绝对路径 / 带目录的相对路径 / 裸文件名)
+ * 替换为 toLink 返回的链接文本,使正文里的文件引用可点击。
+ * fenced 代码块与行内 code 不处理;toLink 返回 undefined 的候选保持原样。 // test-workbench_change
+ */
+export function linkifyFileReferences(markdown: string, toLink: (candidate: string) => string | undefined): string {
+	if (!markdown) { return markdown; }
+	const lines = markdown.split('\n');
+	const out: string[] = [];
+	let inFence = false;
+	for (const line of lines) {
+		if (/^\s*(```|~~~)/.test(line)) {
+			inFence = !inFence;
+			out.push(line);
+			continue;
+		}
+		if (inFence) { out.push(line); continue; }
+		// 行内 code span 保护(split 捕获组:奇数下标为 code)
+		out.push(line.split(/(`[^`\n]+`)/g).map((seg, i) => i % 2 === 1 ? seg : linkifyTextSegment(seg, toLink)).join(''));
+	}
+	return out.join('\n');
+}
+
+// 候选:Windows 绝对路径 / posix 绝对路径(带扩展名) / 带目录的相对路径 / 裸文件名(带扩展名)。
+// 前置边界排除 URL(scheme://、//host)与更长 token 的尾部(版本号 v1.2 等由存在性检查兜底)。
+const FILE_REF_RE = /(?<![\w.:\/\\-])([A-Za-z]:[\\/][^\s`"')\]<>|,;]+|(?:(?:\/[A-Za-z0-9._@-]+)+\.[A-Za-z0-9]{1,8}|(?:[A-Za-z0-9._@-]+\/)+[A-Za-z0-9_-]+\.[A-Za-z0-9]{1,8}|[A-Za-z0-9_-]+\.[A-Za-z0-9]{1,8}))/g;
+
+function linkifyTextSegment(text: string, toLink: (candidate: string) => string | undefined): string {
+	return text.replace(FILE_REF_RE, (match) => {
+		const candidate = match.replace(/[.,;:!?]+$/, ''); // 去掉句尾标点
+		const link = toLink(candidate);
+		if (!link) { return match; }
+		return candidate.length < match.length ? link + match.slice(candidate.length) : link;
+	});
+}
 
 export interface IChatMarkdownContentPartOptions {
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
@@ -117,6 +181,14 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	/** Incremental rendering morpher — only created when the experiment is enabled. */
 	private _incrementalMorpher: IncrementalDOMMorpher | undefined;
 
+	// test-workbench_change start
+	// 重渲染引用(构造器内 doRenderMarkdown 定义后赋值):相对路径存在性检查确认后补渲染
+	private _rerenderMarkdown: (() => void) | undefined;
+	// 正文文件路径存在性检查缓存:候选 → 已确认 / 已排除 / 检查中
+	private readonly _linkifyCache = new Map<string, boolean | 'pending'>();
+	private _linkifyRerenderScheduled = false;
+	// test-workbench_change end
+
 	constructor(
 		private markdown: IChatMarkdownContent,
 		context: IChatContentPartRenderContext,
@@ -133,6 +205,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		// test-workbench_change: 把正文里 provider 发来的 file:// 链接渲染成可点击文件 widget
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		// test-workbench_change: 正文文件路径 linkify(工作区解析 + 存在性检查)
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -229,7 +306,20 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			const transformUri = isResponseVM(element)
 				? (href: string, kind: 'link' | 'image') => this.chatSessionsService.resolveChatResponseUri(element.sessionResource, configuredUriTransformer?.(href, kind) ?? href, kind)
 				: configuredUriTransformer;
-			const result = store.add(renderer.render(this.markdown.content, {
+			// 正文文件路径 linkify(代码块除外)。只在 part 完成后应用:流式期间
+			// 候选集随打字不断变化 + 存在性检查异步,边打字边链接会抖动;
+			// 完成后一次性转链接(相对路径存在性确认后再补渲染一次) // test-workbench_change
+			const applyLinks = !isResponseVM(element) || element.isComplete;
+			const linkifiedValue = linkifyFileReferences(this.markdown.content.value, candidate => this._linkifyCandidate(candidate, applyLinks));
+			const mdToRender = linkifiedValue === this.markdown.content.value
+				? this.markdown.content
+				: (() => {
+					const content = new MarkdownString(linkifiedValue, this.markdown.content);
+					content.baseUri = URI.revive(this.markdown.content.baseUri);
+					content.uris = this.markdown.content.uris;
+					return content;
+				})();
+			const result = store.add(renderer.render(mdToRender, {
 				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
 					allowedTags: allowedChatMarkdownHtmlTags,
 					allowedAttributes: allowedMarkdownHtmlAttributes,
@@ -384,8 +474,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}));
 			}
 
-			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
-			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element));
+		const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
+		store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element));
+
+		// 正文 markdown 中的文件链接(任意 provider 发来的 [x](file://…),含 vscodeLinkType
+		// 标签或空链接文本)渲染为可点击文件 widget —— 与工具确认/折叠标题等 part 同一条
+		// 管线;store 在下次重渲染时统一 dispose(widget 从 anchorService 注销)。 // test-workbench_change
+		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, store);
 
 			const layoutParticipants = new Lazy(() => {
 				const observer = store.add(new dom.DisposableResizeObserver('ChatMarkdownContentPart.mathLayout', () => this.mathLayoutParticipants.forEach(layout => layout())));
@@ -415,6 +510,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			dispose(reusableOutputCodeBlockRefs.values());
 		};
 
+		this._rerenderMarkdown = doRenderMarkdown; // test-workbench_change
+
 		// Always render immediately
 		doRenderMarkdown();
 
@@ -426,13 +523,17 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this._incrementalMorpher?.seed(markdown.content.value, /* animateInitial */ true);
 
 		if (enableMath && !MarkedKatexSupport.getExtension(dom.getWindow(context.container))) {
-			// KaTeX not yet loaded - load it and re-render when ready
+			// KaTeX not yet loaded - render and re-render after loading
 			MarkedKatexSupport.loadExtension(dom.getWindow(context.container))
 				.then(() => {
 					doRenderMarkdown();
 				})
 				.catch(e => {
-					console.error('Failed to load MarkedKatexSupport extension:', e);
+					// test-workbench_change: 加载失败只记一次(上游 Lazy 已缓存,这里只是避免每次重渲染刷日志)
+					if (!_katexLoadErrorLogged) {
+						_katexLoadErrorLogged = true;
+						console.error('Failed to load MarkedKatexSupport extension:', e);
+					}
 				});
 		}
 	}
@@ -614,6 +715,58 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			}
 		}
 	}
+
+	// ── 正文文件路径 linkify ─────────────────────────────────────────────────
+	// test-workbench_change start
+
+	/** 解析正文中的文件路径候选:绝对路径直接转链接;相对/裸名按工作区根解析,
+	 *  存在性检查异步进行(模块级缓存去重,确认后触发一次补渲染)。
+	 *  allowLinks=false(流式期间)只返回 undefined,不产生任何链接/重渲染。 */
+	private _linkifyCandidate(candidate: string, allowLinks: boolean): string | undefined {
+		const isAbsolute = candidate.startsWith('/') || /^[A-Za-z]:[\\/]/.test(candidate);
+		const target = isAbsolute
+			? URI.file(candidate.replace(/\\/g, '/'))
+			: this._resolveWorkspaceTarget(candidate);
+		if (!target || !allowLinks) { return undefined; }
+		if (isAbsolute) {
+			return this._asFileLink(target);
+		}
+		const cached = this._linkifyCache.get(candidate);
+		if (cached === false) { return undefined; }
+		if (cached === true) { return this._asFileLink(target); }
+		if (cached !== 'pending') {
+			this._linkifyCache.set(candidate, 'pending');
+			void statFileRef(this.fileService, target).then(exists => {
+				if (this._store.isDisposed) { return; }
+				this._linkifyCache.set(candidate, exists);
+				if (exists) { this._scheduleLinkifyRerender(); }
+			});
+		}
+		return undefined;
+	}
+
+	private _resolveWorkspaceTarget(candidate: string): URI | undefined {
+		// ponytail: 只按第一个工作区根解析,多根工作区命中后续根时不链接
+		const root = this.workspaceContextService.getWorkspace().folders[0]?.uri;
+		if (!root) { return undefined; }
+		return root.with({ path: root.path.replace(/\/$/, '') + '/' + candidate });
+	}
+
+	private _asFileLink(uri: URI): string {
+		const label = uri.path.split('/').filter(Boolean).pop() ?? uri.path;
+		return `[${label}](${uri.with({ query: 'vscodeLinkType=file' }).toString()})`;
+	}
+
+	private _scheduleLinkifyRerender(): void {
+		if (this._linkifyRerenderScheduled || this._store.isDisposed) { return; }
+		this._linkifyRerenderScheduled = true;
+		setTimeout(() => {
+			this._linkifyRerenderScheduled = false;
+			if (!this._store.isDisposed) { this._rerenderMarkdown?.(); }
+		}, 0);
+	}
+
+	// test-workbench_change end
 
 	addDisposable(disposable: IDisposable): void {
 		this._register(disposable);

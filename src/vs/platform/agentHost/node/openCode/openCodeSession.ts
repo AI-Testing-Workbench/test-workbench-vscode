@@ -6,6 +6,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -58,6 +59,8 @@ interface ForkMessageInfo {
 	time?: { created?: number };
 	text?: string;
 	summary?: { title?: string; body?: string };
+	// test-workbench_change: 轮询需要 finish 探测 turn 完成(prompt_async 模式下无阻塞响应可依赖)
+	finish?: string;
 }
 
 /** fork 消息中的 part(TextPart/ReasoningPart/ToolPart 等的公共字段) */
@@ -148,6 +151,70 @@ function mapForkPermissionKind(permission: string): 'shell' | 'write' | 'mcp' | 
 	}
 }
 
+// ── 文件链接 markdown ────────────────────────────────────────────────────────
+
+/** 判断是否为本地绝对路径(posix 或 Windows 盘符,单行)。仅用于启发式
+ *  提取 fork 工具 title/input 里的"文件路径",不匹配时回退纯文本显示。 */
+function isLikelyAbsolutePath(value: unknown): value is string {
+	return typeof value === 'string'
+		&& value.length > 1
+		&& value.length < 4096
+		&& !value.includes('\n')
+		&& value.includes('/')
+		&& (value.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(value));
+}
+
+/** 从工具 input 提取文件路径(path 类字段;input 本身是字符串时即路径候选) */
+function extractToolFilePath(input: unknown): string | undefined {
+	if (typeof input === 'string') {
+		return isLikelyAbsolutePath(input) ? input : undefined;
+	}
+	if (input && typeof input === 'object') {
+		const rec = input as Record<string, unknown>;
+		for (const key of ['path', 'file_path', 'filePath', 'target_file', 'targetFile', 'filename']) {
+			if (isLikelyAbsolutePath(rec[key])) {
+				return rec[key];
+			}
+		}
+	}
+	return undefined;
+}
+
+/**
+ * 构造聊天 UI 可点击的文件链接:[basename](file:///abs/path?vscodeLinkType=file)。
+ * `vscodeLinkType=file` 是聊天文件 widget 的触发条件(chatInlineAnchorWidget.ts,
+ * 打开文件前会剥掉该 query);内置 copilot host 同样用 file:// 链接
+ * (见 copilotToolDisplay.ts formatPathAsMarkdownLink)。 // test-workbench_change
+ */
+function buildFileMarkdownLink(path: string): string {
+	const uri = URI.file(path).with({ query: 'vscodeLinkType=file' });
+	return `[${basename(uri)}](${uri.toString()})`;
+}
+
+// ── 文件链接契约 ─────────────────────────────────────────────────────────────
+
+/**
+ * 注入 opencode 的 system prompt(经 fork POST /session/:id/message 的 `system` 字段,
+ * 追加到系统提示,零 fork 改动):强制模型把文件引用输出为 [name](/abs/path) markdown
+ * 链接。客户端 rewriteAgentHostLinkTarget / parseAbsoluteFileLinkTarget 已能把绝对
+ * 路径 href 转成 file:// 链接(含 :line:col → 行号 fragment),渲染后经默认
+ * actionHandler(openerService) 可直接点击打开 —— 与内置 copilot host 的
+ * COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS 同一契约。 // test-workbench_change
+ */
+const OPENCODE_FILE_LINK_INSTRUCTIONS = [
+	'<file_folder_and_symbol_links>',
+	'Always use Markdown links when referring to existing files, folders, or symbols in the workspace. This is very important for helping the user open them.',
+	'- File: use the file name as the link text and the absolute filesystem path as the target, for example [foo.ts](/path/to/foo.ts).',
+	'- Folder: links to folders are also supported, with an absolute path to the folder as the target, for example [src/](/path/to/src).',
+	'- Symbol: link to symbols by using the containing file path with a 1-based line number as the target, for example [myMethod](/path/to/foo.ts:42).',
+	'- Use `/` path separators in link targets, including on Windows (`C:/path/to/foo.ts`).',
+	'- If a file path has spaces, wrap the target in angle brackets: [foo bar.ts](</path/to/foo bar.ts>).',
+	'- Use absolute filesystem paths rather than `file://` URIs.',
+	'- Do not provide line ranges.',
+	'- Use a markdown link format every time you refer to a file, folder, or symbol, not just the first time.',
+	'</file_folder_and_symbol_links>',
+].join('\n');
+
 // ── Session ──────────────────────────────────────────────────────────────────
 
 export class OpenCodeSession extends Disposable implements IOpenCodeSession {
@@ -158,6 +225,9 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	// test-workbench_change: 恢复支持 —— 已知的 fork 会话 ID(重挂)+ 新建完成回调(记映射)
 	public knownOpencodeSessionId: string | undefined;
 	public onSessionCreated: ((opencodeSessionId: string) => void) | undefined;
+	// 当前 turn 的完成信号:SSE finish / abort / 请求错误时 resolve,
+	// 驱动 _pollTurn 退出(替代原阻塞 HTTP "turn 结束=响应返回" 的语义) // test-workbench_change
+	private _resolveTurnFinished: (() => void) | undefined;
 
 	constructor(
 		public readonly sessionId: string,
@@ -231,6 +301,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		// 新 turn 起点:清掉上一 turn 遗留的流式/工具状态(含延迟补发窗口)
 		this._resetStreamingState();
 		this._currentTurnId = effectiveTurnId;
+		this._currentPrompt = prompt;
 		this._currentTurnStartMs = Date.now();
 		const startedAt = new Date().toISOString();
 
@@ -246,24 +317,26 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 
 		this._abortController = new AbortController();
 
-		// fork 的 POST /session/:id/message 用 Stream.fromEffect 在 agent loop
-		// 结束后才一次性 flush 最终消息,运行期间 HTTP 流无数据;而 fork 的
-		// /event SSE 在 effect 4.0-beta 下(Channel.fromPubSubArray → takeAll)
-		// 从空队列立即结束,增量事件也收不到。
-		// 因此:HTTP 请求后台跑 + 轮询 GET /session/:id/message 拉增量渲染。 // test-workbench_change
+		// 打字机渲染由 /event SSE 的 message.part.delta / message.part.updated 驱动
+		// (openCodeEventStream → handleEvent);prompt_async 端点立即返回,不再阻塞。
+		// turn 完成信号由 SSE finish / abort / 请求错误 / 轮询探测驱动
+		// (_finishTurn),轮询仅作 SSE 静默时的兜底。 // test-workbench_change
+		const turnFinished = new Promise<void>(resolve => { this._resolveTurnFinished = resolve; });
 		const httpPromise = this._postMessage(prompt, workingDirectory, attachments, effectiveTurnId, tools);
-		const pollPromise = this._pollTurn(effectiveTurnId, httpPromise);
+		const pollPromise = this._pollTurn(effectiveTurnId, turnFinished);
 
 		try {
 			await httpPromise;
 		} finally {
-			this._abortController = undefined;
+			// turn 是否结束由 _finishTurn() 决定(SSE finish / abort / 请求错误),
+			// 这里不能清 _abortController:prompt_async 立即返回后 turn 仍在进行,
+			// hasActiveTurn(_abortController) 需要保持 true 防 releaseSession 误杀。 // test-workbench_change
 		}
 		await pollPromise.catch(() => { });
 	}
 
 	private async _postMessage(prompt: string, workingDirectory?: URI, attachments?: readonly MessageAttachment[], turnId?: string, tools?: string[]): Promise<void> {
-		const url = `${this._baseUrl}/session/${this.opencodeSessionId}/message`;
+		const url = `${this._baseUrl}/session/${this.opencodeSessionId}/prompt_async`;
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 		if (this._authHeader) { headers['Authorization'] = this._authHeader; }
 		// fork 通过 x-opencode-directory header 定位工作目录(workspace-routing.ts)
@@ -282,6 +355,8 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		}
 
 		const body: Record<string, unknown> = { parts };
+		// 文件链接契约:强制模型输出 [name](/abs/path) 链接,客户端转成可点击文件链接
+		body.system = OPENCODE_FILE_LINK_INSTRUCTIONS; // test-workbench_change
 		if (tools && tools.length > 0) {
 			body.tools = Object.fromEntries(tools.map(t => [t, true]));
 		}
@@ -293,31 +368,21 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		}
 
 		try {
-			const resp = await fetch(url, {
+			// prompt_async 立即返回 NoContent,不做阻塞等待:
+			// turn 生命周期由 SSE + 轮询接管,避免阻塞 POST 被 undici 默认
+			// 5min headers 超时杀掉长 turn(实测超时中招)。 // test-workbench_change
+			const init: RequestInit = {
 				method: 'POST',
 				headers,
 				body: JSON.stringify(body),
 				signal: this._abortController?.signal,
-			});
+			};
+			const resp = await fetch(url, init);
 
 			if (!resp.ok) {
 				const text = await resp.text().catch(() => ''); // 透传服务端错误详情,便于定位 500 根因 // test-workbench_change
 				throw new Error(`HTTP ${resp.status}${text ? `: ${text.slice(0, 400)}` : ''}`);
 			}
-
-			const reader = resp.body?.getReader();
-			if (!reader) { throw new Error('No response body'); }
-
-			const decoder = new TextDecoder();
-			let buffer = '';
-
-			while (true) {
-				const { done, value } = await reader.read();
-				if (value) { buffer += decoder.decode(value, { stream: true }); }
-				if (done) { break; }
-			}
-
-			this._processFinalResponse(buffer, turnId ?? '');
 
 		} catch (err: unknown) {
 			if (err instanceof Error && err.name === 'AbortError') {
@@ -336,30 +401,51 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				duration: 0,
 				error: {
 					errorType: 'unknown',
-					message: err instanceof Error ? err.message : String(err),
+					// 带上 undici 底层原因(如 UND_ERR_HEADERS_TIMEOUT / ECONNRESET),便于定位
+					message: `${err instanceof Error ? err.message : String(err)}${formatFetchError(err)}`,
 				},
 			});
 		}
 	}
 
-	/** 轮询 GET /session/:id/message,把当前 turn 的新 part 增量渲染(工具状态机 + 文本/推理) */
-	private async _pollTurn(turnId: string, httpDone: Promise<void>): Promise<void> {
+	/** 轮询 GET /session/:id/message,把当前 turn 的新 part 增量渲染(工具状态机 + 文本/推理)。
+	 *  SSE 正常送达(_sseHeard)后仅空转等 turnFinished;SSE 静默时靠轮询渲染,
+	 *  并通过消息列表的最终 finish 探测 turn 完成。 */
+	private async _pollTurn(turnId: string, turnFinished: Promise<void>): Promise<void> {
 		let finished = false;
-		httpDone.finally(() => { finished = true; }).catch(() => { });
-		while (!finished) {
+		turnFinished.then(() => { finished = true; }).catch(() => { });
+
+		// 首轮先给 SSE 一点时间证明自己(直达事件与 HTTP POST 几乎并行到达)
+		for (let i = 0; i < 5 && !finished && !this._sseHeard; i++) {
+			await this._sleep(200);
+		}
+
+		while (!finished && this.opencodeSessionId) {
+			// SSE 已接管增量渲染,轮询只做"保活"等 turn 完成信号
+			if (this._sseHeard) { await this._sleep(200); continue; }
+
 			try {
 				const records = await this._request<Array<{ info: ForkMessageInfo; parts?: ForkPart[] }>>(
 					'GET', `/session/${this.opencodeSessionId}/message?limit=20`,
 				);
 				// 只渲染当前 turn 开始后创建的 assistant 消息(避免把历史消息重复渲染进当前 turn)
+				let turnDone = false;
 				for (const msg of records) {
 					if (msg.info.role !== 'assistant') { continue; }
 					if (msg.info.time?.created !== undefined && msg.info.time.created < this._currentTurnStartMs) { continue; }
 					for (const part of msg.parts ?? []) {
 						this._renderPart(turnId, part as unknown as Record<string, unknown>);
 					}
+					// SSE 静默时的完成兜底:assistant 消息出现最终 finish(非 tool-calls/unknown)
+					if (msg.info.finish && msg.info.finish !== 'tool-calls' && typeof msg.info.finish === 'string') {
+						turnDone = true;
+					}
 				}
-			} catch { /* 轮询失败忽略,下轮重试 */ }
+				if (turnDone) {
+					this._completeTurn(turnId);
+					this._finishTurn();
+				}
+			} catch { await this._sleep(800); } /* 轮询失败,下轮重试 */
 			await this._sleep(800);
 		}
 	}
@@ -375,7 +461,12 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			this._abortController.abort();
 			this._abortController = undefined;
 		}
-		// 主动取消:立刻结束 turn,清掉流式状态与延迟补发窗口
+		// 主动取消:通知 fork 后端终止 agent loop,并立刻结束 turn
+		if (this.opencodeSessionId) {
+			void this._request<void>('POST', `/session/${this.opencodeSessionId}/abort`, {
+				reason: 'user_abort',
+			}).catch(() => { /* abort 失败忽略 */ });
+		}
 		this._resetStreamingState();
 	}
 
@@ -458,6 +549,14 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	private _toolInputs = new Map<string, unknown>();
 	private _currentTurnId: string | undefined;
 	private _currentTurnStartMs = 0;
+	// SSE 已送达事件(收到过 message.part.delta/updated 即认为 SSE 工作,轮询可停)
+	private _sseHeard = false;
+	// 本 turn 见过的 messageID → role:fork 对用户消息的 part(prompt 原文)也发
+	// part 事件,按消息角色过滤,避免用户输入被渲染进响应。
+	// 用户消息的 message.updated 先于其 part 事件到达,所以 part 到达时角色已知。 // test-workbench_change
+	private _messageRoles = new Map<string, string>();
+	// 当前 turn 的 prompt:part 事件缺 messageID 时的兜底过滤(文本全等的 text part 即用户原文)
+	private _currentPrompt: string | undefined;
 	// 轮询/SSE 共用:按 partID 追踪文本/推理增量与 part 类型
 	// (全量 part 与增量 delta 共用一套判重)
 	private _partTypes = new Map<string, 'text' | 'reasoning' | 'tool'>();
@@ -528,6 +627,13 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		const status = state.status;
 		const title = state.title;
 
+		// 文件类工具(read/write/edit 等):把路径拼进 markdown 文件链接,
+		// chat UI 据此渲染可点击文件 widget(对齐 copilot host 行为)。
+		// title 本身就是路径时不重复展示;非路径(描述性 title)保持纯文本。 // test-workbench_change
+		const filePath = extractToolFilePath(state.input) ?? (isLikelyAbsolutePath(title) ? title : undefined);
+		const fileLink = filePath ? buildFileMarkdownLink(filePath) : undefined;
+		const fileMessage = fileLink ? (title !== filePath ? `${title ?? tool} ${fileLink}` : fileLink) : undefined;
+
 		if (!this._dispatchedToolCallIds.has(callID)) {
 			this._dispatchedToolCallIds.add(callID);
 			this._fireAction(ActionType.ChatToolCallStart, {
@@ -550,7 +656,9 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			this._fireAction(ActionType.ChatToolCallReady, {
 				turnId,
 				toolCallId: callID,
-				invocationMessage: title ?? `Running ${tool}`,
+				// 带文件链接时必须用 { markdown } 对象形式:StringOrMarkdown 的字符串
+				// 形式会被客户端原样当纯文本渲染(方括号会原样显示)
+				invocationMessage: fileMessage ? { markdown: fileMessage } : (title ?? `Running ${tool}`),
 				...(input !== undefined ? { toolInput: typeof input === 'string' ? input : JSON.stringify(input) } : {}),
 				confirmationTitle: tool,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
@@ -567,7 +675,9 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				toolCallId: callID,
 				result: {
 					success,
-					pastTenseMessage: success ? (title ?? 'Tool completed') : `Tool failed: ${error ?? 'error'}`,
+					pastTenseMessage: success
+						? (fileMessage ? { markdown: fileMessage } : (title ?? 'Tool completed'))
+						: `Tool failed: ${error ?? 'error'}`,
 					content: output ? [{ type: 'text', text: output }] : undefined,
 					error: error ? { message: error } : undefined,
 				},
@@ -575,49 +685,23 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		}
 	}
 
-	private _processFinalResponse(buffer: string, turnId: string): void {
-		try {
-			const data = JSON.parse(buffer) as {
-				info?: { tokens?: Record<string, number> };
-				parts?: Array<Record<string, unknown> & { id?: string; type?: string }>;
-			};
+	/** 发一次 ChatTurnComplete,按 turn 去重(SSE message.updated 与轮询探测都会到)。 */
+	private _completeTurn(turnId: string): void {
+		if (this._completedTurnIds.has(turnId)) { return; }
+		this._completedTurnIds.add(turnId);
+		this._fireAction(ActionType.ChatTurnComplete, { turnId, duration: 0 });
+	}
 
-			if (data.parts) {
-				for (const part of data.parts) {
-					const partID = part.id ?? '';
-					if (part.type === 'tool') {
-						this._handleToolPart(turnId, part);
-					} else if (part.type === 'text' && typeof part.text === 'string') {
-						this._emitText(turnId, partID, part.text as string);
-					} else if (part.type === 'reasoning' && typeof part.text === 'string') {
-						this._emitReasoning(turnId, partID, part.text as string);
-					}
-				}
-			}
+	private _completedTurnIds = new Set<string>();
 
-			if (data.info?.tokens) {
-				const tokens = data.info.tokens;
-				this._fireAction(ActionType.ChatUsage, {
-					turnId,
-					usage: {
-						totalTokens: tokens.total ?? 0,
-						inputTokens: tokens.input ?? 0,
-						outputTokens: tokens.output ?? 0,
-					},
-				});
-			}
-		} catch {
-			this._logService.warn('[OpenCode] failed to parse final response');
-		}
-
-		this._fireAction(ActionType.ChatTurnComplete, {
-			turnId,
-			duration: 0,
-		});
-
-		// 不清 _currentTurnId/工具集合:允许 turn 结束后迟到的
-		// message.part.updated(如工具最终 completed)仍按本 turn 补发。
-		// 状态统一在下次 sendMessage / abort 时重置。 // test-workbench_change
+	/** 结束当前 turn 的等待(SSE finish / abort / 请求错误 / 轮询探测到完成时调用)。 */
+	private _finishTurn(): void {
+		const resolve = this._resolveTurnFinished;
+		this._resolveTurnFinished = undefined;
+		// turn 结束:清 abortController 使 hasActiveTurn 归位
+		// (prompt_async 下请求本身早已返回,这个信号只标记 turn 生命周期的终点) // test-workbench_change
+		this._abortController = undefined;
+		resolve?.();
 	}
 
 	private _resetStreamingState(): void {
@@ -634,6 +718,12 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		this._toolInputs.clear();
 		this._currentTurnId = undefined;
 		this._currentTurnStartMs = 0;
+		this._sseHeard = false;
+		this._messageRoles.clear();
+		this._currentPrompt = undefined;
+		this._completedTurnIds.clear();
+		// 结束上一个 turn 的等待(新 turn 起点 / abort / 请求错误) // test-workbench_change
+		this._finishTurn();
 	}
 
 	// ── SSE event handling ─────────────────────────────────────────────────
@@ -664,6 +754,9 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		const turnId = this._currentTurnId;
 		if (!turnId) { return; }
 
+		// 收到任一 turn 级 SSE 事件即标记 SSE 存活,轮询降级为兜底
+		this._sseHeard = true;
+
 		switch (event.type) {
 			// 完整 part 更新(text/reasoning/tool),实时工具状态机的唯一可靠源
 			// (fork 的 message.part.updated 走 SyncEvent,默认发布到 bus,不受
@@ -675,13 +768,47 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			case 'message.part.delta':
 				this._handlePartDelta(turnId, props);
 				break;
+			// 消息状态更新(含 turn 完成信号:assistant finish 落地)
+			case 'message.updated': {
+				const info = props.info as { id?: string; role?: string; finish?: string; tokens?: Record<string, number> } | undefined;
+				// 记录每条消息的角色(用户消息的 part 事件到达前,其角色必须已知) // test-workbench_change
+				if (info?.id && info?.role) { this._messageRoles.set(info.id, info.role); }
+				// 多步 turn 中 finish 会多次落地(中间步是 tool-calls),只认最终态
+				if (info?.role !== 'assistant' || !info.finish || info.finish === 'tool-calls' || info.finish === 'unknown') {
+					return;
+				}
+				if (info.tokens) {
+					this._fireAction(ActionType.ChatUsage, {
+						turnId,
+						usage: {
+							totalTokens: info.tokens.total ?? 0,
+							inputTokens: info.tokens.input ?? 0,
+							outputTokens: info.tokens.output ?? 0,
+						},
+					});
+				}
+				this._completeTurn(turnId);
+				this._finishTurn(); // test-workbench_change: 通知轮询/等待方 turn 已结束
+				return;
+			}
 		}
 	}
 
 	private _handlePartUpdated(turnId: string, props: Record<string, unknown>): void {
-		const part = props.part as { id?: string; type?: string; text?: string; callID?: string; tool?: string; state?: Record<string, unknown> } | undefined;
+		const part = props.part as { id?: string; messageID?: string; type?: string; text?: string; callID?: string; tool?: string; state?: Record<string, unknown> } | undefined;
 		if (!part) { return; }
+		if (this._isForeignPart(part.messageID)) { return; }
+		// 兜底:缺 messageID 时,文本与 prompt 全等的 text part 即用户原文
+		if (part.type === 'text' && typeof part.text === 'string' && part.text === this._currentPrompt) { return; }
 		this._renderPart(turnId, part as unknown as Record<string, unknown>);
+	}
+
+	/** fork 对用户消息的 part(prompt 原文)也发 part 事件;只渲染 assistant 消息的 part。
+	 *  角色未知(messageID 缺失或事件乱序)时放行,保持旧行为。 */
+	private _isForeignPart(messageID: string | undefined): boolean {
+		if (!messageID) { return false; }
+		const role = this._messageRoles.get(messageID);
+		return !!role && role !== 'assistant';
 	}
 
 	/**
@@ -711,6 +838,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		const partID = props.partID as string | undefined;
 		const delta = props.delta as string | undefined;
 		if (!partID || !delta) { return; }
+		if (this._isForeignPart(props.messageID as string | undefined)) { return; }
 
 		const partType = this._partTypes.get(partID) ?? 'text';
 		if (partType === 'reasoning') {

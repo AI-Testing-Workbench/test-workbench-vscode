@@ -1,8 +1,8 @@
-// test-workbench_change - new file
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// test-workbench_change - new file
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -15,7 +15,13 @@ export interface IOpenCodeEvent {
 export type OpenCodeEventCallback = (sessionID: string, event: IOpenCodeEvent) => void;
 
 /**
- * SSE client for the opencode `GET /event` endpoint.
+ * SSE client for the opencode `GET /global/event` endpoint.
+ *
+ * 不可用 `GET /event`:它按 directory(InstanceState ScopedCache)隔离 bus,
+ * 本代理连接的订阅者可能收不到当前会话所在 directory 的事件。
+ * `/global/event` 走进程级 GlobalBus,所有 directory 的事件都会推到。
+ * 外层 SSE 载荷是 `{ directory, project, workspace, payload }`,
+ * 真实事件在 `payload`(`{ id, type, properties }`)。
  *
  * Opens a persistent HTTP connection, parses the SSE stream, and
  * invokes a callback for each event. Handles reconnection on errors.
@@ -62,7 +68,7 @@ export class OpenCodeEventStream extends Disposable {
 		if (!this._active) { return; }
 
 		this._abortController = new AbortController();
-		const url = `${this._baseUrl}/event`;
+		const url = `${this._baseUrl}/global/event`;
 		const headers: Record<string, string> = {};
 		if (this._authHeader) { headers['Authorization'] = this._authHeader; }
 
@@ -90,15 +96,20 @@ export class OpenCodeEventStream extends Disposable {
 			});
 	}
 
+	// 未派发的 SSE 缓冲:每消费一个事件即 trim 掉已处理部分(防长连接
+	// buffer 无限膨胀 + O(n²) 全串 lastIndexOf),重连/断流时置空
+	//(旧流截断的碎片不重放)。 // test-workbench_change
+	private _sseBuffer = '';
+
 	private async _readStream(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> {
 		const decoder = new TextDecoder();
-		let buffer = '';
+		this._sseBuffer = '';
 
 		try {
 			while (this._active) {
 				const { done, value } = await reader.read();
-				if (value) { buffer += decoder.decode(value, { stream: true }); }
-				this._parseSSE(buffer);
+				if (value) { this._sseBuffer += decoder.decode(value, { stream: true }); }
+				this._parseSSE();
 				if (done) { break; }
 			}
 		} catch (err) {
@@ -106,6 +117,7 @@ export class OpenCodeEventStream extends Disposable {
 			this._logService.warn(`[OpenCode] SSE stream error: ${err}`);
 		} finally {
 			try { reader.cancel(); } catch { /* ignore */ }
+			this._sseBuffer = '';
 		}
 
 		this._logService.info('[OpenCode] SSE stream ended');
@@ -114,15 +126,13 @@ export class OpenCodeEventStream extends Disposable {
 
 	// ── SSE parsing ──────────────────────────────────────────────────────
 
-	private _lastProcessedOffset = 0;
-
-	private _parseSSE(buffer: string): void {
+	private _parseSSE(): void {
 		// SSE events are separated by double newlines
-		const eventEnd = buffer.lastIndexOf('\n\n');
-		if (eventEnd < this._lastProcessedOffset) { return; }
+		const eventEnd = this._sseBuffer.lastIndexOf('\n\n');
+		if (eventEnd < 0) { return; }
 
-		const raw = buffer.slice(this._lastProcessedOffset, eventEnd + 2);
-		this._lastProcessedOffset = eventEnd + 2;
+		const raw = this._sseBuffer.slice(0, eventEnd + 2);
+		this._sseBuffer = this._sseBuffer.slice(eventEnd + 2);
 
 		const parts = raw.split('\n\n');
 		for (const part of parts) {
@@ -154,11 +164,18 @@ export class OpenCodeEventStream extends Disposable {
 
 		if (!data) { return undefined; }
 		try {
-			const parsed = JSON.parse(data) as { type?: string; properties?: Record<string, unknown> };
-			if (!parsed.type || !parsed.properties) { return undefined; }
+			const parsed = JSON.parse(data) as {
+				type?: string;
+				properties?: Record<string, unknown>;
+				// /global/event 外层信封:真实事件在 payload
+				payload?: { id?: string; type?: string; properties?: Record<string, unknown> };
+			};
+			// 兼容 /event 直发结构(保留向后兼容)与 /global/event 信封结构
+			const inner = parsed.payload ?? parsed;
+			if (!inner.type || !inner.properties) { return undefined; }
 			return {
-				type: parsed.type,
-				properties: parsed.properties,
+				type: inner.type,
+				properties: inner.properties,
 			};
 		} catch {
 			return undefined;

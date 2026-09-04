@@ -103,8 +103,8 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 	getDescriptor(): IAgentDescriptor {
 		return {
 			provider: this.id,
-			displayName: 'OpenCode',
-			description: 'OpenCode agent - a terminal-native AI coding assistant',
+			displayName: 'TestAgent', // test-workbench_change 命名:opencode fork → TestAgent
+			description: 'TestAgent agent - a terminal-native AI coding assistant',
 		};
 	}
 
