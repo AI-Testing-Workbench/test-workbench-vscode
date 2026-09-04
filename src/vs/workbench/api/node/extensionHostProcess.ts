@@ -338,15 +338,17 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 
 			const initData = <IExtensionHostInitData>JSON.parse(raw.toString());
 
-			const rendererCommit = initData.commit;
-			const myCommit = product.commit;
+			if (!process.env.VSCODE_DISABLE_CLIENT_VALIDATION) { // test-workbench_change start
+				const rendererCommit = initData.commit;
+				const myCommit = product.commit;
 
-			if (rendererCommit && myCommit) {
-				// Running in the built version where commits are defined
-				if (rendererCommit !== myCommit) {
-					nativeExit(ExtensionHostExitCode.VersionMismatch);
+				if (rendererCommit && myCommit) {
+					// Running in the built version where commits are defined
+					if (rendererCommit !== myCommit) {
+						nativeExit(ExtensionHostExitCode.VersionMismatch);
+					}
 				}
-			}
+			} // test-workbench_change end
 
 			if (initData.parentPid) {
 				// Kill oneself if one's parent dies. Much drama.
