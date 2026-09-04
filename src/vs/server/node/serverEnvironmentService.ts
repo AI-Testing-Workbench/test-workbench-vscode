@@ -33,6 +33,10 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'server-data-dir': { type: 'string', cat: 'o', description: nls.localize('serverDataDir', "Specifies the directory that server data is kept in.") },
 	'telemetry-level': { type: 'string', cat: 'o', args: 'level', description: nls.localize('telemetry-level', "Sets the initial telemetry level. Valid levels are: 'off', 'crash', 'error' and 'all'. If not specified, the server will send telemetry until a client connects, it will then use the clients telemetry setting. Setting this to 'off' is equivalent to --disable-telemetry") },
 
+	// test-workbench_change start
+	'disable-client-validation': { type: 'boolean' },
+	// test-workbench_change end
+
 	/* ----- vs code options ---	-- */
 
 	'user-data-dir': OPTIONS['user-data-dir'],
@@ -224,6 +228,10 @@ export interface ServerParsedArgs {
 	'use-host-proxy'?: boolean;
 	'without-browser-env-var'?: boolean;
 	'reconnection-grace-time'?: string;
+
+	// test-workbench_change start
+	'disable-client-validation'?: boolean;
+	// test-workbench_change end
 
 	/* ----- server cli ----- */
 	help: boolean;
