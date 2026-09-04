@@ -6,6 +6,10 @@
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
+// test-workbench_change start - Windows 进程树兜底清理用
+import { execSync } from 'child_process';
+import { platform } from 'os';
+// test-workbench_change end
 import { IpcMainEvent } from 'electron';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/electron-main/ipc.mp.js';
@@ -173,6 +177,17 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			this._logService.error(`[AgentHost:stderr] ${data}`);
 		}));
 		store.add(toDisposable(() => {
+			// test-workbench_change start
+			// Windows 上 kill() 是 TerminateProcess,agentHost 内注册的信号兜底来不及跑;
+			// 先 taskkill /T /F 树杀整个进程树(agentHost + 其 spawn 的 testagent),再走常规 kill。
+			if (platform() === 'win32' && this.utilityProcess?.pid) {
+				try {
+					execSync(`taskkill /pid ${this.utilityProcess.pid} /T /F`, { stdio: 'ignore', windowsHide: true, timeout: 10000 });
+				} catch {
+					// 进程树已消失或 taskkill 失败,继续常规 kill
+				}
+			}
+			// test-workbench_change end
 			this.utilityProcess?.kill();
 			this.utilityProcess?.dispose();
 			this.utilityProcess = undefined;

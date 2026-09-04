@@ -485,9 +485,9 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			const args = ['serve', '--port=0'];
 			const env: NodeJS.ProcessEnv = { ...process.env };
 
-			// 允许通过 OPENCODE_BIN 环境变量指定后端二进制(如 fork 的 testagent),
-			// 缺省回退到 PATH 中的 opencode。 // test-workbench_change
-			const bin = process.env['OPENCODE_BIN'] || 'opencode';
+			// 允许通过 OPENCODE_BIN 环境变量覆盖后端二进制;
+			// 缺省解析 PATH 中的 testagent。 // test-workbench_change
+			const bin = process.env['OPENCODE_BIN'] || 'testagent';
 
 			this._logService.info(`[OpenCode] spawning ${bin} serve --port=0`);
 
@@ -495,6 +495,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 				env,
 				stdio: ['pipe', 'pipe', 'pipe'],
 			});
+			this._guardBackendProcessLifecycle(child); // test-workbench_change
 
 			const authHeader = this._getAuthHeader();
 			let resolved = false;
@@ -541,6 +542,34 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			});
 		});
 	}
+
+	// test-workbench_change start
+	// VS Code 退出时以 SIGTERM(POSIX)或直接 TerminateProcess(Windows)结束 agent host,默认行为不走
+	// OpenCodeAgent.shutdown(),spawn 出的 testagent 会变孤儿。这里兜底当前存活的后端进程:
+	// 捕获 SIGTERM/SIGINT 与进程 exit,同步 kill。Windows 硬终止场景由 electron-main 侧 taskkill /T 树杀兜底。
+	private _backendChild: cp.ChildProcess | undefined;
+	private static _backendSignalGuardsInstalled = false;
+
+	private _guardBackendProcessLifecycle(child: cp.ChildProcess): void {
+		this._backendChild = child;
+		child.once('exit', () => {
+			if (this._backendChild === child) {
+				this._backendChild = undefined;
+			}
+		});
+		if (OpenCodeAgent._backendSignalGuardsInstalled) {
+			return;
+		}
+		OpenCodeAgent._backendSignalGuardsInstalled = true;
+		const killBackend = () => {
+			try { this._backendChild?.kill(); } catch { /* already exited */ }
+		};
+		const onSignal = () => { killBackend(); process.exit(0); };
+		process.on('SIGTERM', onSignal);
+		process.on('SIGINT', onSignal);
+		process.once('exit', killBackend);
+	}
+	// test-workbench_change end
 
 	private _handleConnectionLost(): void {
 		this._logService.warn('[OpenCode] connection lost');

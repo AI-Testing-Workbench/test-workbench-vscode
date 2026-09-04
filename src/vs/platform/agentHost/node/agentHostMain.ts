@@ -15,21 +15,31 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostByokModelsEnabledEnvVar, AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostOpenCodeAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
-import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+// test-workbench_change start: 只接入 TestAgent(openCode),Claude/Codex provider 不注册
+import { AgentHostByokModelsEnabledEnvVar, AgentHostOpenCodeAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
+// 原 import(保留备查,勿删):AgentHostClaudeAgentEnabledEnvVar、AgentHostCodexAgentEnabledEnvVar (上方 L18)、
+// AgentHostCodexEnabledConfigKey、platformRootSchema (from '../common/agentHostSchema.js')
+// test-workbench_change end
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
-import { CopilotAgent } from './copilot/copilotAgent.js';
+// test-workbench_change start: Copilot provider 不接入(代码保留)
+// import { CopilotAgent } from './copilot/copilotAgent.js';
+// test-workbench_change end
 import { WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
-import { ClaudeAgent } from './claude/claudeAgent.js';
-import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
+// test-workbench_change start: Claude/Codex provider 不接入(代码保留,恢复时去掉注释并还原下方原 import)
+// import { ClaudeAgent } from './claude/claudeAgent.js';
+// import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
+import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
+// test-workbench_change end
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
-import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
+// test-workbench_change start
+// import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
+// test-workbench_change end
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
 import { OpenCodeAgent } from './openCode/openCodeAgent.js'; // test-workbench_change
 import { ByokLmProxyService, IByokLmProxyService } from './copilot/byokLmProxyService.js';
@@ -229,6 +239,8 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IClaudeProxyService, claudeProxyService);
 		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));
 		diServices.set(ICodexProxyService, codexProxyService);
+		// test-workbench_change start: 只保留 TestAgent(openCode);Copilot/Claude/Codex 不接入(代码注释保留,勿删)
+		/*原逻辑:
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		// Claude and Codex providers are gated on two things:
 		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
@@ -263,9 +275,11 @@ async function startAgentHost(): Promise<void> {
 					agentService.registerProvider(instantiationService.createInstance(CodexAgent));
 				}
 			};
-	registerCodexIfEnabled();
-	disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
-}
+			registerCodexIfEnabled();
+			disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
+		}
+		*/
+		// test-workbench_change end
 
 // OpenCode agent: enabled by default (opt-out via env var) // test-workbench_change start
 if (isAgentEnabled(process.env[AgentHostOpenCodeAgentEnabledEnvVar], true)) {

@@ -35,16 +35,23 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { registerAgentHostNetworkServices } from './agentHostBootstrap.js';
 import { BANG_COMMAND_PREFIX } from './agentHostBangCommand.js';
-import { CopilotAgent } from './copilot/copilotAgent.js';
+// test-workbench_change start: Copilot provider 不接入(代码保留)
+// import { CopilotAgent } from './copilot/copilotAgent.js';
+// test-workbench_change end
 import { INetworkDiagnosticsService, NetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { IByokLmProxyService, NullByokLmProxyService } from './copilot/byokLmProxyService.js';
 import { WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
-import { ClaudeAgent } from './claude/claudeAgent.js';
-import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
+// test-workbench_change start: Claude/Codex provider 不接入(代码保留,恢复时去掉注释并还原原 import)
+// import { ClaudeAgent } from './claude/claudeAgent.js';
+// import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
+import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
+// test-workbench_change end
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
-import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
+// test-workbench_change start
+// import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
+// test-workbench_change end
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
 import { OpenCodeAgent } from './openCode/openCodeAgent.js'; // test-workbench_change
 import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
@@ -52,7 +59,10 @@ import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
-import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostOpenCodeAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
+// test-workbench_change start: 移除 Claude/Codex enable 开关成员(仅供已注释的注册段使用,代码保留)
+// import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostOpenCodeAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostClaudeSdkRootEnvVar, AgentHostOpenCodeAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
+// test-workbench_change end
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
@@ -305,9 +315,12 @@ async function main(): Promise<void> {
 		// to satisfy CopilotAgent / CopilotSessionLauncher DI.
 		diServices.set(IByokLmBridgeRegistry, new NullByokLmBridgeRegistry());
 		diServices.set(IByokLmProxyService, new NullByokLmProxyService());
+		// test-workbench_change start: 只保留 TestAgent(openCode);Copilot/Claude/Codex 不接入(代码注释保留,勿删)
+		/*原逻辑:
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);
 		log('CopilotAgent registered');
+		*/
 		// Claude and Codex providers are gated on two things:
 		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
 		//     forwarded as an env var by the renderer-side starters; the remote
@@ -321,6 +334,7 @@ async function main(): Promise<void> {
 		//     devDependency, so `CodexAgent._resolveSdkRoot` resolves it from
 		//     `node_modules` in dev; built/shipped installs use the env-var
 		//     override or `product.agentSdks.codex`.
+		/*
 		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
 			const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 			agentService.registerProvider(claudeAgent);
@@ -331,6 +345,8 @@ async function main(): Promise<void> {
 			agentService.registerProvider(codexAgent);
 			log('CodexAgent registered');
 		}
+		*/
+		// test-workbench_change end
 		if (isAgentEnabled(process.env[AgentHostOpenCodeAgentEnabledEnvVar], true)) { // test-workbench_change start
 			const openCodeAgent = disposables.add(instantiationService.createInstance(OpenCodeAgent));
 			agentService.registerProvider(openCodeAgent);
