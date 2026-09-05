@@ -477,3 +477,40 @@ jobs:
         with:
           name: vscode-linux-x64
           path: .build/VSCode-linux-x64.tar.gz
+
+  trigger-docker-build:
+    name: 触发 TSCode Docker 镜像构建
+    runs-on: ubuntu-latest
+    needs: build-linux
+    # 仅在 main 分支构建成功（含 v* tag 发布）后调度 docker 镜像流水线
+    if: >-
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    steps:
+      - name: 调度 tscode-server-docker 构建镜像
+        if: env.DOCKER_REPO_PAT != ''
+        continue-on-error: true
+        uses: actions/github-script@v7
+        env:
+          DOCKER_REPO_PAT: ${{ secrets.DOCKER_REPO_PAT }}
+        with:
+          github-token: ${{ env.DOCKER_REPO_PAT }}
+          script: |
+            const runId = context.runId;
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'AI-Testing-Workbench',
+              repo: 'tscode-server-docker',
+              workflow_id: 'build-docker-image.yml',
+              ref: 'main',
+              inputs: {
+                server_run_id: `${runId}`
+              }
+            });
+            console.log(`已调度 tscode-server-docker 镜像构建 (server run ${runId})`);
+
+      - name: 提示缺少 DOCKER_REPO_PAT
+        if: env.DOCKER_REPO_PAT == ''
+        run: |
+          echo "::warning::未配置 DOCKER_REPO_PAT，跳过调度 tscode-server-docker 镜像构建。如需自动构建镜像，请在 Settings -> Secrets and variables -> Actions 中新增对 AI-Testing-Workbench/tscode-server-docker 拥有 Workflow 写入权限的 PAT。"
+        env:
+          DOCKER_REPO_PAT: ${{ secrets.DOCKER_REPO_PAT }}
