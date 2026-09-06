@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js'; // test-workbench_change
 import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -21,7 +21,7 @@ class WebExtensionGalleryManifestService extends ExtensionGalleryManifestService
 			const channel = remoteConnection.getChannel('extensionGalleryManifest');
 			this.getExtensionGalleryManifest().then(manifest => {
 				channel.call('setExtensionGalleryManifest', [manifest]);
-				this._register(this.onDidChangeExtensionGalleryManifest(manifest => channel.call('setExtensionGalleryManifest', [manifest])));
+				this._register(this.onDidChangeExtensionGalleryManifest((manifest: IExtensionGalleryManifest | null) => channel.call('setExtensionGalleryManifest', [manifest]))); // test-workbench_change - annotate manifest param
 			});
 		}
 	}

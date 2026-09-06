@@ -214,8 +214,14 @@ export interface IGalleryExtensionVersion {
 	targetPlatforms: TargetPlatform[];
 }
 
+export const enum GalleryMarketplace { // test-workbench_change
+	TsCode = 'tscode',
+	VsCodeOfficial = 'vscodeOfficial'
+}
+
 export interface IGalleryExtension {
 	type: 'gallery';
+	marketplace?: GalleryMarketplace; // test-workbench_change
 	name: string;
 	identifier: IGalleryExtensionIdentifier;
 	version: string;
