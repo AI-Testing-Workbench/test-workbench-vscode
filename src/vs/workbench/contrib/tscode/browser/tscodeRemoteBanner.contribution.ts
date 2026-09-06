@@ -36,7 +36,14 @@ class TscodeRemoteWorkspaceBannerContribution {
 			id: 'tscode.remote-workspace',
 			icon: ThemeIcon.fromId('remote'),
 			// allow-any-unicode-next-line
-			message: localize('tscode.remoteWorkspace.banner', '当前工作区为远程工作区，请注意保存变更'),
+			message: localize('tscode.remoteWorkspace.banner', '当前为云端工作区，请注意及时将变更提交到码云仓库，避免容器销毁导致修改丢失。'),
+			actions: [
+				{
+					// allow-any-unicode-next-line
+					label: localize('tscode.remoteWorkspace.closeRemote', '关闭云端连接'),
+					href: 'command:workbench.action.remote.close'
+				}
+			]
 		});
 	}
 }
