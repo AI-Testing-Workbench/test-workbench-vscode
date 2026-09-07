@@ -176,6 +176,21 @@
 	padding-right: 14px;
 }
 
+/* test-workbench_change start - marketplace source badge */
+.extension-editor > .header > .details > .subtitle .marketplace-badge {
+	display: inline-flex;
+	align-items: center;
+	line-height: normal;
+	box-sizing: border-box;
+	border: 1px solid rgba(128, 128, 128, 0.7);
+	border-radius: 3px;
+	padding: 1px 5px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	white-space: nowrap;
+}
+/* test-workbench_change end */
+
 .extension-editor > .header > .details > .description {
 	margin-top: 10px;
 }

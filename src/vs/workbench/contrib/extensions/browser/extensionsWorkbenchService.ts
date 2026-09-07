@@ -26,6 +26,7 @@ import {
 	ExtensionManagementErrorCode,
 	MaliciousExtensionInfo,
 	shouldRequireRepositorySignatureFor,
+	GalleryMarketplace, // test-workbench_change
 	IGalleryExtensionVersion
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
@@ -225,6 +226,12 @@ export class Extension implements IExtension {
 	get publisherSponsorLink(): URI | undefined {
 		return this.gallery?.publisherSponsorLink ? URI.parse(this.gallery.publisherSponsorLink) : undefined;
 	}
+
+	// test-workbench_change start - the marketplace this extension was found/installed from
+	get marketplace(): GalleryMarketplace {
+		return this.gallery?.marketplace ?? GalleryMarketplace.TsCode;
+	}
+	// test-workbench_change end
 
 	get version(): string {
 		return this.local ? this.local.manifest.version : this.latestVersion;

@@ -100,6 +100,26 @@
 	text-decoration: line-through;
 }
 
+/* test-workbench_change start - marketplace source badge */
+.extension-list-item > .details > .header-container > .header > .marketplace-badge {
+	display: inline-flex;
+	align-items: center;
+	line-height: normal;
+	box-sizing: border-box;
+	font-size: 11px;
+	margin-left: 8px;
+	padding: 1px 5px;
+	border: 1px solid var(--vscode-descriptionForeground);
+	border-radius: 3px;
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 130px;
+}
+/* test-workbench_change end */
+
 .extension-list-item > .details > .header-container > .header > .activation-status,
 .extension-list-item > .details > .header-container > .header > .install-count,
 .extension-list-item > .details > .header-container > .header .extension-kind-indicator,
