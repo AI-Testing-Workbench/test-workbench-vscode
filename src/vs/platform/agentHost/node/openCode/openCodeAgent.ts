@@ -422,7 +422,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		this._eventStream?.dispose();
 		this._eventStream = undefined;
 		if (this._connection.kind === 'ready') {
-			this._connection.child.kill();
+			OpenCodeAgent._killBackend(this._connection.child); // test-workbench_change
 		}
 		this._connection = { kind: 'idle' };
 	}
@@ -480,20 +480,49 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		return promise;
 	}
 
+	// test-workbench_change start
+	// 后端二进制解析顺序：OPENCODE_BIN 显式覆盖 > node 运行时 wrapper（testagent-node[.cmd]，
+	// 优先查 kilo-vscode 扩展 env-path.ts 写入的 TestAgent 环境变量目录，再按 PATH 查找）> testagent（bun 版，PATH）。
+	private _resolveBackendBin(): string {
+		const override = process.env['OPENCODE_BIN'];
+		if (override) {
+			return override;
+		}
+		const names = process.platform === 'win32'
+			? ['testagent-node.cmd', 'testagent-node.exe', 'testagent-node']
+			: ['testagent-node'];
+		const dirs = [
+			process.env['TestAgent'],
+			...(process.env['PATH'] ?? '').split(process.platform === 'win32' ? ';' : ':'),
+		].filter(Boolean) as string[];
+		for (const dir of dirs) {
+			for (const name of names) {
+				const candidate = join(dir, name);
+				if (fs.existsSync(candidate)) {
+					return candidate;
+				}
+			}
+		}
+		return 'testagent';
+	}
+	// test-workbench_change end
+
 	private _startConnection(): Promise<ConnectionReady> {
 		return new Promise<ConnectionReady>((resolve, reject) => {
 			const args = ['serve', '--port=0'];
 			const env: NodeJS.ProcessEnv = { ...process.env };
 
-			// 允许通过 OPENCODE_BIN 环境变量覆盖后端二进制;
-			// 缺省解析 PATH 中的 testagent。 // test-workbench_change
-			const bin = process.env['OPENCODE_BIN'] || 'testagent';
+			// 后端二进制解析：优先 node 运行时 wrapper，回退 bun 版 // test-workbench_change
+			const bin = this._resolveBackendBin();
 
 			this._logService.info(`[OpenCode] spawning ${bin} serve --port=0`);
 
 			const child = cp.spawn(bin, args, {
 				env,
 				stdio: ['pipe', 'pipe', 'pipe'],
+				// test-workbench_change start: node 运行时 wrapper 是 .cmd，win32 下 spawn 需 shell:true；exe 走原路径
+				...(process.platform === 'win32' && !/\.exe$/i.test(bin) ? { shell: true } : {}),
+				// test-workbench_change end
 			});
 			this._guardBackendProcessLifecycle(child); // test-workbench_change
 
@@ -503,7 +532,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			const timer = setTimeout(() => {
 				if (!resolved) {
 					resolved = true;
-					child.kill();
+					OpenCodeAgent._killBackend(child); // test-workbench_change
 					reject(new Error('OpenCode process failed to start within timeout'));
 				}
 			}, OPENCODE_STARTUP_TIMEOUT);
@@ -544,11 +573,22 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 	}
 
 	// test-workbench_change start
-	// VS Code 退出时以 SIGTERM(POSIX)或直接 TerminateProcess(Windows)结束 agent host,默认行为不走
-	// OpenCodeAgent.shutdown(),spawn 出的 testagent 会变孤儿。这里兜底当前存活的后端进程:
-	// 捕获 SIGTERM/SIGINT 与进程 exit,同步 kill。Windows 硬终止场景由 electron-main 侧 taskkill /T 树杀兜底。
+	// VS Code 退出时以 SIGTERM(POSIX)或直接 TerminateProcess(Windows)结束 agent host，默认行为不走
+	// OpenCodeAgent.shutdown()，spawn 出的 testagent 会变孤儿。这里兜底当前存活的后端进程：
+	// 捕获 SIGTERM/SIGINT 与进程 exit，同步 kill。
+	// win32 下后端可能是 .cmd wrapper（shell:true spawn），child.kill() 只杀 cmd.exe，
+	// node 孙进程会成孤儿；统一用 taskkill /T 杀整棵进程树。
 	private _backendChild: cp.ChildProcess | undefined;
 	private static _backendSignalGuardsInstalled = false;
+
+	private static _killBackend(child: cp.ChildProcess | undefined): void {
+		if (!child || child.pid === undefined) { return; }
+		if (process.platform === 'win32') {
+			try { cp.execFileSync('taskkill', ['/pid', String(child.pid), '/T', '/F']); } catch { /* already exited */ }
+		} else {
+			try { child.kill(); } catch { /* already exited */ }
+		}
+	}
 
 	private _guardBackendProcessLifecycle(child: cp.ChildProcess): void {
 		this._backendChild = child;
@@ -561,9 +601,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			return;
 		}
 		OpenCodeAgent._backendSignalGuardsInstalled = true;
-		const killBackend = () => {
-			try { this._backendChild?.kill(); } catch { /* already exited */ }
-		};
+		const killBackend = () => { OpenCodeAgent._killBackend(this._backendChild); }; // test-workbench_change
 		const onSignal = () => { killBackend(); process.exit(0); };
 		process.on('SIGTERM', onSignal);
 		process.on('SIGINT', onSignal);

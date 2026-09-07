@@ -247,7 +247,10 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		}
 
 		// Filter out hidden items based on settings
-		const agentSessionItems = allAgentSessionItems.filter(item => this._isVisible(item.type));
+		// test-workbench_change start: 本 fork 只接入 TestAgent(agent-host-opencode)，
+		// 选择器隐藏 Local/Copilot CLI/Cloud/Claude 等其余会话类型
+		const agentSessionItems = allAgentSessionItems.filter(item => item.type === 'agent-host-opencode' && this._isVisible(item.type));
+		// test-workbench_change end
 
 		// When the experimental "local agent host as default" setting is
 		// enabled, hoist the agent-host item to the front of the picker so it
