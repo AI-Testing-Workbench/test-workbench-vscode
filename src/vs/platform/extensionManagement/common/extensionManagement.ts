@@ -334,6 +334,7 @@ export interface IQueryOptions {
 	source?: string;
 	includePreRelease?: boolean;
 	productVersion?: IProductVersion;
+	marketplace?: GalleryMarketplace; // test-workbench_change - restrict the search to a single marketplace
 }
 
 export const enum StatisticType {

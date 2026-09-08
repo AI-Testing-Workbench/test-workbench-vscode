@@ -141,6 +141,7 @@ interface ICriterium {
 }
 
 const DefaultPageSize = 10;
+const VsCodeMarketplaceQueryTimeout = 3000; // test-workbench_change - do not block the default gallery on a slow VS Code Marketplace
 
 interface IQueryState {
 	readonly pageNumber: number;
@@ -1134,6 +1135,23 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		}
 	}
 
+	// test-workbench_change start - bound the time spent waiting for the VS Code Marketplace so that a slow connection does not block the default gallery
+	private async withTimeout<T>(promise: Promise<T>, timeout: number, timeoutValue: T, name: string): Promise<T> {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const timeoutPromise = new Promise<T>(resolve => {
+			timer = setTimeout(() => {
+				this.logService.debug(`Timed out waiting for ${name} after ${timeout}ms.`);
+				resolve(timeoutValue);
+			}, timeout);
+		});
+		const result = await Promise.race([promise, timeoutPromise]);
+		if (timer) {
+			clearTimeout(timer);
+		}
+		return result;
+	}
+	// test-workbench_change end
+
 	async query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>> {
 		const extensionGalleryManifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
 
@@ -1201,6 +1219,15 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date }
 		};
 
+		// test-workbench_change start - when the search is restricted to a single marketplace, query only that marketplace
+		if (options.marketplace === GalleryMarketplace.VsCodeOfficial && this.vsCodeMarketplaceManifest) {
+			return this.runMarketplaceQuery(query, criteria, this.vsCodeMarketplaceManifest, options, token);
+		}
+		if (options.marketplace === GalleryMarketplace.TsCode) {
+			return this.runMarketplaceQuery(query, criteria, extensionGalleryManifest, options, token);
+		}
+		// test-workbench_change end
+
 		// test-workbench_change start - query the public VS Code Marketplace too and merge both result sets.
 		// A failure in any marketplace is logged but does not block the other marketplace or surface an error.
 		const runMarketplaceQuerySafe = (manifest: IExtensionGalleryManifest, name: string): Promise<IPager<IGalleryExtension> | null> =>
@@ -1212,7 +1239,9 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const [primaryPager, vsCodeMarketplacePager] = await Promise.all([
 			runMarketplaceQuerySafe(extensionGalleryManifest, 'the internal extension gallery'),
-			this.vsCodeMarketplaceManifest ? runMarketplaceQuerySafe(this.vsCodeMarketplaceManifest, 'the VS Code Marketplace') : Promise.resolve(null)
+			this.vsCodeMarketplaceManifest
+				? this.withTimeout(runMarketplaceQuerySafe(this.vsCodeMarketplaceManifest, 'the VS Code Marketplace'), VsCodeMarketplaceQueryTimeout, null, 'the VS Code Marketplace')
+				: Promise.resolve(null)
 		]);
 
 		const availablePagers = [primaryPager, vsCodeMarketplacePager].filter((p): p is IPager<IGalleryExtension> => p !== null);
@@ -1248,7 +1277,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				});
 				const [firstMarketplacePage, secondMarketplacePage] = await Promise.all([
 					safeGetPage(firstMarketplacePager),
-					safeGetPage(secondMarketplacePager)
+					this.withTimeout(safeGetPage(secondMarketplacePager), VsCodeMarketplaceQueryTimeout, [], 'the VS Code Marketplace') // test-workbench_change
 				]);
 				return [...firstMarketplacePage, ...secondMarketplacePage];
 			}
