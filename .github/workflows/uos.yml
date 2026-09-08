@@ -6,7 +6,7 @@ on:
       branch:
         description: 'Branch of release.yml to pull the linux artifact from'
         required: false
-        default: 'main'
+        default: 'feature/uos-workflow'
   workflow_run:
     workflows: ["Release Build"]
     types: [completed]
