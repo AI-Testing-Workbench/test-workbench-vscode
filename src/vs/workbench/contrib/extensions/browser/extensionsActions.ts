@@ -1495,7 +1495,8 @@ export class MenuItemExtensionAction extends ExtensionAction {
 				id: this.extension.identifier.id,
 				version: this.extension.version,
 				location: this.extension.local?.location,
-				galleryLink: this.extension.url
+				galleryLink: this.extension.url, // test-workbench_change
+				marketplace: this.extension.marketplace // test-workbench_change
 			};
 			await this.action.run(id, extensionArg);
 		}

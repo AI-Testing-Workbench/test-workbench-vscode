@@ -632,6 +632,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		this.searchBox = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${VIEWLET_ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],
 			sortKey: (item: string) => {
+				if (/^@marketplace:/.test(item)) { return '0'; } // test-workbench_change - keep the marketplace filters at the top
 				if (item.indexOf(':') === -1) { return 'a'; }
 				else if (/ext:/.test(item) || /id:/.test(item) || /tag:/.test(item)) { return 'b'; }
 				else if (/sort:/.test(item)) { return 'c'; }
