@@ -6,7 +6,7 @@ on:
       branch:
         description: 'Branch of release.yml to pull the linux artifact from'
         required: false
-        default: 'feature/uos-workflow'
+        default: 'main'
   workflow_run:
     workflows: ["Release Build"]
     types: [completed]
@@ -190,17 +190,6 @@ jobs:
 
           export TSCODE_SYSTEM_EXTENSIONS="$SCRIPT_DIR/resources/app/extensions"
 
-          # 创建用户设置，启用 GitHub 认证
-          mkdir -p "$TSCODE_APPDATA/User"
-          cat > "$TSCODE_APPDATA/User/settings.json" << 'SETTINGS_EOF'
-          {
-              "github.authentication": true,
-              "git.githubAuthentication": true,
-              "git.enabled": true,
-              "workbench.startupEditor": "welcomePage"
-          }
-          SETTINGS_EOF
-
           # 创建 GitHub 认证存储
           GITHUB_STORAGE="$TSCODE_APPDATA/User/globalStorage/github-authentication"
           mkdir -p "$GITHUB_STORAGE"
@@ -264,7 +253,7 @@ jobs:
           Name=TSCode
           GenericName=Code Editor
           Comment=Code Editing. Redefined.
-          Exec=/usr/share/tscode/run.sh %F
+          Exec=/opt/tscode/run.sh %F
           Icon=tscode
           Terminal=false
           Categories=Development;IDE;
@@ -437,33 +426,33 @@ jobs:
           DEB_ROOT="$(pwd)/deb_root"
 
           mkdir -p "$DEB_ROOT/DEBIAN"
-          mkdir -p "$DEB_ROOT/usr/share/tscode"
+          mkdir -p "$DEB_ROOT/opt/tscode"
           mkdir -p "$DEB_ROOT/usr/bin"
           mkdir -p "$DEB_ROOT/usr/share/applications"
           mkdir -p "$DEB_ROOT/usr/share/icons/hicolor/256x256/apps"
 
-          echo "📌 Copying application to /usr/share/tscode..."
-          cp -r "$BUILD_DIR"/* "$DEB_ROOT/usr/share/tscode/"
+          echo "📌 Copying application to /opt/tscode..."
+          cp -r "$BUILD_DIR"/* "$DEB_ROOT/opt/tscode/"
 
           echo ""
           echo "📌 Fixing all permissions..."
 
-          if [ -f "$DEB_ROOT/usr/share/tscode/chrome-sandbox" ]; then
-            sudo chown root:root "$DEB_ROOT/usr/share/tscode/chrome-sandbox"
-            sudo chmod 4755 "$DEB_ROOT/usr/share/tscode/chrome-sandbox"
+          if [ -f "$DEB_ROOT/opt/tscode/chrome-sandbox" ]; then
+            sudo chown root:root "$DEB_ROOT/opt/tscode/chrome-sandbox"
+            sudo chmod 4755 "$DEB_ROOT/opt/tscode/chrome-sandbox"
             echo "   ✅ chrome-sandbox SUID set"
           fi
 
-          chmod +x "$DEB_ROOT/usr/share/tscode/tscode" 2>/dev/null || true
-          chmod +x "$DEB_ROOT/usr/share/tscode/run.sh" 2>/dev/null || true
-          chmod +x "$DEB_ROOT/usr/share/tscode/start-tscode.sh" 2>/dev/null || true
-          chmod +x "$DEB_ROOT/usr/share/tscode/validate.sh" 2>/dev/null || true
-          chmod +x "$DEB_ROOT/usr/share/tscode/test-debug.sh" 2>/dev/null || true
+          chmod +x "$DEB_ROOT/opt/tscode/tscode" 2>/dev/null || true
+          chmod +x "$DEB_ROOT/opt/tscode/run.sh" 2>/dev/null || true
+          chmod +x "$DEB_ROOT/opt/tscode/start-tscode.sh" 2>/dev/null || true
+          chmod +x "$DEB_ROOT/opt/tscode/validate.sh" 2>/dev/null || true
+          chmod +x "$DEB_ROOT/opt/tscode/test-debug.sh" 2>/dev/null || true
 
           echo ""
           echo "📌 Setting executable permissions for ALL extension binaries..."
 
-          EXTENSIONS_DIR="$DEB_ROOT/usr/share/tscode/resources/app/extensions"
+          EXTENSIONS_DIR="$DEB_ROOT/opt/tscode/resources/app/extensions"
 
           if [ -d "$EXTENSIONS_DIR" ]; then
               echo "   🔧 Fixing bin/ scripts/ tools/ utils/ directories..."
@@ -494,8 +483,8 @@ jobs:
               echo "   ✅ All extension binaries permissions fixed"
           fi
 
-          find "$DEB_ROOT/usr/share/tscode" -name "rg" -type f -exec chmod 755 {} \; 2>/dev/null || true
-          find "$DEB_ROOT/usr/share/tscode" -type f -executable -exec chmod 755 {} \; 2>/dev/null || true
+          find "$DEB_ROOT/opt/tscode" -name "rg" -type f -exec chmod 755 {} \; 2>/dev/null || true
+          find "$DEB_ROOT/opt/tscode" -type f -executable -exec chmod 755 {} \; 2>/dev/null || true
 
           echo "   ✅ All permissions fixed"
 
@@ -504,7 +493,7 @@ jobs:
 
           cat > "$DEB_ROOT/usr/bin/tscode" << 'WRAPEOF'
           #!/bin/bash
-          exec /usr/share/tscode/run.sh "$@"
+          exec /opt/tscode/run.sh "$@"
           WRAPEOF
 
           chmod +x "$DEB_ROOT/usr/bin/tscode"
@@ -520,7 +509,7 @@ jobs:
             'Name=TSCode' \
             'GenericName=Code Editor' \
             'Comment=Code Editing. Redefined.' \
-            'Exec=/usr/share/tscode/run.sh %F' \
+            'Exec=/opt/tscode/run.sh %F' \
             'Icon=tscode' \
             'Terminal=false' \
             'Categories=Development;IDE' \
@@ -562,27 +551,27 @@ jobs:
           echo "Setting up TSCode for Debian 10..."
           echo "=========================================="
 
-          if [ -f "/usr/share/tscode/chrome-sandbox" ]; then
-              chown root:root /usr/share/tscode/chrome-sandbox
-              chmod 4755 /usr/share/tscode/chrome-sandbox
+          if [ -f "/opt/tscode/chrome-sandbox" ]; then
+              chown root:root /opt/tscode/chrome-sandbox
+              chmod 4755 /opt/tscode/chrome-sandbox
               echo "  ✅ chrome-sandbox permissions fixed"
           fi
 
-          chmod +x /usr/share/tscode/run.sh 2>/dev/null || true
-          chmod +x /usr/share/tscode/tscode 2>/dev/null || true
-          chmod +x /usr/share/tscode/start-tscode.sh 2>/dev/null || true
+          chmod +x /opt/tscode/run.sh 2>/dev/null || true
+          chmod +x /opt/tscode/tscode 2>/dev/null || true
+          chmod +x /opt/tscode/start-tscode.sh 2>/dev/null || true
           chmod +x /usr/bin/tscode 2>/dev/null || true
-          chmod +x /usr/share/tscode/test-debug.sh 2>/dev/null || true
+          chmod +x /opt/tscode/test-debug.sh 2>/dev/null || true
 
-          if [ -f "/usr/share/tscode/resources/app/node_modules/@vscode/ripgrep/bin/rg" ]; then
-              chmod 755 /usr/share/tscode/resources/app/node_modules/@vscode/ripgrep/bin/rg
+          if [ -f "/opt/tscode/resources/app/node_modules/@vscode/ripgrep/bin/rg" ]; then
+              chmod 755 /opt/tscode/resources/app/node_modules/@vscode/ripgrep/bin/rg
               echo "  ✅ ripgrep permissions fixed"
           fi
 
           echo ""
           echo "📌 Setting executable permissions for ALL extension binaries..."
 
-          EXTENSIONS_DIR="/usr/share/tscode/resources/app/extensions"
+          EXTENSIONS_DIR="/opt/tscode/resources/app/extensions"
 
           if [ -d "$EXTENSIONS_DIR" ]; then
               echo "   🔧 Fixing bin/ scripts/ tools/ utils/ directories..."
@@ -615,7 +604,7 @@ jobs:
 
           echo ""
           echo "🔧 Checking debug extensions..."
-          DEBUG_EXTS=$(find "/usr/share/tscode/resources/app/extensions" -maxdepth 1 -type d -name "*debug*" 2>/dev/null)
+          DEBUG_EXTS=$(find "/opt/tscode/resources/app/extensions" -maxdepth 1 -type d -name "*debug*" 2>/dev/null)
           DEBUG_COUNT=$(echo "$DEBUG_EXTS" | grep -v "^$" | wc -l)
           if [ $DEBUG_COUNT -gt 0 ]; then
               echo "   ✅ Found $DEBUG_COUNT debug extension(s)"
@@ -657,9 +646,9 @@ jobs:
 
           echo ""
           echo "🧹 Cleaning up stale prebuilt extension copies from user directories..."
-          echo "   (Prebuilt extensions are bundled under /usr/share/tscode and removed with the package;"
+          echo "   (Prebuilt extensions are bundled under /opt/tscode and removed with the package;"
           echo "    ~/.tscode/extensions only holds user-installed extensions)"
-          EXTENSIONS_DIR="/usr/share/tscode/resources/app/extensions"
+          EXTENSIONS_DIR="/opt/tscode/resources/app/extensions"
           if [ -d "$EXTENSIONS_DIR" ]; then
               find "$EXTENSIONS_DIR" -maxdepth 1 -type d -name "test-tech.*" 2>/dev/null | while read -r ext_dir; do
                   ext_name=$(basename "$ext_dir")
@@ -751,13 +740,13 @@ jobs:
           echo "✅ TSCode installed successfully!"
           echo ""
           echo "🔑 Using file-based secret storage (no keyring required)"
-          echo "📁 System extensions: /usr/share/tscode/resources/app/extensions/"
+          echo "📁 System extensions: /opt/tscode/resources/app/extensions/"
           echo "📂 User extensions: ~/.tscode/extensions/"
           echo "📂 User data: ~/.local/share/tscode/"
           echo ""
           echo "🐛 Extension development:"
           echo "   - Debug type 'extensionHost' should work"
-          echo "   - Run '/usr/share/tscode/test-debug.sh' to verify"
+          echo "   - Run '/opt/tscode/test-debug.sh' to verify"
           echo ""
           echo "🚀 Run 'tscode' to start"
           echo "=========================================="
@@ -838,7 +827,7 @@ jobs:
           echo "📂 Checking extensions in DEB package..."
           echo "=========================================="
 
-          EXT_DIR="./usr/share/tscode/resources/app/extensions"
+          EXT_DIR="./opt/tscode/resources/app/extensions"
 
           if [ ! -d "$EXT_DIR" ]; then
             echo "❌ Extensions directory not found in DEB package!"
@@ -892,7 +881,7 @@ jobs:
 
           echo ""
           echo "🔍 Checking debug extensions in DEB:"
-          DEBUG_EXTS=$(find "./usr/share/tscode/resources/app/extensions" -maxdepth 1 -type d -name "*debug*" 2>/dev/null)
+          DEBUG_EXTS=$(find "./opt/tscode/resources/app/extensions" -maxdepth 1 -type d -name "*debug*" 2>/dev/null)
           DEBUG_COUNT=$(echo "$DEBUG_EXTS" | grep -v "^$" | wc -l)
           if [ $DEBUG_COUNT -gt 0 ]; then
             echo "   ✅ Found $DEBUG_COUNT debug extension(s)"
@@ -953,7 +942,7 @@ jobs:
           echo "   - Desktop entry in application menu"
           echo "   - /usr/bin/tscode is a wrapper script (not a symlink)"
           echo "   - ✅ ALL extension binaries have execute permissions"
-          echo "   - ✅ test-tech.* extensions bundled in /usr/share/tscode (removed on uninstall)"
+          echo "   - ✅ test-tech.* extensions bundled in /opt/tscode (removed on uninstall)"
           echo "   - ✅ User directory permissions fixed"
           echo "   - ✅ File-based secret storage (no keyring required)"
           echo "   - ✅ GitHub login works without keyring"
@@ -961,7 +950,7 @@ jobs:
           echo "   - ✅ test-debug.sh available for verification"
           echo ""
           echo "📂 Directory structure:"
-          echo "   System extensions: /usr/share/tscode/resources/app/extensions/"
+          echo "   System extensions: /opt/tscode/resources/app/extensions/"
           echo "   User extensions:   ~/.tscode/extensions/"
           echo "   User data:         ~/.local/share/tscode/"
           echo ""
@@ -986,10 +975,10 @@ jobs:
             echo "  - Find in application menu: TSCode"
             echo "  - GitHub login works without keyring password prompt"
             echo "  - Extension development: debug type 'extensionHost' works"
-            echo "  - Run '/usr/share/tscode/test-debug.sh' to verify debug functionality"
+            echo "  - Run '/opt/tscode/test-debug.sh' to verify debug functionality"
             echo ""
             echo "📂 Directory structure:"
-            echo "  System extensions: /usr/share/tscode/resources/app/extensions/"
+            echo "  System extensions: /opt/tscode/resources/app/extensions/"
             echo "  User extensions:   ~/.tscode/extensions/"
             echo "  User data:         ~/.local/share/tscode/"
             echo "=========================================="
