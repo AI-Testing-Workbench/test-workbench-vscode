@@ -517,13 +517,15 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 
 			this._logService.info(`[OpenCode] spawning ${bin} serve --port=0`);
 
-			const child = cp.spawn(bin, args, {
+			// test-workbench_change start: node 运行时 wrapper 是 .cmd，win32 下 spawn 需 shell:true；exe 走原路径。
+			// shell:true 时 cmd.exe 按空格切分命令行，含空格路径必须自行加引号，否则报"不是内部或外部命令"退出码 1。
+			const useCmdShell = process.platform === 'win32' && !/\.exe$/i.test(bin);
+			const child = cp.spawn(useCmdShell ? `"${bin}"` : bin, args, {
 				env,
 				stdio: ['pipe', 'pipe', 'pipe'],
-				// test-workbench_change start: node 运行时 wrapper 是 .cmd，win32 下 spawn 需 shell:true；exe 走原路径
-				...(process.platform === 'win32' && !/\.exe$/i.test(bin) ? { shell: true } : {}),
-				// test-workbench_change end
+				...(useCmdShell ? { shell: true } : {}),
 			});
+			// test-workbench_change end
 			this._guardBackendProcessLifecycle(child); // test-workbench_change
 
 			const authHeader = this._getAuthHeader();
