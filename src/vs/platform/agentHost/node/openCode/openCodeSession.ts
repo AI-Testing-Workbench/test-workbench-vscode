@@ -340,7 +340,8 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 		if (this._authHeader) { headers['Authorization'] = this._authHeader; }
 		// fork 通过 x-opencode-directory header 定位工作目录(workspace-routing.ts)
-		if (workingDirectory) { headers['x-opencode-directory'] = workingDirectory.fsPath; }
+		// test-workbench_change: header 值只允许 Latin-1(undici ByteString)，中文路径必须 percent-encode，服务端对应 decode
+		if (workingDirectory) { headers['x-opencode-directory'] = encodeURIComponent(workingDirectory.fsPath); }
 
 		const parts: Array<Record<string, unknown>> = [{ type: 'text', text: prompt }];
 		if (attachments && attachments.length > 0) {
