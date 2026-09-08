@@ -666,8 +666,13 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]>;
-	async getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, arg1: CancellationToken | IExtensionQueryOptions, arg2?: CancellationToken): Promise<IGalleryExtension[]> {
-		const extensionGalleryManifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken, marketplace?: GalleryMarketplace): Promise<IGalleryExtension[]>; // test-workbench_change
+	async getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, arg1: CancellationToken | IExtensionQueryOptions, arg2?: CancellationToken, marketplace?: GalleryMarketplace): Promise<IGalleryExtension[]> { // test-workbench_change
+		// test-workbench_change start - resolve the manifest of the requested marketplace
+		const extensionGalleryManifest = marketplace === GalleryMarketplace.VsCodeOfficial
+			? this.vsCodeMarketplaceManifest
+			: await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+		// test-workbench_change end
 		if (!extensionGalleryManifest) {
 			throw new Error('No extension gallery service configured.');
 		}
@@ -1891,16 +1896,20 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		return '';
 	}
 
-	async getAllVersions(extensionIdentifier: IExtensionIdentifier): Promise<IGalleryExtensionVersion[]> {
-		return this.getVersions(extensionIdentifier);
+	async getAllVersions(extensionIdentifier: IExtensionIdentifier, marketplace?: GalleryMarketplace): Promise<IGalleryExtensionVersion[]> { // test-workbench_change
+		return this.getVersions(extensionIdentifier, undefined, marketplace); // test-workbench_change
 	}
 
 	async getAllCompatibleVersions(extensionIdentifier: IExtensionIdentifier, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]> {
 		return this.getVersions(extensionIdentifier, { version: includePreRelease ? VersionKind.Latest : VersionKind.Release, targetPlatform });
 	}
 
-	private async getVersions(extensionIdentifier: IExtensionIdentifier, onlyCompatible?: { version: VersionKind; targetPlatform: TargetPlatform }): Promise<IGalleryExtensionVersion[]> {
-		const extensionGalleryManifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+	private async getVersions(extensionIdentifier: IExtensionIdentifier, onlyCompatible?: { version: VersionKind; targetPlatform: TargetPlatform }, marketplace?: GalleryMarketplace): Promise<IGalleryExtensionVersion[]> { // test-workbench_change
+		// test-workbench_change start - resolve the manifest of the requested marketplace
+		const extensionGalleryManifest = marketplace === GalleryMarketplace.VsCodeOfficial
+			? this.vsCodeMarketplaceManifest
+			: await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+		// test-workbench_change end
 		if (!extensionGalleryManifest) {
 			throw new Error('No extension gallery service configured.');
 		}

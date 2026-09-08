@@ -149,7 +149,7 @@ export interface IExtensionsWorkbenchService {
 	install(vsix: URI, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	install(extension: IExtension, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	installInServer(extension: IExtension, server: IExtensionManagementServer, installOptions?: InstallOptions): Promise<void>;
-	downloadVSIX(extension: string, versionKind: 'prerelease' | 'release' | 'any'): Promise<void>;
+	downloadVSIX(extension: string, versionKind: 'prerelease' | 'release' | 'any', marketplace?: GalleryMarketplace): Promise<void>; // test-workbench_change
 	uninstall(extension: IExtension): Promise<void>;
 	togglePreRelease(extension: IExtension): Promise<void>;
 	canSetLanguage(extension: IExtension): boolean;
@@ -277,4 +277,5 @@ export interface IExtensionArg {
 	version: string;
 	location: URI | undefined;
 	galleryLink: string | undefined;
+	marketplace?: GalleryMarketplace; // test-workbench_change
 }

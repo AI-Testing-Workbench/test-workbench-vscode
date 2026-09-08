@@ -2015,10 +2015,31 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.extensionManagementService.installGalleryExtensions(toUpdate);
 	}
 
-	async downloadVSIX(extensionId: string, versionKind: 'prerelease' | 'release' | 'any'): Promise<void> {
+	async downloadVSIX(extensionId: string, versionKind: 'prerelease' | 'release' | 'any', marketplace?: GalleryMarketplace): Promise<void> { // test-workbench_change
+		// test-workbench_change start - resolve the marketplace from which to download. Only an extension explicitly
+		// known to come from the VS Code Marketplace is restricted to it; otherwise prefer the default gallery and
+		// fall back to the VS Code Marketplace (an installed extension does not track its source marketplace).
+		const marketplaces: GalleryMarketplace[] = marketplace === GalleryMarketplace.VsCodeOfficial ? [GalleryMarketplace.VsCodeOfficial] : [GalleryMarketplace.TsCode, GalleryMarketplace.VsCodeOfficial];
+		let resolvedMarketplace: GalleryMarketplace | undefined;
 		let version: IGalleryExtensionVersion | undefined;
 		if (versionKind === 'any') {
-			version = await this.pickVersionToDownload(extensionId);
+			for (const candidate of marketplaces) {
+				let allVersions: IGalleryExtensionVersion[] = [];
+				try {
+					allVersions = await this.galleryService.getAllVersions({ id: extensionId }, candidate);
+				} catch (error) {
+					this.logService.error(`Failed to get the versions of extension '${extensionId}' from the marketplace.`, getErrorMessage(error));
+				}
+				if (allVersions.length) {
+					resolvedMarketplace = candidate;
+					version = await this.pickVersionToDownload(allVersions);
+					break;
+				}
+			}
+			if (!resolvedMarketplace) {
+				await this.dialogService.info(nls.localize('no versions', "This extension has no other versions."));
+				return;
+			}
 			if (!version) {
 				return;
 			}
@@ -2027,10 +2048,47 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const extensionInfo = version ? { id: extensionId, version: version.version } : { id: extensionId, preRelease: versionKind === 'prerelease' };
 		const queryOptions: IExtensionQueryOptions = version ? {} : { compatible: true };
 
-		let [galleryExtension] = await this.galleryService.getExtensions([extensionInfo], queryOptions, CancellationToken.None);
+		let galleryExtension: IGalleryExtension | undefined;
+		const querySources = resolvedMarketplace ? [resolvedMarketplace] : marketplaces;
+		for (const candidate of querySources) {
+			// test-workbench_change start - retry without the compatibility checks when the compatible query does not return the extension
+			const queryAttempts: IExtensionQueryOptions[] = queryOptions.compatible ? [queryOptions, { ...queryOptions, compatible: false }] : [queryOptions];
+			for (const queryAttempt of queryAttempts) {
+				try {
+					[galleryExtension] = await this.galleryService.getExtensions([extensionInfo], queryAttempt, CancellationToken.None, candidate);
+				} catch (error) {
+					this.logService.error(`Failed to query the extension '${extensionId}' from the marketplace.`, getErrorMessage(error));
+				}
+				if (galleryExtension) {
+					break;
+				}
+			}
+			// test-workbench_change end
+			if (!galleryExtension && candidate === GalleryMarketplace.VsCodeOfficial && !version) {
+				// test-workbench_change start - the corporate network can reject exact-name queries against the VS Code
+				// Marketplace (403) while text searches succeed, so fall back to a marketplace search for the extension.
+				try {
+					const searchResult = await this.galleryService.query({
+						text: extensionId,
+						source: 'downloadVSIX',
+						pageSize: 20,
+						includePreRelease: versionKind === 'prerelease'
+					}, CancellationToken.None);
+					galleryExtension = searchResult.firstPage.find(e => e.marketplace === GalleryMarketplace.VsCodeOfficial && e.identifier.id.toLowerCase() === extensionId.toLowerCase());
+				} catch (error) {
+					this.logService.error(`Failed to search the extension '${extensionId}' in the VS Code Marketplace.`, getErrorMessage(error));
+				}
+				// test-workbench_change end
+			}
+			if (galleryExtension) {
+				resolvedMarketplace = candidate;
+				break;
+			}
+		}
 		if (!galleryExtension) {
 			throw new Error(nls.localize('extension not found', "Extension '{0}' not found.", extensionId));
 		}
+		// test-workbench_change end
 
 		let targetPlatform = galleryExtension.properties.targetPlatform;
 		const options = [];
@@ -2051,9 +2109,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			targetPlatform = option.id;
 		}
 
-		if (targetPlatform !== galleryExtension.properties.targetPlatform) {
-			[galleryExtension] = await this.galleryService.getExtensions([extensionInfo], { ...queryOptions, targetPlatform }, CancellationToken.None);
+		// test-workbench_change start - keep the current extension when re-querying for the platform fails
+		if (targetPlatform !== galleryExtension.properties.targetPlatform && resolvedMarketplace) {
+			const [platformGalleryExtension] = await this.galleryService.getExtensions([extensionInfo], { ...queryOptions, targetPlatform }, CancellationToken.None, resolvedMarketplace); // test-workbench_change
+			if (platformGalleryExtension) {
+				galleryExtension = platformGalleryExtension;
+			}
 		}
+		// test-workbench_change end
 
 		const result = await this.fileDialogService.showOpenDialog({
 			title: nls.localize('download title', "Select folder to download the VSIX"),
@@ -2079,13 +2142,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		});
 	}
 
-	private async pickVersionToDownload(extensionId: string): Promise<IGalleryExtensionVersion | undefined> {
-		const allVersions = await this.galleryService.getAllVersions({ id: extensionId });
-		if (!allVersions.length) {
-			await this.dialogService.info(nls.localize('no versions', "This extension has no other versions."));
-			return;
-		}
-
+	private async pickVersionToDownload(allVersions: IGalleryExtensionVersion[]): Promise<IGalleryExtensionVersion | undefined> { // test-workbench_change
 		const picks = allVersions.map((v, i) => {
 			return {
 				id: v.version,
