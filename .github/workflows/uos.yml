@@ -190,6 +190,9 @@ jobs:
 
           export TSCODE_SYSTEM_EXTENSIONS="$SCRIPT_DIR/resources/app/extensions"
 
+          # 创建用户设置，启用 GitHub 认证
+          mkdir -p "$TSCODE_APPDATA/User"
+
           # 创建 GitHub 认证存储
           GITHUB_STORAGE="$TSCODE_APPDATA/User/globalStorage/github-authentication"
           mkdir -p "$GITHUB_STORAGE"
