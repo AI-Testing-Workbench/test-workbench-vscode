@@ -138,6 +138,10 @@ jobs:
         shell: pwsh
         run: node build/prepare-prebuilt-extensions.ts --platform=win32 --arch=x64
 
+      - name: Prepare Electron types
+        shell: pwsh
+        run: node build/npm/electronTypes.ts
+
       - name: Compile core (esbuild)
         shell: pwsh
         run: npm run gulp core-ci
@@ -243,6 +247,9 @@ jobs:
       - name: Prepare prebuilt extensions
         run: |
           node build/prepare-prebuilt-extensions.ts --platform=darwin --arch=arm64
+
+      - name: Prepare Electron types
+        run: node build/npm/electronTypes.ts
 
       - name: Compile core (esbuild)
         run: npm run gulp core-ci
@@ -403,6 +410,9 @@ jobs:
       - name: Prepare prebuilt extensions
         run: |
           node build/prepare-prebuilt-extensions.ts --platform=linux --arch=x64
+
+      - name: Prepare Electron types
+        run: node build/npm/electronTypes.ts
 
       - name: Compile core (esbuild)
         run: npm run gulp core-ci
