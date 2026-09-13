@@ -10,6 +10,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { createCancelablePromise, raceCancellablePromises, timeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
+import { IPlaywrightActionScope } from './playwrightService.js';
 
 type IAiAriaSnapshotOptions = NonNullable<Parameters<playwright.Locator['ariaSnapshot']>[0]> & { _track?: string };
 
@@ -54,6 +55,7 @@ export class PlaywrightTab {
 		 * Only use this directly if you are sure it cannot be blocked by dialogs.
 		 */
 		private readonly page: playwright.Page,
+		private readonly actionScope: IPlaywrightActionScope,
 		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		page.on('console', event => this._handleConsoleMessage(event))
@@ -61,26 +63,6 @@ export class PlaywrightTab {
 			.on('requestfailed', request => this._handleRequestFailed(request))
 			.on('dialog', dialog => this._handleDialog(dialog))
 			.on('download', download => this._handleDownload(download));
-
-		// Block outgoing network requests according to agent network policy.
-		page.route('**/*', (route) => {
-			const requestUrl = route.request().url();
-			try {
-				const uri = URI.parse(requestUrl);
-				if (!this.agentNetworkFilterService.isUriAllowed(uri)) {
-					this._logs.push({
-						type: 'requestBlocked',
-						time: Date.now(),
-						description: this.agentNetworkFilterService.formatError(uri)
-					});
-					route.abort('blockedbyclient').catch(() => { });
-					return;
-				}
-			} catch {
-				// If we can't parse the URL, let it through
-			}
-			route.continue().catch(() => { });
-		}).catch(() => { });
 
 		this._initialized = this._initialize();
 	}
@@ -202,10 +184,12 @@ export class PlaywrightTab {
 			this.page.on('filechooser', handleFileChooser);
 
 			try {
+				this.actionScope.activeCalls++;
 				result = await this.runAndWaitForCompletion((token) => action(this.page, token), token);
 				actionDidComplete = true;
 			} finally {
 				this.page.off('filechooser', handleFileChooser);
+				this.actionScope.activeCalls--;
 			}
 		});
 

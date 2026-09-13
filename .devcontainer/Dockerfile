@@ -1,5 +1,5 @@
 # ===== 第一阶段：基础镜像配置和 apt 更新 =====
-FROM mcr.microsoft.com/devcontainers/typescript-node:22-bookworm AS stage-apt
+FROM mcr.microsoft.com/devcontainers/typescript-node:24-bookworm AS stage-apt
 
 # 配置 apt 使用中国镜像源
 RUN sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources && \

@@ -10,6 +10,10 @@ import { IOSProperties } from '../../native/common/native.js';
 import { IProductService } from '../../product/common/productService.js';
 import { process } from '../../../base/parts/sandbox/electron-browser/globals.js';
 
+function formatCopilotVersion(version: string | undefined): string {
+	return version?.replace('-canary', '').replace(/\.unsigned$/, '') || 'Unknown';
+}
+
 export function createNativeAboutDialogDetails(productService: IProductService, osProps: IOSProperties): { title: string; details: string; detailsToCopy: string } {
 	let version = productService.version;
 	if (productService.target) {
@@ -17,6 +21,9 @@ export function createNativeAboutDialogDetails(productService: IProductService, 
 	} else if (productService.darwinUniversalAssetId) {
 		version = `${version} (Universal)`;
 	}
+
+	const copilotRuntimeVersion = formatCopilotVersion(productService.copilotVersions?.runtime);
+	const copilotSdkVersion = formatCopilotVersion(productService.copilotVersions?.sdk);
 
 	// test-workbench_change start
 	const getDetails = (useAgo: boolean): string => {
@@ -34,6 +41,8 @@ export function createNativeAboutDialogDetails(productService: IProductService, 
 			process.versions['chrome'],
 			process.versions['node'],
 			process.versions['v8'],
+			copilotRuntimeVersion,
+			copilotSdkVersion,
 			`${osProps.type} ${osProps.arch} ${osProps.release}${isLinuxSnap ? ' snap' : ''}`
 		);
 	};
