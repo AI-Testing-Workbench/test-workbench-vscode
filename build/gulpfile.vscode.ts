@@ -65,7 +65,7 @@ function updateGitVersion(): task.CallbackTask {
 }
 
 const updateGitVersionTask = task.define('update-git-version', updateGitVersion());
-gulp.task(updateGitVersionTask);
+task.task(updateGitVersionTask);
 // test-workbench_change end
 const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8')) as {
 	readonly packages?: Readonly<Record<string, { readonly version?: string }>>;

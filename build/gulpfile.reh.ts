@@ -637,7 +637,7 @@ function updateGitVersion(): task.CallbackTask {
 }
 
 const updateGitVersionTask = task.define('update-git-version-reh', updateGitVersion());
-gulp.task(updateGitVersionTask);
+task.task(updateGitVersionTask);
 // test-workbench_change end
 
 // test-workbench_change start - Prepare prebuilt extensions task for REH

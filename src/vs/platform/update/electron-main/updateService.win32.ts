@@ -240,8 +240,8 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		// test-workbench_change start
 		const baseHeaders = getUpdateRequestHeaders(this.productService.version);
-		enhanceUpdateRequestHeadersWithEmployeeId(baseHeaders, this.applicationStorageMainService)
-			.then(headers => this.requestService.request({ url, headers, callSite: 'updateService.win32.checkForUpdates' }, CancellationToken.None))
+		const promise = enhanceUpdateRequestHeadersWithEmployeeId(baseHeaders, this.applicationStorageMainService)
+			.then(headers => this.requestService.request({ url, headers, callSite: 'updateService.win32.checkForUpdates' }, token))
 			// test-workbench_change end
 			.then<IUpdate | null>(asJson)
 			.then(update => {

@@ -443,7 +443,17 @@ export class ChatDebugEditor extends EditorPane {
 		}
 	}
 
-	override setEditorVisible(visible: boolean): void {
+	/**
+	 * The panel is enabled when either local file logging or agent-host (Copilot
+	 * CLI) debug logging is on. Each provider self-gates on its own setting, so
+	 * this only decides whether to fall back to the home view.
+	 */
+	private _isDebugEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)
+			|| this.configurationService.getValue<boolean>(AgentHostAgentDebugLogEnabledSettingId);
+	}
+
+	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
 		if (visible) {
 			this.telemetryService.publicLog2<{}, ChatDebugPanelOpenedClassification>('chatDebugPanelOpened');

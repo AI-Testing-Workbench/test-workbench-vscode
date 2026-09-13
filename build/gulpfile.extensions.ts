@@ -13,7 +13,6 @@ import * as fs from 'fs';
 import glob from 'glob';
 import { gulp, filter, plumber, sourcemaps } from './lib/gulp/facade.ts';
 import * as path from 'path';
-import * as fs from 'fs'; // test-workbench_change
 import * as nodeUtil from 'util';
 import * as ext from './lib/extensions.ts';
 import { getVersion } from './lib/getVersion.ts';
@@ -317,7 +316,7 @@ export const cleanExtensionsBuildTask = task.define('clean-extensions-build', as
 	}
 	// test-workbench_change end
 });
-gulp.task(cleanExtensionsBuildTask); // test-workbench_change
+task.task(cleanExtensionsBuildTask); // test-workbench_change
 
 /**
  * brings in the marketplace extensions for the build
