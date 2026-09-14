@@ -30,7 +30,7 @@ import { localize } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { computeSize, FilterType, IExtensionGalleryService, IGalleryExtension, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { computeSize, FilterType, IExtensionGalleryService, IGalleryExtension, ILocalExtension, GalleryMarketplace } from '../../../../platform/extensionManagement/common/extensionManagement.js'; // test-workbench_change
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ExtensionType, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -315,6 +315,12 @@ export class ExtensionEditor extends EditorPane {
 		subTitleEntryContainers.push(sponsorContainer);
 		const sponsorWidget = this.instantiationService.createInstance(SponsorWidget, sponsorContainer);
 
+		// test-workbench_change start - show the source marketplace of the extension
+		const marketplaceContainer = append(subtitle, $('.subtitle-entry'));
+		subTitleEntryContainers.push(marketplaceContainer);
+		const marketplaceLabel = append(marketplaceContainer, $('span.marketplace-badge'));
+		// test-workbench_change end
+
 		const widgets: ExtensionWidget[] = [
 			iconWidget,
 			remoteBadge,
@@ -441,6 +447,13 @@ export class ExtensionEditor extends EditorPane {
 			extensionActionBar,
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
+				// test-workbench_change start
+				const isVsCodeMarketplace = extension.marketplace === GalleryMarketplace.VsCodeOfficial;
+				// allow-any-unicode-next-line
+				marketplaceLabel.textContent = isVsCodeMarketplace ? 'VSCode市场' : '';
+				// allow-any-unicode-next-line
+				marketplaceLabel.title = isVsCodeMarketplace ? 'VSCode市场' : '';
+				// test-workbench_change end
 				let lastNonEmptySubtitleEntryContainer;
 				for (const subTitleEntryElement of subTitleEntryContainers) {
 					subTitleEntryElement.classList.remove('last-non-empty');

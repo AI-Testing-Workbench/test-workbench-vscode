@@ -127,6 +127,15 @@ export function prepareBuiltInCopilotExtensionShims(platform: string, arch: stri
 	const platformArch = `${nodePlatform}-${nodeArch}`;
 
 	const extensionNodeModules = path.join(builtInCopilotExtensionDir, 'node_modules');
+
+	// test-workbench_change start
+	// Skip when the built-in copilot extension is not shipped (this fork builds without Copilot Chat).
+	if (!fs.existsSync(extensionNodeModules)) {
+		console.warn(`[prepareBuiltInCopilotExtensionShims] Built-in copilot extension not present at ${builtInCopilotExtensionDir}, skipping`);
+		return;
+	}
+	// test-workbench_change end
+
 	const copilotBase = path.join(extensionNodeModules, '@github', 'copilot');
 	const copilotSdkBase = path.join(copilotBase, 'sdk');
 	if (!fs.existsSync(copilotSdkBase)) {

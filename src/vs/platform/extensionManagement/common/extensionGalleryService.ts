@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IHeaders, IRequestContext, IRequestOptions, isOfflineError } from '../../../base/parts/request/common/request.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo, ExtensionRequestsTimeoutConfigKey } from './extensionManagement.js';
+import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion, IAllowedExtensionsService, EXTENSION_IDENTIFIER_REGEX, SortBy, FilterType, MaliciousExtensionInfo, ExtensionRequestsTimeoutConfigKey, GalleryMarketplace } from './extensionManagement.js'; // test-workbench_change
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from './extensionManagementUtil.js';
 import { IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
 import { areApiProposalsCompatible, isEngineValid } from '../../extensions/common/extensionValidator.js';
@@ -30,6 +30,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { format2 } from '../../../base/common/strings.js';
 import { ExtensionGalleryResourceType, Flag, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from './extensionGalleryManifest.js';
+import { getVsCodeMarketplaceAsset, getVsCodeMarketplaceDownloadAsset, getVsCodeMarketplaceManifest, isVsCodeMarketplaceManifest } from './tscodeMarketplace.js'; // test-workbench_change
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 
 const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
@@ -140,6 +141,7 @@ interface ICriterium {
 }
 
 const DefaultPageSize = 10;
+const VsCodeMarketplaceQueryTimeout = 3000; // test-workbench_change - do not block the default gallery on a slow VS Code Marketplace
 
 interface IQueryState {
 	readonly pageNumber: number;
@@ -527,6 +529,21 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		coreTranslations: getCoreTranslationAssets(version)
 	};
 
+	// test-workbench_change start - rewrite assets of the public VS Code Marketplace to reachable endpoints
+	const isVsCodeMarketplace = isVsCodeMarketplaceManifest(extensionGalleryManifest);
+	if (isVsCodeMarketplace) {
+		const extensionId = galleryExtension.extensionId;
+		const extensionVersion = version.version;
+		assets.manifest = getVsCodeMarketplaceAsset(extensionId, extensionVersion, AssetType.Manifest);
+		assets.readme = getVsCodeMarketplaceAsset(extensionId, extensionVersion, AssetType.Details);
+		assets.changelog = getVsCodeMarketplaceAsset(extensionId, extensionVersion, AssetType.Changelog);
+		assets.license = getVsCodeMarketplaceAsset(extensionId, extensionVersion, AssetType.License);
+		assets.icon = getVsCodeMarketplaceAsset(extensionId, extensionVersion, AssetType.Icon);
+		assets.signature = getVsCodeMarketplaceAsset(extensionId, extensionVersion, AssetType.Signature);
+		assets.download = getVsCodeMarketplaceDownloadAsset(galleryExtension.publisher.publisherName, galleryExtension.extensionName, extensionVersion, version.targetPlatform);
+	}
+	// test-workbench_change end
+
 	const detailsViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, galleryExtension.linkType ?? ExtensionGalleryResourceType.ExtensionDetailsViewUri);
 	const publisherViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, galleryExtension.publisher.linkType ?? ExtensionGalleryResourceType.PublisherViewUri);
 	const ratingViewUri = getExtensionGalleryManifestResourceUri(extensionGalleryManifest, galleryExtension.ratingLinkType ?? ExtensionGalleryResourceType.ExtensionRatingViewUri);
@@ -534,6 +551,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 
 	return {
 		type: 'gallery',
+		marketplace: isVsCodeMarketplace ? GalleryMarketplace.VsCodeOfficial : GalleryMarketplace.TsCode, // test-workbench_change
 		identifier: {
 			id,
 			uuid: galleryExtension.extensionId
@@ -611,6 +629,10 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	private readonly commonHeadersPromise: Promise<IHeaders>;
 	private readonly extensionsEnabledWithApiProposalVersion: string[];
 
+	// test-workbench_change start - manifest for the public VS Code Marketplace searched alongside the default gallery
+	private readonly vsCodeMarketplaceManifest: IExtensionGalleryManifest | null;
+	// test-workbench_change end
+
 	constructor(
 		storageService: IStorageService | undefined,
 		@IRequestService private readonly requestService: IRequestService,
@@ -626,6 +648,9 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		this.extensionsControlUrl = productService.extensionsGallery?.controlUrl;
 		this.unpkgResourceApi = productService.extensionsGallery?.extensionUrlTemplate;
 		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
+		// test-workbench_change start - search the public VS Code Marketplace only when a default gallery is configured
+		this.vsCodeMarketplaceManifest = productService.extensionsGallery?.serviceUrl ? getVsCodeMarketplaceManifest() : null;
+		// test-workbench_change end
 		this.commonHeadersPromise = resolveMarketplaceHeaders(
 			productService.version,
 			productService,
@@ -642,8 +667,13 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]>;
-	async getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, arg1: CancellationToken | IExtensionQueryOptions, arg2?: CancellationToken): Promise<IGalleryExtension[]> {
-		const extensionGalleryManifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken, marketplace?: GalleryMarketplace): Promise<IGalleryExtension[]>; // test-workbench_change
+	async getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, arg1: CancellationToken | IExtensionQueryOptions, arg2?: CancellationToken, marketplace?: GalleryMarketplace): Promise<IGalleryExtension[]> { // test-workbench_change
+		// test-workbench_change start - resolve the manifest of the requested marketplace
+		const extensionGalleryManifest = marketplace === GalleryMarketplace.VsCodeOfficial
+			? this.vsCodeMarketplaceManifest
+			: await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+		// test-workbench_change end
 		if (!extensionGalleryManifest) {
 			throw new Error('No extension gallery service configured.');
 		}
@@ -1105,6 +1135,23 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		}
 	}
 
+	// test-workbench_change start - bound the time spent waiting for the VS Code Marketplace so that a slow connection does not block the default gallery
+	private async withTimeout<T>(promise: Promise<T>, timeout: number, timeoutValue: T, name: string): Promise<T> {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const timeoutPromise = new Promise<T>(resolve => {
+			timer = setTimeout(() => {
+				this.logService.debug(`Timed out waiting for ${name} after ${timeout}ms.`);
+				resolve(timeoutValue);
+			}, timeout);
+		});
+		const result = await Promise.race([promise, timeoutPromise]);
+		if (timer) {
+			clearTimeout(timer);
+		}
+		return result;
+	}
+	// test-workbench_change end
+
 	async query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>> {
 		const extensionGalleryManifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
 
@@ -1165,8 +1212,83 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			query = query.withSource(options.source);
 		}
 
+		const criteria: ExtensionsCriteria = {
+			targetPlatform: CURRENT_TARGET_PLATFORM,
+			compatible: false,
+			includePreRelease: !!options.includePreRelease,
+			productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date }
+		};
+
+		// test-workbench_change start - when the search is restricted to a single marketplace, query only that marketplace
+		if (options.marketplace === GalleryMarketplace.VsCodeOfficial && this.vsCodeMarketplaceManifest) {
+			return this.runMarketplaceQuery(query, criteria, this.vsCodeMarketplaceManifest, options, token);
+		}
+		if (options.marketplace === GalleryMarketplace.TsCode) {
+			return this.runMarketplaceQuery(query, criteria, extensionGalleryManifest, options, token);
+		}
+		// test-workbench_change end
+
+		// test-workbench_change start - query the public VS Code Marketplace too and merge both result sets.
+		// A failure in any marketplace is logged but does not block the other marketplace or surface an error.
+		const runMarketplaceQuerySafe = (manifest: IExtensionGalleryManifest, name: string): Promise<IPager<IGalleryExtension> | null> =>
+			this.runMarketplaceQuery(query, criteria, manifest, options, token)
+				.catch(error => {
+					this.logService.error(`Failed to query ${name}.`, getErrorMessage(error));
+					return null;
+				});
+
+		const [primaryPager, vsCodeMarketplacePager] = await Promise.all([
+			runMarketplaceQuerySafe(extensionGalleryManifest, 'the internal extension gallery'),
+			this.vsCodeMarketplaceManifest
+				? this.withTimeout(runMarketplaceQuerySafe(this.vsCodeMarketplaceManifest, 'the VS Code Marketplace'), VsCodeMarketplaceQueryTimeout, null, 'the VS Code Marketplace')
+				: Promise.resolve(null)
+		]);
+
+		const availablePagers = [primaryPager, vsCodeMarketplacePager].filter((p): p is IPager<IGalleryExtension> => p !== null);
+		if (availablePagers.length === 0) {
+			return {
+				firstPage: [],
+				total: 0,
+				pageSize,
+				getPage: async () => []
+			};
+		}
+		if (availablePagers.length === 1) {
+			return availablePagers[0];
+		}
+
+		const [firstMarketplacePager, secondMarketplacePager] = availablePagers;
+		const mergedPageSize = firstMarketplacePager.pageSize + secondMarketplacePager.pageSize;
+
+		return {
+			firstPage: [...firstMarketplacePager.firstPage, ...secondMarketplacePager.firstPage],
+			total: firstMarketplacePager.total + secondMarketplacePager.total,
+			pageSize: mergedPageSize,
+			getPage: async (pageIndex: number, ct: CancellationToken) => {
+				if (ct.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				const safeGetPage = (pager: IPager<IGalleryExtension>) => pager.getPage(pageIndex, ct).catch(error => {
+					if (isCancellationError(error)) {
+						throw error;
+					}
+					this.logService.error('Failed to fetch the next page of extensions.', getErrorMessage(error));
+					return [];
+				});
+				const [firstMarketplacePage, secondMarketplacePage] = await Promise.all([
+					safeGetPage(firstMarketplacePager),
+					this.withTimeout(safeGetPage(secondMarketplacePager), VsCodeMarketplaceQueryTimeout, [], 'the VS Code Marketplace') // test-workbench_change
+				]);
+				return [...firstMarketplacePage, ...secondMarketplacePage];
+			}
+		};
+		// test-workbench_change end
+	}
+
+	// test-workbench_change start - run a single marketplace query and expose it as a pager
+	private async runMarketplaceQuery(query: Query, criteria: ExtensionsCriteria, extensionGalleryManifest: IExtensionGalleryManifest, options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>> {
 		const runQuery = async (query: Query, token: CancellationToken) => {
-			const { extensions, total } = await this.queryGalleryExtensions(query, { targetPlatform: CURRENT_TARGET_PLATFORM, compatible: false, includePreRelease: !!options.includePreRelease, productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date } }, extensionGalleryManifest, token);
+			const { extensions, total } = await this.queryGalleryExtensions(query, criteria, extensionGalleryManifest, token);
 
 			const result: IGalleryExtension[] = [];
 			let defaultChatAgentExtension: IGalleryExtension | undefined;
@@ -1196,6 +1318,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		return { firstPage: extensions, total, pageSize: query.pageSize, getPage };
 	}
+	// test-workbench_change end
 
 	private async queryGalleryExtensions(query: Query, criteria: ExtensionsCriteria, extensionGalleryManifest: IExtensionGalleryManifest, token: CancellationToken): Promise<{ extensions: IGalleryExtension[]; total: number }> {
 		const flags = query.flags;
@@ -1709,7 +1832,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const data = getGalleryExtensionTelemetryData(extension);
 		const startTime = new Date().getTime();
 
-		const operationParam = operation === InstallOperation.Install ? 'install' : operation === InstallOperation.Update ? 'update' : '';
+		const operationParam = extension.marketplace === GalleryMarketplace.VsCodeOfficial ? '' : operation === InstallOperation.Install ? 'install' : operation === InstallOperation.Update ? 'update' : ''; // test-workbench_change - the VS Code Marketplace does not need the operation parameter
 		const downloadAsset = operationParam ? {
 			uri: `${extension.assets.download.uri}${URI.parse(extension.assets.download.uri).query ? '&' : '?'}${operationParam}=true`,
 			fallbackUri: `${extension.assets.download.fallbackUri}${URI.parse(extension.assets.download.fallbackUri).query ? '&' : '?'}${operationParam}=true`
@@ -1802,16 +1925,20 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		return '';
 	}
 
-	async getAllVersions(extensionIdentifier: IExtensionIdentifier): Promise<IGalleryExtensionVersion[]> {
-		return this.getVersions(extensionIdentifier);
+	async getAllVersions(extensionIdentifier: IExtensionIdentifier, marketplace?: GalleryMarketplace): Promise<IGalleryExtensionVersion[]> { // test-workbench_change
+		return this.getVersions(extensionIdentifier, undefined, marketplace); // test-workbench_change
 	}
 
 	async getAllCompatibleVersions(extensionIdentifier: IExtensionIdentifier, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]> {
 		return this.getVersions(extensionIdentifier, { version: includePreRelease ? VersionKind.Latest : VersionKind.Release, targetPlatform });
 	}
 
-	private async getVersions(extensionIdentifier: IExtensionIdentifier, onlyCompatible?: { version: VersionKind; targetPlatform: TargetPlatform }): Promise<IGalleryExtensionVersion[]> {
-		const extensionGalleryManifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+	private async getVersions(extensionIdentifier: IExtensionIdentifier, onlyCompatible?: { version: VersionKind; targetPlatform: TargetPlatform }, marketplace?: GalleryMarketplace): Promise<IGalleryExtensionVersion[]> { // test-workbench_change
+		// test-workbench_change start - resolve the manifest of the requested marketplace
+		const extensionGalleryManifest = marketplace === GalleryMarketplace.VsCodeOfficial
+			? this.vsCodeMarketplaceManifest
+			: await this.extensionGalleryManifestService.getExtensionGalleryManifest();
+		// test-workbench_change end
 		if (!extensionGalleryManifest) {
 			throw new Error('No extension gallery service configured.');
 		}

@@ -22,7 +22,7 @@ import { TSCODE_EMPLOYEE_ID_STORAGE_KEY } from '../../tsCodeAuth/common/tsCodeAu
 
 // test-workbench_change start - 公告接口地址（写死在代码中，不依赖 product.json）
 // test-workbench_change start - 公告接口地址（base64 编码存储，使用前解码）
-const ANNOUNCEMENT_API_URL_BASE64 = 'aHR0cHM6Ly90c2NvZGUtZ2F0ZXdheS5wYWFzLmNtYmNoaW5hLmNuL2Fubm91bmNlbWVudA==';
+const ANNOUNCEMENT_API_URL_BASE64 = 'aHR0cHM6Ly90c2NvZGUtZ2F0ZXdheS5wYWFzdWF0LmNtYmNoaW5hLmNuL2Fubm91bmNlbWVudA==';
 const ANNOUNCEMENT_API_URL = decodeProductUrl(ANNOUNCEMENT_API_URL_BASE64);
 
 const SEEN_ANNOUNCEMENTS_KEY = 'tscode-announcement.seen';

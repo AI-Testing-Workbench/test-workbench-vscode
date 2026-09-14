@@ -18,6 +18,7 @@ export class Query {
 	static suggestions(query: string, galleryManifest: IExtensionGalleryManifest | null): string[] {
 
 		const commands = ['installed', 'updates', 'enabled', 'disabled', 'builtin', 'contribute'];
+		commands.unshift('marketplace'); // test-workbench_change - keep the marketplace filters first
 		if (galleryManifest?.capabilities.extensionQuery?.filtering?.some(c => c.name === FilterType.Featured)) {
 			commands.push('featured');
 		}
@@ -46,6 +47,7 @@ export class Query {
 		const subcommands = {
 			'sort': sortCommands,
 			'category': isCategoriesEnabled ? EXTENSION_CATEGORIES.map(c => `"${c.toLowerCase()}"`) : [],
+			'marketplace': ['tscode', 'vscode'], // test-workbench_change
 			'tag': [''],
 			'ext': [''],
 			'id': [''],
@@ -55,9 +57,10 @@ export class Query {
 		const queryContains = (substr: string) => query.indexOf(substr) > -1;
 		const hasSort = subcommands.sort.some(subcommand => queryContains(`@sort:${subcommand}`));
 		const hasCategory = subcommands.category.some(subcommand => queryContains(`@category:${subcommand}`));
+		const hasMarketplace = subcommands.marketplace.some(subcommand => queryContains(`@marketplace:${subcommand}`)); // test-workbench_change
 
 		return commands.flatMap(command => {
-			if (hasSort && command === 'sort' || hasCategory && command === 'category') {
+			if (hasSort && command === 'sort' || hasCategory && command === 'category' || hasMarketplace && command === 'marketplace') { // test-workbench_change
 				return [];
 			}
 			if (command in subcommands) {

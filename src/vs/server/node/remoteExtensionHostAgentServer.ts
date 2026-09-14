@@ -75,6 +75,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		private readonly _vsdaMod: typeof vsda | null,
 		hasWebClient: boolean,
 		serverBasePath: string | undefined,
+		private readonly _disableClientValidation: boolean | undefined, // test-workbench_change
 		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
@@ -98,7 +99,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				? this._instantiationService.createInstance(WebClientServer, this._connectionToken, serverBasePath ?? '/', this._serverProductPath)
 				: null
 		);
-		this._logService.info(`Extension host agent started.`);
+		this._logService.info(`Extension host agent started. (validation: ${!this._disableClientValidation})`); // test-workbench_change
 		this._reconnectionGraceTime = this._environmentService.reconnectionGraceTime;
 	}
 
@@ -332,14 +333,16 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 					return rejectWebSocketConnection(`Invalid second message field type`);
 				}
 
-				const rendererCommit = msg2.commit;
-				const myCommit = this._productService.commit;
-				if (rendererCommit && myCommit) {
-					// Running in the built version where commits are defined
-					if (rendererCommit !== myCommit) {
-						return rejectWebSocketConnection(`Client refused: version mismatch`);
+				if (!this._disableClientValidation) { // test-workbench_change start
+					const rendererCommit = msg2.commit;
+					const myCommit = this._productService.commit;
+					if (rendererCommit && myCommit) {
+						// Running in the built version where commits are defined
+						if (rendererCommit !== myCommit) {
+							return rejectWebSocketConnection(`Client refused: version mismatch`);
+						}
 					}
-				}
+				} // test-workbench_change end
 
 				let valid = false;
 				if (!validator) {
@@ -698,7 +701,9 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}${serverBasePath ?? ''}${queryPart}`);
 	}
 
-	const remoteExtensionHostAgentServer = instantiationService.createInstance(RemoteExtensionHostAgentServer, socketServer, connectionToken, vsdaMod, hasWebClient, serverBasePath);
+	const disableClientValidation = args['disable-client-validation']; // test-workbench_change
+
+	const remoteExtensionHostAgentServer = instantiationService.createInstance(RemoteExtensionHostAgentServer, socketServer, connectionToken, vsdaMod, hasWebClient, serverBasePath, disableClientValidation); // test-workbench_change
 
 	perf.mark('code/server/ready');
 	const currentTime = performance.now();

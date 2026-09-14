@@ -1832,8 +1832,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				when: ContextKeyExpr.and(ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isGalleryExtension')),
 				order: this.productService.quality === 'stable' ? 0 : 1
 			},
-			run: async (accessor: ServicesAccessor, extensionId: string) => {
-				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, 'release');
+			run: async (accessor: ServicesAccessor, extensionId: string, extensionArg: IExtensionArg) => { // test-workbench_change
+				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, 'release', extensionArg?.marketplace); // test-workbench_change
 			}
 		});
 
@@ -1845,8 +1845,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				when: ContextKeyExpr.and(ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('extensionHasPreReleaseVersion')),
 				order: this.productService.quality === 'stable' ? 1 : 0
 			},
-			run: async (accessor: ServicesAccessor, extensionId: string) => {
-				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, 'prerelease');
+			run: async (accessor: ServicesAccessor, extensionId: string, extensionArg: IExtensionArg) => { // test-workbench_change
+				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, 'prerelease', extensionArg?.marketplace); // test-workbench_change
 			}
 		});
 
@@ -1858,8 +1858,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				when: ContextKeyExpr.and(ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isGalleryExtension')),
 				order: 2
 			},
-			run: async (accessor: ServicesAccessor, extensionId: string) => {
-				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, 'any');
+			run: async (accessor: ServicesAccessor, extensionId: string, extensionArg: IExtensionArg) => { // test-workbench_change
+				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, 'any', extensionArg?.marketplace); // test-workbench_change
 			}
 		});
 

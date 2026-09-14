@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, toDisposable } from '../../../../base/comm
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { isCancellationError, getErrorMessage, CancellationError } from '../../../../base/common/errors.js';
 import { PagedModel, IPagedModel, DelayedPagedModel, IPager } from '../../../../base/common/paging.js';
-import { SortOrder, IQueryOptions as IGalleryQueryOptions, SortBy as GallerySortBy, InstallExtensionInfo, ExtensionGalleryErrorCode, ExtensionGalleryError } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { SortOrder, IQueryOptions as IGalleryQueryOptions, SortBy as GallerySortBy, InstallExtensionInfo, ExtensionGalleryErrorCode, ExtensionGalleryError, GalleryMarketplace } from '../../../../platform/extensionManagement/common/extensionManagement.js'; // test-workbench_change
 import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { areSameExtensions, getExtensionDependencies } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -299,6 +299,14 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			const model = await this.queryByIds(ids, options, token);
 			return { model, disposables: new DisposableStore() };
 		}
+
+		// test-workbench_change start - allow restricting the search to a single marketplace (e.g. @marketplace:vscode)
+		const marketplaceQuery = ExtensionsListView.parseMarketplaceQuery(query.value);
+		if (marketplaceQuery) {
+			query.value = marketplaceQuery.text;
+			options.marketplace = marketplaceQuery.marketplace;
+		}
+		// test-workbench_change end
 
 		if (ExtensionsListView.isLocalExtensionsQuery(query.value, query.sortBy)) {
 			return this.queryLocal(query, options);
@@ -1259,6 +1267,19 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 	static isSearchRecentlyPublishedQuery(query: string): boolean {
 		return /@recentlyPublished/i.test(query);
 	}
+
+	// test-workbench_change start - parse the @marketplace: filter used to search a single marketplace
+	static parseMarketplaceQuery(query: string): { text: string; marketplace: GalleryMarketplace } | undefined {
+		const match = /@marketplace:(tscode|vscode)/i.exec(query);
+		if (!match) {
+			return undefined;
+		}
+		return {
+			text: query.replace(match[0], '').trim(),
+			marketplace: match[1].toLowerCase() === 'vscode' ? GalleryMarketplace.VsCodeOfficial : GalleryMarketplace.TsCode
+		};
+	}
+	// test-workbench_change end
 
 	static isSearchRecentlyUpdatedQuery(query: string): boolean {
 		return /@recentlyUpdated/i.test(query);

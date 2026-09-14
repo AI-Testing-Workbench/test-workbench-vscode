@@ -14,6 +14,7 @@ import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService, IExtensionsViewState } from '../common/extensions.js';
 import { ManageExtensionAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ButtonWithDropDownExtensionAction, InstallDropdownAction, InstallingLabelAction, ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction } from './extensionsActions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { GalleryMarketplace } from '../../../../platform/extensionManagement/common/extensionManagement.js'; // test-workbench_change
 import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionRuntimeStatusWidget, ExtensionRestartRequiredWidget, PreReleaseBookmarkWidget, PublisherWidget, ExtensionKindIndicatorWidget, ExtensionIconWidget } from './extensionsWidgets.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
@@ -35,6 +36,7 @@ export interface ITemplateData {
 	description: HTMLElement;
 	installCount: HTMLElement;
 	ratings: HTMLElement;
+	marketplace: HTMLElement; // test-workbench_change
 	extension: IExtension | null;
 	disposables: IDisposable[];
 	extensionDisposables: IDisposable[];
@@ -79,6 +81,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const headerContainer = append(details, $('.header-container'));
 		const header = append(headerContainer, $('.header'));
 		const name = append(header, $('span.name'));
+		const marketplace = append(header, $('span.marketplace-badge')); // test-workbench_change
 		const restartRequired = append(header, $('span.restart-required'));
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
@@ -150,7 +153,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disposable = combinedDisposable(...actions, ...widgets, actionbar, actionBarListener, extensionContainers);
 
 		return {
-			root, element, name, installCount, ratings, description, disposables: [disposable], actionbar,
+			root, element, name, installCount, ratings, description, marketplace, // test-workbench_change
+			disposables: [disposable], actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
@@ -168,6 +172,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.description.textContent = '';
 		data.installCount.style.display = 'none';
 		data.ratings.style.display = 'none';
+		data.marketplace.textContent = ''; // test-workbench_change
+		data.marketplace.style.display = 'none'; // test-workbench_change
 		data.extension = null;
 	}
 
@@ -193,6 +199,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		data.name.textContent = extension.displayName;
 		data.description.textContent = extension.description;
+
+		// test-workbench_change start - show the source marketplace of the extension
+		const isVsCodeMarketplace = extension.marketplace === GalleryMarketplace.VsCodeOfficial;
+		// allow-any-unicode-next-line
+		data.marketplace.textContent = isVsCodeMarketplace ? 'VSCode市场' : '';
+		data.marketplace.style.display = isVsCodeMarketplace ? '' : 'none';
+		// test-workbench_change end
 
 		data.installCount.style.display = '';
 		data.ratings.style.display = '';
