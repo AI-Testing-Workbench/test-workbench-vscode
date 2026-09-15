@@ -181,6 +181,9 @@ export class UtilityProcess extends Disposable {
 
 	private process: ElectronUtilityProcess | undefined = undefined;
 	private processPid: number | undefined = undefined;
+	// test-workbench_change start - pid 供外部做进程树清理(见 electronAgentHostStarter 的 taskkill 兜底)
+	get pid(): number | undefined { return this.processPid; }
+	// test-workbench_change end
 	private configuration: IUtilityProcessConfiguration | undefined = undefined;
 
 	constructor(

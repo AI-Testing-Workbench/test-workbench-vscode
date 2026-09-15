@@ -145,11 +145,31 @@ class SessionsSetUpWidget extends Disposable {
 		this._reevaluateSignedOut();
 	}
 
+	// test-workbench_change start: skip sessions welcome/sign-in entirely
+	private _skipSessionsSetup(): boolean {
+		return true;
+	}
+	// test-workbench_change end
+
 	private _start(): void {
+		// test-workbench_change start: skip sessions welcome/sign-in entirely
+		if (this._skipSessionsSetup()) {
+			this.onCompleted();
+			return;
+		}
+		// test-workbench_change end
+
 		if (!this.productService.defaultChatAgent?.chatExtensionId) {
 			this.onCompleted();
 			return;
 		}
+
+		// test-workbench_change start: skip sign-in when mock auth is enabled
+		if (this.productService.tsCodeAuthMockEnabled) {
+			this.onCompleted();
+			return;
+		}
+		// test-workbench_change end
 
 		if (shouldSkipSessionsWelcome(this.environmentService)) {
 			this.onCompleted();

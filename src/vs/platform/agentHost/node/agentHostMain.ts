@@ -15,18 +15,24 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
-import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+// test-workbench_change start: 移除 Claude/Codex enable 开关成员(仅供已注释的注册段使用)
+// import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostCodexAgentCodexHomeEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled, AgentHostOpenCodeAgentEnabledEnvVar } from '../common/agentService.js';
+// import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+// test-workbench_change end
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
-import { CopilotAgent } from './copilot/copilotAgent.js';
-import { ClaudeAgent } from './claude/claudeAgent.js';
-import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
-import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
+// test-workbench_change start: Copilot/Claude/Codex provider 不接入(代码保留,恢复时去掉注释并还原原 import)
+// import { CopilotAgent } from './copilot/copilotAgent.js';
+// import { ClaudeAgent } from './claude/claudeAgent.js';
+// import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
+// import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
+// test-workbench_change end
 import { createCodexProviderConfiguration } from './codex/codexProviderConfiguration.js';
+import { OpenCodeAgent } from './openCode/openCodeAgent.js'; // test-workbench_change
 import { ByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
@@ -142,36 +148,27 @@ async function startAgentHost(): Promise<void> {
 			stateManager: accessor.get(IAgentHostStateManager),
 			completions: accessor.get(IAgentHostCompletions),
 		}));
-		const agentConfigurationService = runtimeServices.configurationService;
+		// test-workbench_change: 仅供已注释的 Claude/Codex 注册段使用,恢复注册时取消注释
+		// const agentConfigurationService = runtimeServices.configurationService;
 		fileService = runtimeServices.fileService;
 		proxyResolver = runtimeServices.proxyResolver;
 		stateManager = runtimeServices.stateManager;
 		completionTriggerCharacters = runtimeServices.completions.triggerCharacters;
 		errorTelemetry.value = new ErrorTelemetry(runtimeServices.telemetryService);
-		const agentSdkDownloader = runtimeServices.agentSdkDownloader;
+		// test-workbench_change: 仅供已注释的 Claude/Codex 注册段使用,恢复注册时取消注释
+		// const agentSdkDownloader = runtimeServices.agentSdkDownloader;
 		const providerService = runtimeServices.providerService;
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
+		// test-workbench_change start: 只接入 TestAgent(openCode)，Copilot/Claude/Codex provider 不注册(代码注释保留，勿删)
+		/*原逻辑:
 		providerService.registerProvider(instantiationService.createInstance(CopilotAgent));
-		// Claude and Codex providers are gated on two things:
-		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
-		//     forwarded as an env var by the starters). Claude defaults to on.
-		//     Codex defaults to on outside Stable and off in Stable; if a starter
-		//     does not forward its resolved value, the host fallback is off.
-		//  2. The SDK being reachable. Claude is a devDependency of this repo
-		//     so the bare-import path in `ClaudeAgentSdkService._loadSdk`
-		//     always succeeds in dev; in built products the SDK ships via
-		//     `product.agentSdks.claude` and the downloader handles it. Codex
-		//     is likewise a devDependency, so `CodexAgent._resolveSdkRoot`
-		//     resolves it from `node_modules` in dev; built products use the
-		//     env-var override or a `product.agentSdks.codex` entry.
-		// If either gate fails, the provider is not registered and never appears
-		// in the agent picker (matches the pre-CDN UX exactly).
+		*/
+		/*
 		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
 			providerService.registerProvider(instantiationService.createInstance(ClaudeAgent));
 		}
-		// Codex registration is one-way (register-on-enable): the env-var toggle
-		// or the renderer-forwarded `codexAgentEnabled` root config enables it.
-		// Disabling requires an agent host restart.
+		*/
+		/*
 		if (!environmentService.isBuilt || agentSdkDownloader.isAvailable(CodexSdkPackage)) {
 			let codexRegistered = false;
 			const registerCodexIfEnabled = () => {
@@ -188,6 +185,13 @@ async function startAgentHost(): Promise<void> {
 			registerCodexIfEnabled();
 			disposables.add(agentConfigurationService.onDidRootConfigChange(registerCodexIfEnabled));
 		}
+		*/
+
+		// OpenCode agent: enabled by default (opt-out via env var) // test-workbench_change
+		if (isAgentEnabled(process.env[AgentHostOpenCodeAgentEnabledEnvVar], true)) {
+			providerService.registerProvider(instantiationService.createInstance(OpenCodeAgent));
+		}
+		// test-workbench_change end
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		disposables.dispose();

@@ -163,9 +163,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _onAgentHostStart = this._register(new Emitter<void>());
 	readonly onAgentHostStart = this._onAgentHostStart.event;
 
-	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
+	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false); // test-workbench_change - skip auth so sessions work without login
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
-	private _authenticationSettled = false;
+	// test-workbench_change: setAuthenticationPending 已跳过(原 sticky 字段不再使用,恢复时取消注释)
+	// private _authenticationSettled = false;
 	private readonly _noopRootState: IAgentSubscription<RootState> = {
 		value: undefined,
 		verifiedValue: undefined,
@@ -331,6 +332,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	setAuthenticationPending(pending: boolean): void {
+		// test-workbench_change start - skip auth entirely, never surface pending
+		if (!pending) {
+			this._startupTelemetry?.authenticationSettled();
+		}
+		/*原逻辑(勿删):
 		if (this._authenticationSettled) {
 			return;
 		}
@@ -339,6 +345,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			this._startupTelemetry?.authenticationSettled();
 		}
 		this._authenticationPending.set(pending, undefined);
+		*/
+		// test-workbench_change end
 	}
 
 	get initializeResult(): IObservable<InitializeResult | undefined> {

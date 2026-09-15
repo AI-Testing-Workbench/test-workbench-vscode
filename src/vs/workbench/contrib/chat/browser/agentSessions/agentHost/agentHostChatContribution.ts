@@ -11,7 +11,8 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { affectsAgentHostProviderPreference, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+// test-workbench_change: protectedResourcesRequireGitHubCopilotSignIn 仅供已注释的登录检查使用
+import { affectsAgentHostProviderPreference, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -302,8 +303,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			// agent host resolves. The paired `onDidChangeRequiresCopilotSignIn` lets
 			// the sessions service re-evaluate this when the set changes.
 			requiresCopilotSignIn: () => {
+				// test-workbench_change - allow use without GitHub login
+				return false;
+				/*原逻辑(勿删):
 				const resources = this._protectedResourcesService.getProtectedResources(agent.provider);
 				return resources !== undefined ? protectedResourcesRequireGitHubCopilotSignIn(resources) : true;
+				*/
 			},
 			onDidChangeRequiresCopilotSignIn: Event.signal(Event.filter(this._protectedResourcesService.onDidChange, provider => provider === agent.provider, store)),
 			agentHostProviderId: agent.provider,

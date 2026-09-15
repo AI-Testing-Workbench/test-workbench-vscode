@@ -1,0 +1,959 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+// test-workbench_change - new file
+
+import * as cp from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import { dirname, join } from '../../../../base/common/path.js'; // test-workbench_change
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ILogService } from '../../../log/common/log.js';
+import {
+	AgentProvider, AgentSession, AgentSignal,
+	IActiveClient, IAgent, IAgentChats, IAgentCreateChatOptions,
+	IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateSessionConfig,
+	IAgentCreateSessionResult, IAgentDescriptor, IAgentModelInfo,
+	IAgentSessionMetadata,
+	OPENCODE_AGENT_PROVIDER_ID,
+} from '../../common/agentService.js'; // test-workbench_change - 移除已改名的 IAgentResolveSessionConfigParams/IAgentSessionConfigCompletionsParams
+// test-workbench_change start - 新上游 chat-addressed IAgent 契约适配所需类型
+import {
+	type AgentChatOperationContext,
+	type IAgentHostCapabilities,
+	type IAgentChatMetadata,
+	type IAgentChatMetadataOptions,
+	type IAgentResolveChatConfigParams,
+	type IAgentChatConfigCompletionsParams,
+	type AgentChatMigrationResult,
+} from '../../common/agent.js';
+// test-workbench_change end
+import { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type {
+	ResolveSessionConfigResult, SessionConfigCompletionsResult,
+} from '../../common/state/protocol/commands.js';
+import { type AuthRequiredParams } from '../../common/state/sessionActions.js';
+import {
+	ProtectedResourceMetadata,
+	type AgentSelection, type ModelSelection,
+	type ChatInputResponseKind, type ChatInputAnswer,
+	type ToolDefinition,
+} from '../../common/state/protocol/state.js';
+import {
+	type MessageAttachment,
+	type ToolCallResult, type Turn,
+	type Customization, // test-workbench_change
+	isDefaultChatUri,
+	parseChatUri,
+} from '../../common/state/sessionState.js';
+import { ActiveClientToolSet } from '../activeClientState.js';
+import { IOpenCodeSession, OpenCodeSession } from './openCodeSession.js';
+import { OpenCodeEventStream } from './openCodeEventStream.js';
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const OPENCODE_STARTUP_TIMEOUT = 30_000;
+const OPENCODE_REQUEST_TIMEOUT = 120_000;
+
+// ── Connection state ──────────────────────────────────────────────────────────
+
+type ConnectionState =
+	| { readonly kind: 'idle' }
+	| { readonly kind: 'starting'; readonly promise: Promise<ConnectionReady> }
+	| ({ readonly kind: 'ready' } & ConnectionReady);
+
+interface ConnectionReady {
+	readonly baseUrl: string;
+	readonly child: cp.ChildProcessWithoutNullStreams;
+	readonly authHeader: string;
+}
+
+// ── Agent ─────────────────────────────────────────────────────────────────────
+
+export class OpenCodeAgent extends Disposable implements IAgent {
+
+	readonly id: AgentProvider = OPENCODE_AGENT_PROVIDER_ID;
+
+	// test-workbench_change start - 适配新上游 IAgent 契约
+	readonly agentHostCapabilities: IAgentHostCapabilities = { workspaceConversion: false };
+
+	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
+	readonly onDidChatProgress = this._onDidSessionProgress.event;
+
+	// 单/有限 chat provider:以下 orchestrator 事件由上层目录管理,agent 自身不触发
+	readonly onDidMaterializeChat = Event.None;
+	readonly onDidChangeChatData = Event.None;
+	readonly onDidSpawnChat = Event.None;
+	readonly onDidDiscoverChats = Event.None;
+	// test-workbench_change end
+
+	private readonly _onDidRequireAuth = this._register(new Emitter<Omit<AuthRequiredParams, 'channel'>>());
+	readonly onDidRequireAuth = this._onDidRequireAuth.event;
+
+	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
+	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
+
+	private readonly _sessions = this._register(new DisposableMap<string, IOpenCodeSession>());
+	/** 多 chat 支持:chat channel URI → OpenCodeSession(peer chat 拥有独立 opencode 会话) */
+	private readonly _peerChatSessions = new Map<string, IOpenCodeSession>();
+	private readonly _toolSets = new Map<string, ActiveClientToolSet>();
+	private _serverToolHost: IAgentServerToolHost | undefined;
+	private _eventStream: OpenCodeEventStream | undefined;
+	private _connection: ConnectionState = { kind: 'idle' };
+	private _authHeader: string | undefined;
+
+	constructor(
+		@ILogService private readonly _logService: ILogService,
+	) {
+		super();
+	}
+
+	// ── Server tool host ───────────────────────────────────────────────────
+
+	setServerToolHost(host: IAgentServerToolHost): void {
+		this._serverToolHost = host;
+	}
+
+	// ── IAgent descriptor ──────────────────────────────────────────────────
+
+	getDescriptor(): IAgentDescriptor {
+		return {
+			provider: this.id,
+			displayName: 'TestAgent', // test-workbench_change 命名:opencode fork → TestAgent
+			description: 'TestAgent agent - a terminal-native AI coding assistant',
+		};
+	}
+
+	// ── IAgentChats ────────────────────────────────────────────────────────
+
+	readonly chats: IAgentChats = {
+		createChat: async (chat: URI, _context: AgentChatOperationContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			// test-workbench_change - 新上游 fork 并入 createChat(options.fork)
+			if (options?.fork) {
+				return this._createForkedChat(chat, options.fork);
+			}
+			const ready = await this._ensureConnection();
+			// 新上游:session URI 由 orchestrator mint,provider 不得自造(signal 会寻址失败)
+			const sessionUri = OpenCodeAgent._hostSessionUri(chat);
+			const sessionId = AgentSession.id(sessionUri);
+
+			const workingDirectory = (Array.isArray(options?.workingDirectories) ? options?.workingDirectories[0] : options?.workingDirectories) // test-workbench_change - 新上游字段为复数
+				?? URI.file('/tmp/opencode-' + sessionId);
+			try { fs.mkdirSync(workingDirectory.fsPath, { recursive: true }); } catch { /* ignore */ }
+
+			this._sessions.deleteAndDispose(sessionId);
+			const session = new OpenCodeSession(
+				sessionId, sessionUri,
+				ready.baseUrl, ready.authHeader,
+				this._onDidSessionProgress,
+				this._logService,
+				chat, // test-workbench_change - host 指定的 chat 决定 signal 寻址
+			);
+			this._sessions.set(sessionId, session);
+			session.setWorkingDirectory(workingDirectory); // test-workbench_change — customizations 清单用
+			session.onSessionCreated = (opencodeSessionId) => { // test-workbench_change - 持久化 host session → opencode 会话映射(跨重启恢复)
+				this._rememberOpencodeId(sessionId, opencodeSessionId);
+			};
+			this._peerChatSessions.set(chat.toString(), session);
+			await session.initialize();
+			if (options?.model) { session.setModel(options.model); }
+			if (options?.agent) { session.setAgent(OpenCodeAgent._agentNameFromUri(options.agent.uri)); } // test-workbench_change
+			this._logService.info(`[OpenCode] chat created: ${chat.toString()} (opencode: ${session.opencodeSessionId})`);
+			// providerData 统一为 fork opencode 会话 ID:materializeChat 按它重挂
+			// (fork 的 POST /session 不允许指定 ID,只能用返回值登记)。 // test-workbench_change
+			return { providerData: session.opencodeSessionId };
+		},
+		disposeChat: async (chat: URI, _context: AgentChatOperationContext): Promise<void> => {
+			const session = this._peerChatSessions.get(chat.toString());
+			if (!session) { return; }
+			this._peerChatSessions.delete(chat.toString());
+			try {
+				const ready = await this._ensureConnection();
+				if (session.opencodeSessionId) {
+					await this._request(ready, 'DELETE', `/session/${session.opencodeSessionId}`);
+				}
+			} catch { /* ignore */ }
+			this._sessions.deleteAndDispose(AgentSession.id(session.sessionUri));
+			this._forgetOpencodeId(AgentSession.id(session.sessionUri)); // test-workbench_change
+		},
+		// test-workbench_change start - 新上游要求 chat 级非破坏性释放
+		canReleaseChat: async (chat: URI): Promise<boolean> => {
+			const session = this._resolveSession(chat);
+			return !!session && !session.hasActiveTurn;
+		},
+		releaseChat: async (chat: URI, context: AgentChatOperationContext): Promise<void> => {
+			if (this._peerChatSessions.has(chat.toString())) {
+				const session = this._peerChatSessions.get(chat.toString());
+				if (session && !session.hasActiveTurn) {
+					this._peerChatSessions.delete(chat.toString());
+					this._sessions.deleteAndDispose(session.sessionId);
+				}
+				return;
+			}
+			const parsed = parseChatUri(chat);
+			return this.releaseSession(parsed ? URI.parse(parsed.session) : (URI.isUri(context) ? context : chat));
+		},
+		// test-workbench_change end
+		sendMessage: async (chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
+			const session = this._resolveSession(chat);
+			if (!session) {
+				throw new Error(`OpenCode session not found for chat ${chat.toString()}`);
+			}
+			// test-workbench_change - 新上游传完整工作目录快照(index 0 = 主根),opencode 后端只支持单根
+			const workingDirectory = Array.isArray(workingDirectoriesOrDirectory)
+				? workingDirectoriesOrDirectory[0]
+				: workingDirectoriesOrDirectory;
+			const toolNames = this._getEnabledToolNames(chat);
+			await session.sendMessage(prompt, workingDirectory, attachments, turnId, toolNames);
+		},
+		abort: async (chat: URI): Promise<void> => {
+			const session = this._resolveSession(chat);
+			if (session) { session.abort(); }
+		},
+		changeModel: async (chat: URI, model: ModelSelection): Promise<void> => {
+			const session = this._resolveSession(chat);
+			if (!session) {
+				throw new Error(`OpenCode session not found for chat ${chat.toString()}`);
+			}
+			session.setModel(model);
+		},
+		changeAgent: async (chat: URI, agent: AgentSelection | undefined): Promise<void> => {
+			// test-workbench_change — 之前是空实现,选择器选了 plan 后端仍跑默认 build agent
+			const session = this._resolveSession(chat);
+			this._logService.info(`[OpenCode] changeAgent chat=${chat.toString()} agent=${agent ? OpenCodeAgent._agentNameFromUri(agent.uri) : '(default)'} resolved=${!!session}`);
+			session?.setAgent(agent ? OpenCodeAgent._agentNameFromUri(agent.uri) : undefined);
+		},
+		getMessages: async (chat: URI): Promise<readonly Turn[]> => {
+			const session = this._resolveSession(chat);
+			if (!session) { return []; }
+			return session.getMessages();
+		},
+	};
+
+	// ── Session lifecycle ──────────────────────────────────────────────────
+
+	async createSession(config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult> {
+		const ready = await this._ensureConnection();
+		const sessionId = config.session ? AgentSession.id(config.session) : generateUuid();
+		const sessionUri = AgentSession.uri(this.id, sessionId);
+
+		this._sessions.deleteAndDispose(sessionId);
+
+		// test-workbench_change - 新上游字段改为复数 workingDirectories(opencode 单根取 index 0)
+		const workingDirectory = config.workingDirectories?.[0]
+			?? URI.file('/tmp/opencode-' + sessionId);
+
+		// 默认工作目录是合成的(/tmp/opencode-<sessionId>),并不真实存在;
+		// 必须创建它,否则持久化会话在恢复时会被
+		// WorktreeIsolation.resolveWorkingDirectoryForResume 判定为缺失,
+		// 抛出 SessionWorkingDirectoryMissingError。 // test-workbench_change
+		if (!config.workingDirectories) {
+			try {
+				fs.mkdirSync(workingDirectory.fsPath, { recursive: true });
+			} catch (err) {
+				this._logService.warn(`[OpenCode] failed to create default working directory ${workingDirectory.fsPath}: ${err}`);
+			}
+		}
+
+		const session = new OpenCodeSession(
+			sessionId, sessionUri,
+			ready.baseUrl, ready.authHeader,
+			this._onDidSessionProgress,
+			this._logService,
+		);
+
+		// 恢复路径:orchestrator 重发已分配 session 时,按映射重挂 fork 既有会话
+		// (保住历史),而不是再建一个空会话。 // test-workbench_change
+		if (config.session) {
+			session.knownOpencodeSessionId = this._getOpencodeId(sessionId);
+		}
+		session.onSessionCreated = (opencodeSessionId) => {
+			this._rememberOpencodeId(sessionId, opencodeSessionId);
+		};
+
+		this._sessions.set(sessionId, session);
+		session.setWorkingDirectory(workingDirectory); // test-workbench_change — customizations 清单用
+		if (config.agent) { session.setAgent(OpenCodeAgent._agentNameFromUri(config.agent.uri)); } // test-workbench_change — 新会话首条消息的 agent 选择走 createSession,不经 changeAgent
+		await session.initialize();
+
+		return { session: sessionUri, resolvedWorkingDirectory: workingDirectory }; // test-workbench_change - 新上游字段名为 resolvedWorkingDirectory
+	}
+
+	async listSessions(): Promise<IAgentSessionMetadata[]> {
+		try {
+			const ready = await this._ensureConnection();
+			const sessionList = await this._request<Array<{ id: string; title?: string; slug?: string }>>(
+				ready, 'GET', '/session/',
+			);
+			const now = Date.now();
+			return sessionList.map(s => ({
+				session: AgentSession.uri(this.id, s.id),
+				startTime: now,
+				modifiedTime: now,
+				summary: s.title ?? s.slug,
+			}));
+		} catch {
+			return [];
+		}
+	}
+
+	async getSessionMessages(sessionUri: URI): Promise<readonly Turn[]> {
+		const session = this._resolveSessionByUri(sessionUri);
+		if (!session) { return []; }
+		return session.getMessages();
+	}
+
+	async disposeSession(sessionUri: URI): Promise<void> {
+		const sessionId = AgentSession.id(sessionUri);
+		const session = this._sessions.get(sessionId);
+		if (session) {
+			try {
+				const ready = await this._ensureConnection();
+				await this._request(ready, 'DELETE', `/session/${session.opencodeSessionId ?? sessionId}`);
+			} catch { /* ignore */ }
+			this._sessions.deleteAndDispose(sessionId);
+			this._toolSets.delete(sessionId);
+			this._forgetOpencodeId(sessionId); // 同步清掉持久化映射,避免恢复时重挂已删会话
+		}
+	}
+
+	/**
+	 * 会话恢复时重挂 peer chat 的 fork 会话(按 createChat/fork 持久化的
+	 * providerData,即 opencode 会话 ID)。与 createChat 一致:每个 peer chat
+	 * 拥有独立伪 session,`_peerChatSessions` 按 chat URI 索引保证
+	 * `_resolveSession` 命中。Best-effort:fork 会话已删除/不可达时记日志并
+	 * 降级为"有历史、无 live backing",不抛出(orchestrator 协议约定)。
+	 */
+	async materializeChat(chat: URI, _context: AgentChatOperationContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
+		// test-workbench_change start - 新上游:host 重启后默认 chat 与 peer chat 的重挂统一走这里
+		const sessionUri = OpenCodeAgent._hostSessionUri(chat);
+		const sessionId = AgentSession.id(sessionUri);
+		const isDefault = isDefaultChatUri(chat);
+		if (isDefault ? this._sessions.has(sessionId) : this._peerChatSessions.has(chat.toString())) { return; }
+
+		const opencodeId = providerData ?? (isDefault ? this._getOpencodeId(sessionId) : undefined);
+		if (opencodeId === undefined) {
+			this._logService.warn(`[OpenCode] materializeChat: no providerData for ${chat.toString()}; chat restores with history but no live backing`);
+			return;
+		}
+		try {
+			const ready = await this._ensureConnection();
+			// 验证 opencode 侧会话仍存在(拿到规范 ID),不存在则降级
+			const info = await this._request<{ id: string }>(ready, 'GET', `/session/${opencodeId}`);
+			const canonicalId = info.id ?? opencodeId;
+			const backingId = isDefault ? sessionId : sessionId + '-fork-' + generateUuid().slice(0, 8);
+			const session = new OpenCodeSession(
+				backingId, sessionUri,
+				ready.baseUrl, ready.authHeader,
+				this._onDidSessionProgress,
+				this._logService,
+				chat,
+			);
+			session.opencodeSessionId = canonicalId;
+			this._sessions.set(backingId, session);
+			if (isDefault) {
+				this._rememberOpencodeId(sessionId, canonicalId);
+			} else {
+				this._peerChatSessions.set(chat.toString(), session);
+			}
+			this._logService.info(`[OpenCode] chat materialized: ${chat.toString()} (opencode: ${canonicalId})`);
+			return { providerData: canonicalId };
+		} catch (err) {
+			this._logService.warn(`[OpenCode] materializeChat failed for ${chat.toString()}: ${err}`);
+		}
+		// test-workbench_change end
+	}
+
+	// ── Permissions ────────────────────────────────────────────────────────
+
+	// test-workbench_change start - 新上游 chat-addressed 元数据/目录迁移契约
+	async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
+		// opencode 后端没有需要一次性迁移的 native 目录(agent host 创建的会话即全部)
+		return [];
+	}
+
+	async getChatMetadata(chat: URI, _context: AgentChatOperationContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
+		const parsed = parseChatUri(chat);
+		const sessionUri = parsed ? URI.parse(parsed.session) : chat;
+		const sessionId = AgentSession.id(sessionUri);
+		const now = Date.now();
+		const fallback = options?.registryFallback;
+		const opencodeId = providerData
+			?? this._sessions.get(sessionId)?.opencodeSessionId
+			?? this._peerChatSessions.get(chat.toString())?.opencodeSessionId
+			?? this._getOpencodeId(sessionId);
+		if (!opencodeId) { return undefined; }
+		try {
+			const ready = await this._ensureConnection();
+			const info = await this._request<{ id?: string; title?: string; slug?: string; time?: { created?: number; updated?: number } }>(
+				ready, 'GET', `/session/${opencodeId}`,
+			);
+			return {
+				chat,
+				startTime: info.time?.created ?? fallback?.startTime ?? now,
+				modifiedTime: info.time?.updated ?? fallback?.modifiedTime ?? now,
+				summary: info.title ?? info.slug,
+			};
+		} catch {
+			return {
+				chat,
+				startTime: fallback?.startTime ?? now,
+				modifiedTime: fallback?.modifiedTime ?? now,
+			};
+		}
+	}
+	// test-workbench_change end
+
+	/**
+	 * 空闲回收(非破坏性):释放会话的内存态,不动 fork 侧持久数据、
+	 * 不清 sessionId 映射。下次访问透明重挂 —— 主会话走 createSession
+	 * 恢复路径,peer chat 走 materializeChat。turn 进行中不释放
+	 * (orchestrator fire-and-forget 调用,provider 自检不变量)。
+	 */
+	async releaseSession(session: URI): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		const opencodeSession = this._sessions.get(sessionId);
+		if (!opencodeSession || opencodeSession.hasActiveTurn) { return; }
+		this._sessions.deleteAndDispose(sessionId);
+		this._toolSets.delete(sessionId);
+		// 一并释放挂在同一会话上的 peer chat backing
+		for (const [chatStr, s] of this._peerChatSessions) {
+			if (s === opencodeSession) { this._peerChatSessions.delete(chatStr); }
+		}
+		this._logService.info(`[OpenCode] released idle session ${sessionId} (opencode: ${opencodeSession.opencodeSessionId ?? '?'})`);
+	}
+
+	// test-workbench_change start - 新上游 IAgent:工作目录经 chat 寻址,opencode 后端单根
+	async setWorkingDirectory(chat: URI, _context: AgentChatOperationContext, workingDirectory: URI): Promise<void> {
+		this._resolveSession(chat)?.setWorkingDirectory(workingDirectory);
+	}
+	// test-workbench_change end
+
+	respondToPermissionRequest(_requestId: string, _approved: boolean): void {
+		for (const [, s] of this._sessions) {
+			s.respondToPermissionRequest(_requestId, _approved);
+		}
+	}
+
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void {
+		for (const [, s] of this._sessions) {
+			s.respondToUserInputRequest(requestId, response, answers);
+		}
+	}
+
+	// ── Configuration ──────────────────────────────────────────────────────
+
+	// test-workbench_change start - 新上游方法改名:resolveSessionConfig→resolveChatConfig 等
+	async resolveChatConfig(_params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
+		return { schema: { type: 'object', properties: {} }, values: {} };
+	}
+
+	getInheritedChatConfig(_config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+		return undefined;
+	}
+
+	async chatConfigCompletions(_params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
+		return { items: [] };
+	}
+	// test-workbench_change end
+
+	// ── Client tools ───────────────────────────────────────────────────────
+
+	getOrCreateActiveClient(chat: URI, _context: AgentChatOperationContext, client: { readonly clientId: string; readonly displayName?: string }, _hostCustomizations?: readonly Customization[]): IActiveClient { // test-workbench_change - chat-addressed
+		const sessionKey = this._sessionKeyForChat(chat);
+		let toolSet = this._toolSets.get(sessionKey);
+		if (!toolSet) {
+			toolSet = new ActiveClientToolSet();
+			this._toolSets.set(sessionKey, toolSet);
+		}
+		return {
+			clientId: client.clientId,
+			displayName: client.displayName ?? client.clientId,
+			get tools() { return toolSet!.get(client.clientId); },
+			set tools(val: readonly ToolDefinition[]) { toolSet!.set(client.clientId, val); },
+			customizations: [],
+		};
+	}
+
+	removeActiveClient(chat: URI, _context: AgentChatOperationContext, clientId: string): void { // test-workbench_change - chat-addressed
+		this._toolSets.get(this._sessionKeyForChat(chat))?.delete(clientId);
+	}
+
+	onClientToolCallComplete(_chat: URI, _toolCallId: string, _result: ToolCallResult, _context?: AgentChatOperationContext): void { } // test-workbench_change - 新签名
+
+	// test-workbench_change start - chat URI → 归属 session key(peer chat 若无映射则自成一组)
+	private _sessionKeyForChat(chat: URI): string {
+		const peer = this._peerChatSessions.get(chat.toString());
+		if (peer) { return peer.sessionId; }
+		const parsed = parseChatUri(chat);
+		const sessionUri = parsed ? URI.parse(parsed.session) : chat;
+		return AgentSession.id(sessionUri);
+	}
+	// test-workbench_change end
+
+	private _getEnabledToolNames(chatUri: URI): string[] {
+		const sessionKey = this._sessionKeyForChat(chatUri);
+		const toolSet = this._toolSets.get(sessionKey);
+		const clientTools = toolSet?.merged() ?? [];
+		const serverTools = this._serverToolHost?.definitions ?? [];
+		const seen = new Set<string>();
+		const result: string[] = [];
+		for (const t of serverTools) { if (!seen.has(t.name)) { seen.add(t.name); result.push(t.name); } }
+		for (const t of clientTools) { if (!seen.has(t.name)) { seen.add(t.name); result.push(t.name); } }
+		return result;
+	}
+
+	// ── Auth ───────────────────────────────────────────────────────────────
+
+	getProtectedResources(): ProtectedResourceMetadata[] {
+		return [];
+	}
+
+	async authenticate(_resource: string, _token: string): Promise<boolean> {
+		return true;
+	}
+
+	// ── Shutdown ───────────────────────────────────────────────────────────
+
+	async shutdown(): Promise<void> {
+		this._eventStream?.dispose();
+		this._eventStream = undefined;
+		if (this._connection.kind === 'ready') {
+			OpenCodeAgent._killBackend(this._connection.child); // test-workbench_change
+		}
+		this._connection = { kind: 'idle' };
+	}
+
+	// ── Private ────────────────────────────────────────────────────────────
+
+	private _resolveSession(chatUri: URI): IOpenCodeSession | undefined {
+		// 多 chat 支持:peer chat 优先按 chat URI 匹配独立的 OpenCodeSession
+		const peer = this._peerChatSessions.get(chatUri.toString());
+		if (peer) { return peer; }
+
+		const parsed = parseChatUri(chatUri);
+		const sessionUri = parsed ? URI.parse(parsed.session) : chatUri;
+		for (const [, s] of this._sessions) {
+			if (s.sessionUri.toString() === sessionUri.toString()) {
+				return s;
+			}
+		}
+		return undefined;
+	}
+
+	// test-workbench_change start - 新上游 fork 经由 createChat(options.fork) 进入
+	private async _createForkedChat(chat: URI, source: IAgentCreateChatForkSource): Promise<IAgentCreateChatResult | void> {
+		const sourceSession = this._resolveSession(source.source);
+		if (!sourceSession) {
+			throw new Error(`OpenCode source session not found for fork: ${source.source.toString()}`);
+		}
+		const ready = await this._ensureConnection();
+		const forkedId = await sourceSession.fork(source.turnId);
+
+		// fork 返回的是已创建好的 opencode 会话;session URI 沿用 host 分配的(fork chat 归属同一 session)
+		const sessionUri = OpenCodeAgent._hostSessionUri(chat);
+		const sessionId = AgentSession.id(sessionUri) + '-fork-' + generateUuid().slice(0, 8);
+		const session = new OpenCodeSession(
+			sessionId, sessionUri,
+			ready.baseUrl, ready.authHeader,
+			this._onDidSessionProgress,
+			this._logService,
+			chat, // test-workbench_change - host 指定的 chat 决定 signal 寻址
+		);
+		session.opencodeSessionId = forkedId;
+
+		const workingDirectory = URI.file('/tmp/opencode-' + sessionId);
+		try { fs.mkdirSync(workingDirectory.fsPath, { recursive: true }); } catch { /* ignore */ }
+		session.setWorkingDirectory(workingDirectory); // test-workbench_change — customizations 清单用
+		this._sessions.set(sessionId, session);
+		this._peerChatSessions.set(chat.toString(), session); // test-workbench_change — fork 目标 chat 需可寻址
+		this._logService.info(`[OpenCode] forked chat ${chat.toString()} (opencode: ${forkedId})`);
+
+		return { providerData: forkedId };
+	}
+
+	/** 从 host 分配的 chat channel URI 反解其归属 session URI(默认与 peer chat 均适用)。 */
+	private static _hostSessionUri(chat: URI): URI {
+		const parsed = parseChatUri(chat);
+		return parsed ? URI.parse(parsed.session) : chat;
+	}
+	// test-workbench_change end
+
+	private _resolveSessionByUri(sessionUri: URI): IOpenCodeSession | undefined {
+		return this._sessions.get(AgentSession.id(sessionUri));
+	}
+
+	private _getAuthHeader(): string {
+		if (!this._authHeader) {
+			const envAuth = process.env['OPENCODE_AUTH'];
+			if (envAuth) {
+				this._authHeader = envAuth;
+			} else {
+				this._authHeader = 'Basic ' + Buffer.from('opencode:dev').toString('base64');
+			}
+		}
+		return this._authHeader;
+	}
+
+	// ── Spawn connection ───────────────────────────────────────────────────
+
+	private async _ensureConnection(): Promise<ConnectionReady> {
+		if (this._connection.kind === 'ready') { return this._connection; }
+		if (this._connection.kind === 'starting') { return this._connection.promise; }
+
+		const promise = this._startConnection().then(ready => {
+			this._connection = { kind: 'ready', ...ready };
+			this._startEventStream(ready.baseUrl, ready.authHeader);
+			// 连接建立后动态拉取模型列表(替代硬编码 OPENCODE_MODELS)
+			void this._refreshModels(ready);
+			return ready;
+		}).catch(err => {
+			this._connection = { kind: 'idle' };
+			throw err;
+		});
+		this._connection = { kind: 'starting', promise };
+		return promise;
+	}
+
+	// test-workbench_change start
+	// 后端二进制解析顺序：OPENCODE_BIN 显式覆盖 > node 运行时 wrapper（testagent-node[.cmd]，
+	// 优先查 kilo-vscode 扩展 env-path.ts 写入的 TestAgent 环境变量目录，再按 PATH 查找）> testagent（bun 版，PATH）。
+	private _resolveBackendBin(): string {
+		const override = process.env['OPENCODE_BIN'];
+		if (override) {
+			return override;
+		}
+		const names = process.platform === 'win32'
+			? ['testagent-node.cmd', 'testagent-node.exe', 'testagent-node']
+			: ['testagent-node'];
+		const dirs = [
+			process.env['TestAgent'],
+			...(process.env['PATH'] ?? '').split(process.platform === 'win32' ? ';' : ':'),
+		].filter(Boolean) as string[];
+		for (const dir of dirs) {
+			for (const name of names) {
+				const candidate = join(dir, name);
+				if (fs.existsSync(candidate)) {
+					return candidate;
+				}
+			}
+		}
+		return 'testagent';
+	}
+	// test-workbench_change end
+
+	private _startConnection(): Promise<ConnectionReady> {
+		return new Promise<ConnectionReady>((resolve, reject) => {
+			const args = ['serve', '--port=0'];
+			const env: NodeJS.ProcessEnv = { ...process.env };
+
+			// 后端二进制解析：优先 node 运行时 wrapper，回退 bun 版 // test-workbench_change
+			const bin = this._resolveBackendBin();
+
+			this._logService.info(`[OpenCode] spawning ${bin} serve --port=0`);
+
+			// test-workbench_change start: node 运行时 wrapper 是 .cmd，win32 下 spawn 需 shell:true；exe 走原路径。
+			// shell:true 时 cmd.exe 按空格切分命令行，含空格路径必须自行加引号，否则报"不是内部或外部命令"退出码 1。
+			const useCmdShell = process.platform === 'win32' && !/\.exe$/i.test(bin);
+			const child = cp.spawn(useCmdShell ? `"${bin}"` : bin, args, {
+				env,
+				stdio: ['pipe', 'pipe', 'pipe'],
+				...(useCmdShell ? { shell: true } : {}),
+			});
+			// test-workbench_change end
+			this._guardBackendProcessLifecycle(child); // test-workbench_change
+
+			const authHeader = this._getAuthHeader();
+			let resolved = false;
+
+			const timer = setTimeout(() => {
+				if (!resolved) {
+					resolved = true;
+					OpenCodeAgent._killBackend(child); // test-workbench_change
+					reject(new Error('OpenCode process failed to start within timeout'));
+				}
+			}, OPENCODE_STARTUP_TIMEOUT);
+
+			let stdout = '';
+			child.stdout.setEncoding('utf8');
+			child.stdout.on('data', (chunk: string) => {
+				stdout += chunk;
+				const match = stdout.match(/opencode server listening on (https?:\/\/[^\s]+)/);
+				if (match && !resolved) {
+					resolved = true;
+					clearTimeout(timer);
+					resolve({ baseUrl: match[1], child, authHeader });
+				}
+			});
+
+			child.stderr.setEncoding('utf8');
+			child.stderr.on('data', (chunk: string) => {
+				this._logService.trace(`[OpenCode stderr] ${String(chunk).trimEnd()}`);
+			});
+
+			child.on('error', (err) => {
+				if (!resolved) { resolved = true; clearTimeout(timer); reject(err); }
+			});
+
+			child.on('exit', (code, signal) => {
+				this._logService.warn(`[OpenCode] process exited code=${code} signal=${signal}`);
+				if (!resolved) {
+					resolved = true;
+					clearTimeout(timer);
+					reject(new Error(`OpenCode process exited early with code ${code}`));
+				}
+				if (this._connection.kind === 'ready') {
+					this._handleConnectionLost();
+				}
+			});
+		});
+	}
+
+	// test-workbench_change start
+	// VS Code 退出时以 SIGTERM(POSIX)或直接 TerminateProcess(Windows)结束 agent host，默认行为不走
+	// OpenCodeAgent.shutdown()，spawn 出的 testagent 会变孤儿。这里兜底当前存活的后端进程：
+	// 捕获 SIGTERM/SIGINT 与进程 exit，同步 kill。
+	// win32 下后端可能是 .cmd wrapper（shell:true spawn），child.kill() 只杀 cmd.exe，
+	// node 孙进程会成孤儿；统一用 taskkill /T 杀整棵进程树。
+	private _backendChild: cp.ChildProcess | undefined;
+	private static _backendSignalGuardsInstalled = false;
+
+	private static _killBackend(child: cp.ChildProcess | undefined): void {
+		if (!child || child.pid === undefined) { return; }
+		if (process.platform === 'win32') {
+			try { cp.execFileSync('taskkill', ['/pid', String(child.pid), '/T', '/F']); } catch { /* already exited */ }
+		} else {
+			try { child.kill(); } catch { /* already exited */ }
+		}
+	}
+
+	private _guardBackendProcessLifecycle(child: cp.ChildProcess): void {
+		this._backendChild = child;
+		child.once('exit', () => {
+			if (this._backendChild === child) {
+				this._backendChild = undefined;
+			}
+		});
+		if (OpenCodeAgent._backendSignalGuardsInstalled) {
+			return;
+		}
+		OpenCodeAgent._backendSignalGuardsInstalled = true;
+		const killBackend = () => { OpenCodeAgent._killBackend(this._backendChild); }; // test-workbench_change
+		const onSignal = () => { killBackend(); process.exit(0); };
+		process.on('SIGTERM', onSignal);
+		process.on('SIGINT', onSignal);
+		process.once('exit', killBackend);
+	}
+	// test-workbench_change end
+
+	private _handleConnectionLost(): void {
+		this._logService.warn('[OpenCode] connection lost');
+		this._eventStream?.stop();
+		for (const [, session] of this._sessions) {
+			session.onConnectionLost();
+		}
+		this._connection = { kind: 'idle' };
+	}
+
+	private _startEventStream(baseUrl: string, authHeader: string): void {
+		this._eventStream?.dispose();
+		this._eventStream = new OpenCodeEventStream(
+			baseUrl,
+			authHeader,
+			(sessionID: string, event) => {
+				const session = this._findSessionByOpencodeId(sessionID);
+				if (session) {
+					session.handleEvent(event);
+				}
+			},
+			this._logService,
+		);
+		this._eventStream.start();
+	}
+
+	private _findSessionByOpencodeId(opencodeSessionId: string): IOpenCodeSession | undefined {
+		for (const [, s] of this._sessions) {
+			if (s.opencodeSessionId === opencodeSessionId) {
+				return s;
+			}
+		}
+		return undefined;
+	}
+
+	// ── Customizations ──────────────────────────────────────────────────────
+
+	// test-workbench_change start
+	/** 从 AgentSelection.uri 提取 agent 名:兼容 discovery 合成 uri 与文件 uri(取末段去 .md) */
+	private static _agentNameFromUri(uri: string): string {
+		const seg = /\/([^/]+?)(?:\.md)?$/.exec(uri.split('?')[0])?.[1];
+		return seg ? decodeURIComponent(seg) : uri;
+	}
+	// test-workbench_change end
+
+	// test-workbench_change start — Skills/Agents 面板数据源。provider 级返回空(与 Claude 一致,
+	// 无 host 配置的静态目录);会话级从 fork 运行时 API(GET /skill /command /agent)拉取。
+	getCustomizations(): readonly Customization[] { return []; }
+
+	// test-workbench_change - 新上游改名 getSessionCustomizations→getChatCustomizations(chat 寻址)
+	async getChatCustomizations(chat: URI, _context: AgentChatOperationContext, _hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]> {
+		const sess = this._resolveSession(chat);
+		return sess ? sess.getCustomizations() : [];
+	}
+	// test-workbench_change end
+
+	// ── Models ───────────────────────────────────────────────────────────────
+
+	/** 从 fork `GET /provider` 拉取模型列表并刷新 `_models` observable。 */
+	private async _refreshModels(ready: ConnectionReady): Promise<void> {
+		try {
+			// fork Provider.ListResult = { all: Info[], default, connected };
+			// Info.models = Record<modelID, Model>,Model.capabilities.input.image 决定是否支持视觉。
+			const resp = await this._request<{
+				all?: Array<{
+					id?: string;
+					name?: string;
+					models?: Record<string, {
+						id?: string;
+						name?: string;
+						status?: string;
+						capabilities?: { input?: { image?: boolean } };
+					}>;
+				}>;
+				connected?: string[];
+			}>(ready, 'GET', '/provider');
+
+			// fork 的 /provider.all 返回完整 models.dev 目录(200+ provider、7000+ 模型),
+			// 但只有 connected 中列出的 provider 才真正可用(有凭据/已连接)。
+			// 选中未连接 provider 的模型会让服务端 getModel 抛 ProviderModelNotFoundError → 500。
+			// 因此 UI 模型列表只暴露 connected 的 provider;connected 缺失(旧版本)时回退全量。
+			const connectedSet = resp.connected && resp.connected.length > 0
+				? new Set(resp.connected)
+				: undefined;
+
+			const models: IAgentModelInfo[] = [];
+			for (const provider of resp.all ?? []) {
+				if (connectedSet && provider.id && !connectedSet.has(provider.id)) { continue; }
+				for (const model of Object.values(provider.models ?? {})) {
+					// 跳过已废弃模型
+					if (model.status === 'deprecated') { continue; }
+					models.push({
+						provider: OPENCODE_AGENT_PROVIDER_ID,
+						// id 统一为 providerID/modelID:sendMessage 按 '/' 拆分出
+						// body.model = { providerID, modelID },裸 modelID 会导致换模型失效
+						id: provider.id ? `${provider.id}/${model.id ?? ''}` : (model.id ?? ''),
+						name: model.name ?? model.id ?? '',
+						supportsVision: model.capabilities?.input?.image === true,
+					});
+				}
+			}
+			// 只在拿到非空列表时替换(空列表意味着 /provider 失败,保留现状)。
+			// 避免陈旧/无效模型 ID 被 UI 选中后经 body.model 触发服务端 500。 // test-workbench_change
+			if (models.length > 0) {
+				this._models.set(models, undefined, undefined);
+				this._logService.info(`[OpenCode] loaded ${models.length} models from /provider`);
+			} else {
+				this._logService.warn('[OpenCode] /provider returned no models; keeping current model list');
+			}
+		} catch (err) {
+			this._logService.warn(`[OpenCode] failed to refresh models: ${err}`);
+		}
+	}
+
+	// ── Session ID mapping(跨 host 进程重启)────────────────────────────────
+
+	/**
+	 * 记录 agent sessionId → fork opencode 会话 ID 的映射文件。
+	 * fork 的 `POST /session` 不允许指定会话 ID,映射是 host 进程重启后
+	 * 恢复会话(重挂既有 fork 会话,保住历史)的唯一依据。
+	 * 文件损坏/缺失时安全降级为空映射(退化为新建会话)。 // test-workbench_change
+	 */
+	private _sessionMapPath: string | undefined;
+	private _sessionMap: Record<string, string> | undefined;
+
+	private _getOpencodeId(agentSessionId: string): string | undefined {
+		if (!this._sessionMap) {
+			this._sessionMap = this._loadSessionMap();
+		}
+		return this._sessionMap[agentSessionId];
+	}
+
+	private _rememberOpencodeId(agentSessionId: string, opencodeSessionId: string): void {
+		if (!this._sessionMap) {
+			this._sessionMap = this._loadSessionMap();
+		}
+		this._sessionMap[agentSessionId] = opencodeSessionId;
+		this._saveSessionMap();
+	}
+
+	private _forgetOpencodeId(agentSessionId: string): void {
+		if (!this._sessionMap) { return; }
+		if (Object.hasOwn(this._sessionMap, agentSessionId)) {
+			delete this._sessionMap[agentSessionId];
+			this._saveSessionMap();
+		}
+	}
+
+	private _loadSessionMap(): Record<string, string> {
+		const file = this._sessionMapFile();
+		try {
+			const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
+			const result: Record<string, string> = {};
+			for (const [k, v] of Object.entries(parsed)) {
+				if (typeof v === 'string') { result[k] = v; }
+			}
+			return result;
+		} catch {
+			return {};
+		}
+	}
+
+	private _saveSessionMap(): void {
+		try {
+			const file = this._sessionMapFile();
+			fs.mkdirSync(dirname(file), { recursive: true });
+			fs.writeFileSync(file, JSON.stringify(this._sessionMap ?? {}, null, 2), 'utf8');
+		} catch (err) {
+			this._logService.warn(`[OpenCode] failed to persist session map: ${err}`);
+		}
+	}
+
+	private _sessionMapFile(): string {
+		if (!this._sessionMapPath) {
+			this._sessionMapPath = join(
+				os.homedir(), '.test-workbench-agent-host', 'opencode-sessions.json',
+			);
+		}
+		return this._sessionMapPath;
+	}
+
+	// ── HTTP helpers ───────────────────────────────────────────────────────
+
+	private async _request<T>(ready: ConnectionReady, method: string, path: string, body?: unknown): Promise<T> {
+		const url = `${ready.baseUrl}${path}`;
+		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+		if (ready.authHeader) { headers['Authorization'] = ready.authHeader; }
+
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), OPENCODE_REQUEST_TIMEOUT);
+
+		try {
+			const resp = await fetch(url, {
+				method,
+				headers,
+				body: body ? JSON.stringify(body) : undefined,
+				signal: controller.signal,
+			});
+			if (!resp.ok) {
+				throw new Error(`OpenCode ${method} ${path} failed: HTTP ${resp.status}`);
+			}
+			return await resp.json() as T;
+		} finally {
+			clearTimeout(timer);
+		}
+	}
+}

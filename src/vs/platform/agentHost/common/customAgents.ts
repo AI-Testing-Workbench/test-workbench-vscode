@@ -6,6 +6,7 @@
 import { isEqualOrParent } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { isCustomizationEnabled } from './customizationEnablement.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri } from './agentHostUri.js'; // test-workbench_change
 import { CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization } from './state/protocol/state.js';
 
 /**
@@ -97,10 +98,31 @@ export function resolveAgentHostAgent(
 ): AgentCustomization | undefined {
 	if (sessionAgentUri !== undefined) {
 		const sessionStr = typeof sessionAgentUri === 'string' ? sessionAgentUri : sessionAgentUri.toString();
-		const match = agents.find(a => a.uri === sessionStr);
+		const match = agents.find(a => normalizeAgentUri(a.uri) === normalizeAgentUri(sessionStr)); // test-workbench_change
 		if (match) {
 			return match;
 		}
 	}
-	return storedAgentUri ? agents.find(a => a.uri === storedAgentUri) : undefined;
+	return storedAgentUri ? agents.find(a => normalizeAgentUri(a.uri) === normalizeAgentUri(storedAgentUri)) : undefined; // test-workbench_change
 }
+
+// test-workbench_change start
+/**
+ * Chat mode 的 id 是 customization URI 经 `toAgentHostUri` 包装后的形式
+ * （`vscode-agent-host://[auth]/path?_ah=[meta]`），而会话 customizations 里
+ * 记录的是原始 URI（如 `opencode-customization:/agents/plan`）。直接字符串比较
+ * 永远不相等，picker 会误判“所选 agent 已不在列表”而把选择重置回 default。
+ * 比较前两侧都尝试解包回原始 URI；本地 `file://` 的包装本来就是恒等变换，
+ * 行为与上游一致。
+ */
+function normalizeAgentUri(uri: string): string {
+	if (!uri.startsWith(`${AGENT_HOST_SCHEME}:`)) {
+		return uri;
+	}
+	try {
+		return fromAgentHostUri(URI.parse(uri)).toString(true);
+	} catch {
+		return uri;
+	}
+}
+// test-workbench_change end
