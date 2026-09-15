@@ -231,7 +231,9 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		if (!selectedAgentUri && isUntitled && resolved) {
 			beginInternalSet();
 			try {
-				this._setAgent(session, provider, resolved);
+				// test-workbench_change — 优先沿用 storedUri 的原始形态（picker 模式注册表以
+				// 包装后的 vscode-agent-host URI 为 id），否则 findModeById 匹配不到
+				this._setAgent(session, provider, storedUri ? { uri: storedUri, name: resolved.name } : resolved);
 			} finally {
 				endInternalSet();
 			}

@@ -37,6 +37,7 @@ import {
 import {
 	type MessageAttachment,
 	type ToolCallResult, type Turn,
+	type Customization, // test-workbench_change
 	isDefaultChatUri,
 	parseChatUri,
 } from '../../common/state/sessionState.js';
@@ -126,6 +127,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 				this._logService,
 			);
 			this._sessions.set(sessionId, session);
+			session.setWorkingDirectory(workingDirectory); // test-workbench_change — customizations 清单用
 			this._peerChatSessions.set(chat.toString(), session);
 			await session.initialize();
 			if (options?.model) { session.setModel(options.model); }
@@ -157,6 +159,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 				this._logService,
 			);
 			session.opencodeSessionId = forkedId;
+			session.setWorkingDirectory(workingDirectory); // test-workbench_change — customizations 清单用
 			this._sessions.set(sessionId, session);
 			this._logService.info(`[OpenCode] forked session ${sessionId} (opencode: ${forkedId})`);
 
@@ -193,7 +196,12 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			}
 			session.setModel(model);
 		},
-		changeAgent: async (_chat: URI, _agent: AgentSelection | undefined): Promise<void> => { },
+		changeAgent: async (chat: URI, agent: AgentSelection | undefined): Promise<void> => {
+			// test-workbench_change — 之前是空实现,选择器选了 plan 后端仍跑默认 build agent
+			const session = this._resolveSession(chat);
+			this._logService.info(`[OpenCode] changeAgent chat=${chat.toString()} agent=${agent ? OpenCodeAgent._agentNameFromUri(agent.uri) : '(default)'} resolved=${!!session}`);
+			session?.setAgent(agent ? OpenCodeAgent._agentNameFromUri(agent.uri) : undefined);
+		},
 		getMessages: async (chat: URI): Promise<readonly Turn[]> => {
 			const session = this._resolveSession(chat);
 			if (!session) { return []; }
@@ -242,6 +250,8 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		};
 
 		this._sessions.set(sessionId, session);
+		session.setWorkingDirectory(workingDirectory); // test-workbench_change — customizations 清单用
+		if (config.agent) { session.setAgent(OpenCodeAgent._agentNameFromUri(config.agent.uri)); } // test-workbench_change — 新会话首条消息的 agent 选择走 createSession,不经 changeAgent
 		await session.initialize();
 
 		return { session: sessionUri, workingDirectory };
@@ -645,7 +655,27 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		return undefined;
 	}
 
-	// ── Models ──────────────────────────────────────────────────────────────
+	// ── Customizations ──────────────────────────────────────────────────────
+
+	// test-workbench_change start
+	/** 从 AgentSelection.uri 提取 agent 名:兼容 discovery 合成 uri 与文件 uri(取末段去 .md) */
+	private static _agentNameFromUri(uri: string): string {
+		const seg = /\/([^/]+?)(?:\.md)?$/.exec(uri.split('?')[0])?.[1];
+		return seg ? decodeURIComponent(seg) : uri;
+	}
+	// test-workbench_change end
+
+	// test-workbench_change start — Skills/Agents 面板数据源。provider 级返回空(与 Claude 一致,
+	// 无 host 配置的静态目录);会话级从 fork 运行时 API(GET /skill /command /agent)拉取。
+	getCustomizations(): readonly Customization[] { return []; }
+
+	async getSessionCustomizations(session: URI): Promise<readonly Customization[]> {
+		const sess = this._sessions.get(AgentSession.id(session));
+		return sess ? sess.getCustomizations() : [];
+	}
+	// test-workbench_change end
+
+	// ── Models ───────────────────────────────────────────────────────────────
 
 	/** 从 fork `GET /provider` 拉取模型列表并刷新 `_models` observable。 */
 	private async _refreshModels(ready: ConnectionReady): Promise<void> {

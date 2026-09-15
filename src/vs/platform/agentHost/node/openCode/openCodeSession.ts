@@ -11,7 +11,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
-import { MessageKind, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { MessageKind, buildDefaultChatUri, type Customization } from '../../common/state/sessionState.js'; // test-workbench_change
+import { fetchOpenCodeCustomizations } from './openCodeCustomizations.js'; // test-workbench_change
 import { AgentSignal, IAgentActionSignal, IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, ResponsePartKind, TurnState, ToolCallConfirmationReason, ToolCallStatus, type Turn, type Message, type ResponsePart, type MessageAttachment, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ModelSelection, type ToolCallState } from '../../common/state/protocol/state.js';
 
@@ -41,6 +42,10 @@ export interface IOpenCodeSession {
 	/** 设置会话模型覆盖(fork 在 POST /session/:id/message 时携带 model) */
 	setModel(model: ModelSelection | undefined): void;
 	sendMessage(prompt: string, workingDirectory?: URI, attachments?: readonly import('../../common/state/protocol/state.js').MessageAttachment[], turnId?: string, tools?: string[]): Promise<void>;
+	/** test-workbench_change — 从 fork API 拉取本会话的 skills/commands/agents 清单 */
+	getCustomizations(): Promise<readonly Customization[]>;
+	/** test-workbench_change — 设置会话 agent(plan/build 等),undefined 回退后端默认 */
+	setAgent(name: string | undefined): void;
 	abort(): void;
 	getMessages(): Promise<readonly Turn[]>;
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
@@ -222,6 +227,11 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	public opencodeSessionId: string | undefined;
 	private _abortController: AbortController | undefined;
 	private _modelOverride: ModelSelection | undefined;
+	// test-workbench_change start — customizations discovery:最近一次消息的工作目录 + 60s TTL 缓存
+	private _workingDirectory: URI | undefined;
+	private _customizationsCache: { at: number; value: readonly Customization[] } | undefined;
+	private _agentName: string | undefined;
+	// test-workbench_change end
 	// test-workbench_change: 恢复支持 —— 已知的 fork 会话 ID(重挂)+ 新建完成回调(记映射)
 	public knownOpencodeSessionId: string | undefined;
 	public onSessionCreated: ((opencodeSessionId: string) => void) | undefined;
@@ -335,13 +345,73 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		await pollPromise.catch(() => { });
 	}
 
+	// test-workbench_change start — slash 命令支持:CLI 里 `/xxx` 由 TUI 解析,HTTP 侧对应
+	// POST /session/:id/command(fork 的 skills 已合并进命令列表,GET /command 可见 source:"skill")。
+	private static _parseSlashCommand(text: string): { name: string; args: string } | undefined {
+		const m = /^\/([\w:.\-]+)(?:[ \t]+([\s\S]*))?$/.exec(text.trim());
+		return m ? { name: m[1], args: m[2] ?? '' } : undefined;
+	}
+
+	private _commandNames: Set<string> | undefined;
+
+	private async _getCommandNames(workingDirectory?: URI): Promise<Set<string>> {
+		if (this._commandNames) { return this._commandNames; }
+		const headers: Record<string, string> = {};
+		if (this._authHeader) { headers['Authorization'] = this._authHeader; }
+		if (workingDirectory) { headers['x-opencode-directory'] = encodeURIComponent(workingDirectory.fsPath); }
+		try {
+			const resp = await fetch(`${this._baseUrl}/command`, { headers });
+			if (!resp.ok) { return new Set(); } // 失败不缓存,下条消息重试
+			const list = await resp.json() as Array<{ name?: string }>;
+			this._commandNames = new Set(list.map(c => c.name).filter((n): n is string => !!n));
+			return this._commandNames;
+		} catch { return new Set(); }
+	}
+	// test-workbench_change end
+
+	// test-workbench_change start — Customizations 面板数据源:pull 模型,fork API 清单 60s TTL
+	setWorkingDirectory(dir: URI): void { this._workingDirectory ??= dir; } // 首条消息携带的真实目录优先
+
+	setAgent(name: string | undefined): void { this._agentName = name; } // test-workbench_change
+
+	async getCustomizations(): Promise<readonly Customization[]> {
+		const cached = this._customizationsCache;
+		if (cached && Date.now() - cached.at < 60_000) { return cached.value; }
+		const value = await fetchOpenCodeCustomizations(this._baseUrl, this._authHeader, this._workingDirectory, this._logService);
+		if (value.length) { this._customizationsCache = { at: Date.now(), value }; }
+		return value;
+	}
+	// test-workbench_change end
+
 	private async _postMessage(prompt: string, workingDirectory?: URI, attachments?: readonly MessageAttachment[], turnId?: string, tools?: string[]): Promise<void> {
+		if (workingDirectory) { this._workingDirectory = workingDirectory; } // test-workbench_change
 		const url = `${this._baseUrl}/session/${this.opencodeSessionId}/prompt_async`;
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 		if (this._authHeader) { headers['Authorization'] = this._authHeader; }
 		// fork 通过 x-opencode-directory header 定位工作目录(workspace-routing.ts)
 		// test-workbench_change: header 值只允许 Latin-1(undici ByteString)，中文路径必须 percent-encode，服务端对应 decode
 		if (workingDirectory) { headers['x-opencode-directory'] = encodeURIComponent(workingDirectory.fsPath); }
+
+		// test-workbench_change start — 纯文本 `/name args` 且命中 fork 命令表时走 command 端点。
+		// 该端点响应要等整轮完成,故后台发送不 await;turn 生命周期照旧由 SSE + 轮询接管。
+		const slash = (!attachments || attachments.length === 0) ? OpenCodeSession._parseSlashCommand(prompt) : undefined;
+		if (slash && (await this._getCommandNames(workingDirectory)).has(slash.name)) {
+			const cmdBody: Record<string, unknown> = { command: slash.name, arguments: slash.args };
+			if (this._modelOverride) { cmdBody.model = this._modelOverride.id; }
+			if (this._agentName) { cmdBody.agent = this._agentName; } // test-workbench_change
+			fetch(`${this._baseUrl}/session/${this.opencodeSessionId}/command`, {
+				method: 'POST',
+				headers,
+				body: JSON.stringify(cmdBody),
+				signal: this._abortController?.signal,
+			}).then(async r => {
+				if (!r.ok) { throw new Error(`HTTP ${r.status}: ${(await r.text().catch(() => '')).slice(0, 400)}`); }
+			}).catch(err => {
+				if (err instanceof Error && err.name !== 'AbortError') { this._logService.error(`[OpenCode] command /${slash.name} failed: ${err}`); }
+			});
+			return;
+		}
+		// test-workbench_change end
 
 		const parts: Array<Record<string, unknown>> = [{ type: 'text', text: prompt }];
 		if (attachments && attachments.length > 0) {
@@ -367,6 +437,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			const modelID = this._modelOverride.id.split('/').slice(1).join('/') || this._modelOverride.id;
 			body.model = { providerID, modelID };
 		}
+		if (this._agentName) { body.agent = this._agentName; } // test-workbench_change — plan/build 选择透传给 fork(PromptInput.agent)
 
 		try {
 			// prompt_async 立即返回 NoContent,不做阻塞等待:
