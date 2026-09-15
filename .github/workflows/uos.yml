@@ -190,16 +190,6 @@ jobs:
 
           export TSCODE_SYSTEM_EXTENSIONS="$SCRIPT_DIR/resources/app/extensions"
 
-          # 创建用户设置，启用 GitHub 认证
-          mkdir -p "$TSCODE_APPDATA/User"
-
-          # 创建 GitHub 认证存储
-          GITHUB_STORAGE="$TSCODE_APPDATA/User/globalStorage/github-authentication"
-          mkdir -p "$GITHUB_STORAGE"
-          if [ ! -f "$GITHUB_STORAGE/secrets.json" ]; then
-              echo '{}' > "$GITHUB_STORAGE/secrets.json"
-          fi
-
           exec "$SCRIPT_DIR/tscode" \
               --no-sandbox \
               --disable-gpu-sandbox \
@@ -209,7 +199,6 @@ jobs:
               --extensions-dir="$TSCODE_EXTENSIONS_DIR" \
               --user-data-dir="$TSCODE_APPDATA" \
               --builtin-extensions-dir="$TSCODE_SYSTEM_EXTENSIONS" \
-              --enable-proposed-api=vscode.github-authentication \
               "$@"
           RUNEOF
 
