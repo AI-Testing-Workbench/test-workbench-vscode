@@ -1205,6 +1205,8 @@ export interface IChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
+	/** Chat-layer model identifier, independent of its provider-qualified display name. */
+	modelId?: string;
 	modelName?: string;
 	credits?: number;
 	/** Millisecond timestamp when the subagent's first turn started. */
@@ -1925,6 +1927,8 @@ export interface IRemotePendingRequest {
 	/** The raw message text. */
 	readonly message: string;
 	readonly variableData?: IChatRequestVariableData;
+	readonly modelId?: string;
+	readonly modelConfiguration?: IStringDictionary<unknown>;
 	readonly timestamp?: number;
 }
 

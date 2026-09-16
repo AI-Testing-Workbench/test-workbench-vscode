@@ -64,6 +64,16 @@ if (process.platform === 'win32') {
 }
 app.setPath('userData', userDataPath);
 
+if (process.platform === 'linux') {
+	const snapName = process.env['SNAP_INSTANCE_NAME'];
+	const installedDesktopName = product.linuxDesktopName && `/usr/share/applications/${product.linuxDesktopName}.desktop`;
+	if (snapName) {
+		app.setDesktopName(`${snapName}_${product.applicationName}.desktop`);
+	} else if (installedDesktopName && fs.existsSync(installedDesktopName)) {
+		app.setDesktopName(`${product.linuxDesktopName}.desktop`);
+	}
+}
+
 // Resolve code cache path
 const codeCachePath = getCodeCachePath();
 
@@ -134,6 +144,7 @@ if (userLocale) {
 		userLocale,
 		osLocale,
 		commit: product.commit,
+		nlsMetadataHash: product.nlsMetadataHash,
 		userDataPath,
 		nlsMetadataPath: import.meta.dirname
 	});
@@ -901,6 +912,7 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
 		userLocale,
 		osLocale,
 		commit: product.commit,
+		nlsMetadataHash: product.nlsMetadataHash,
 		userDataPath,
 		nlsMetadataPath: import.meta.dirname
 	});
