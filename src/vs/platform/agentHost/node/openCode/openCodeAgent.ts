@@ -31,6 +31,10 @@ import {
 	type IAgentResolveChatConfigParams,
 	type IAgentChatConfigCompletionsParams,
 	type AgentChatMigrationResult,
+	// test-workbench_change — 外部会话发现 / 注册迁移契约
+	type IAgentDiscoveredChat,
+	type IAgentKnownSessionsFilter,
+	AgentChatMigrationDeferred,
 } from '../../common/agent.js';
 // test-workbench_change end
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -50,10 +54,16 @@ import {
 	type Customization, // test-workbench_change
 	isDefaultChatUri,
 	parseChatUri,
+	buildDefaultChatUri, // test-workbench_change — 外部发现
+	isSubagentChatUri, // test-workbench_change — subagent chat 寻址
 } from '../../common/state/sessionState.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { IOpenCodeSession, OpenCodeSession } from './openCodeSession.js';
 import { OpenCodeEventStream } from './openCodeEventStream.js';
+// test-workbench_change start — 会话配置(permissionMode)+ 服务注入
+import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
+import { OpenCodeSessionConfigKey, openCodeSessionSchema, mapOpenCodePermissionRules, narrowOpenCodePermissionMode, type OpenCodePermissionMode } from './openCodeSessionConfigKeys.js';
+// test-workbench_change end
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -88,8 +98,15 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 	// 单/有限 chat provider:以下 orchestrator 事件由上层目录管理,agent 自身不触发
 	readonly onDidMaterializeChat = Event.None;
 	readonly onDidChangeChatData = Event.None;
-	readonly onDidSpawnChat = Event.None;
-	readonly onDidDiscoverChats = Event.None;
+	readonly onDidSpawnChat = Event.None; // subagent 经 onDidChatProgress 的 subagent_started signal 走共享 spawn channel（SubagentChatSignal）
+	// test-workbench_change start — 外部会话发现:opencode CLI 等 surface 创建的 native
+	// 会话推入 orchestrator registry。lazy:不为发现单独 spawn 后端,首次连接建立后补发。
+	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>());
+	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
+	private _knownSessionsFilter: IAgentKnownSessionsFilter | undefined;
+	private _backendActivated = false;
+	private _chatDiscoveryDone = false;
+	private _chatDiscoveryRequested = false;
 	// test-workbench_change end
 
 	private readonly _onDidRequireAuth = this._register(new Emitter<Omit<AuthRequiredParams, 'channel'>>());
@@ -109,8 +126,12 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		// test-workbench_change start — 会话配置变化 → permission ruleset
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
+		this._register(this._configurationService.onDidSessionConfigChange(e => this._onSessionConfigChanged(e)));
+		// test-workbench_change end
 	}
 
 	// ── Server tool host ───────────────────────────────────────────────────
@@ -126,6 +147,14 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			provider: this.id,
 			displayName: 'TestAgent', // test-workbench_change 命名:opencode fork → TestAgent
 			description: 'TestAgent agent - a terminal-native AI coding assistant',
+			// test-workbench_change start - 对齐 Claude/Codex/Copilot 的能力声明:
+			// chats.createChat(options.fork) + POST /session/:id/fork 已实现,
+			// sideChat 由 host 解析为 fork(见 IAgentCreateChatRequestOptions),
+			// 不声明则 UI 的 Add Chat / Fork 被 context key 屏蔽。
+			capabilities: {
+				multipleChats: { fork: true, sideChat: true },
+			},
+			// test-workbench_change end
 		};
 	}
 
@@ -135,7 +164,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		createChat: async (chat: URI, _context: AgentChatOperationContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			// test-workbench_change - 新上游 fork 并入 createChat(options.fork)
 			if (options?.fork) {
-				return this._createForkedChat(chat, options.fork);
+				return this._createForkedChat(chat, options.fork, options.config);
 			}
 			const ready = await this._ensureConnection();
 			// 新上游:session URI 由 orchestrator mint,provider 不得自造(signal 会寻址失败)
@@ -163,14 +192,31 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			await session.initialize();
 			if (options?.model) { session.setModel(options.model); }
 			if (options?.agent) { session.setAgent(OpenCodeAgent._agentNameFromUri(options.agent.uri)); } // test-workbench_change
+			this._applyPermissionConfig(options?.config, [session]); // test-workbench_change — 创建时权限模式落地
 			this._logService.info(`[OpenCode] chat created: ${chat.toString()} (opencode: ${session.opencodeSessionId})`);
 			// providerData 统一为 fork opencode 会话 ID:materializeChat 按它重挂
 			// (fork 的 POST /session 不允许指定 ID,只能用返回值登记)。 // test-workbench_change
-			return { providerData: session.opencodeSessionId };
+			// test-workbench_change start — 返回 backingSession(I7):本 opencode 会话
+			// 不得作为顶层 session 泄漏到 listSessions/discovery。
+			return {
+				providerData: session.opencodeSessionId,
+				backingSession: session.opencodeSessionId
+					? AgentSession.uri(this.id, session.opencodeSessionId)
+					: undefined,
+			};
+			// test-workbench_change end
 		},
 		disposeChat: async (chat: URI, _context: AgentChatOperationContext): Promise<void> => {
 			const session = this._peerChatSessions.get(chat.toString());
-			if (!session) { return; }
+			if (!session) {
+				// test-workbench_change — subagent backing 也要随 host removeChat 清理
+				if (isSubagentChatUri(chat)) {
+					const parsedSub = parseChatUri(chat);
+					const parent = parsedSub ? this._resolveSessionByUri(URI.parse(parsedSub.session)) : undefined;
+					parent?.removeSubagentSession(chat);
+				}
+				return;
+			}
 			this._peerChatSessions.delete(chat.toString());
 			try {
 				const ready = await this._ensureConnection();
@@ -215,6 +261,15 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			const session = this._resolveSession(chat);
 			if (session) { session.abort(); }
 		},
+		// test-workbench_change start — Try Again:转发到 session.resumeTurn(以原 turnId 重发)
+		resumeTurn: async (chat: URI, turnId: string): Promise<void> => {
+			const session = this._resolveSession(chat);
+			if (!session) {
+				throw new Error(`OpenCode session not found for chat ${chat.toString()}`);
+			}
+			await session.resumeTurn(turnId);
+		},
+		// test-workbench_change end
 		changeModel: async (chat: URI, model: ModelSelection): Promise<void> => {
 			const session = this._resolveSession(chat);
 			if (!session) {
@@ -280,6 +335,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		session.setWorkingDirectory(workingDirectory); // test-workbench_change — customizations 清单用
 		if (config.agent) { session.setAgent(OpenCodeAgent._agentNameFromUri(config.agent.uri)); } // test-workbench_change — 新会话首条消息的 agent 选择走 createSession,不经 changeAgent
 		await session.initialize();
+		this._applyPermissionConfig(config.config, [session]); // test-workbench_change — 创建时权限模式落地
 
 		return { session: sessionUri, resolvedWorkingDirectory: workingDirectory }; // test-workbench_change - 新上游字段名为 resolvedWorkingDirectory
 	}
@@ -311,15 +367,24 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 	async disposeSession(sessionUri: URI): Promise<void> {
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
-		if (session) {
+		if (!session) { return; }
+		// test-workbench_change start — 级联销毁:同属该 AH session 的 peer/fork backing
+		// 一并 DELETE + dispose,不留悬挂路由(subagent 子 backing 随父 session dispose)。
+		const ready = await this._ensureConnection();
+		const uriStr = sessionUri.toString();
+		for (const [key, s] of [...this._sessions]) {
+			if (s.sessionUri.toString() !== uriStr) { continue; }
 			try {
-				const ready = await this._ensureConnection();
-				await this._request(ready, 'DELETE', `/session/${session.opencodeSessionId ?? sessionId}`);
+				await this._request(ready, 'DELETE', `/session/${s.opencodeSessionId ?? key}`);
 			} catch { /* ignore */ }
-			this._sessions.deleteAndDispose(sessionId);
-			this._toolSets.delete(sessionId);
-			this._forgetOpencodeId(sessionId); // 同步清掉持久化映射,避免恢复时重挂已删会话
+			this._sessions.deleteAndDispose(key);
+			this._toolSets.delete(key);
 		}
+		for (const [chatStr, s] of [...this._peerChatSessions]) {
+			if (s.sessionUri.toString() === uriStr) { this._peerChatSessions.delete(chatStr); }
+		}
+		// test-workbench_change end
+		this._forgetOpencodeId(sessionId); // 同步清掉持久化映射,避免恢复时重挂已删会话
 	}
 
 	/**
@@ -329,8 +394,35 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 	 * `_resolveSession` 命中。Best-effort:fork 会话已删除/不可达时记日志并
 	 * 降级为"有历史、无 live backing",不抛出(orchestrator 协议约定)。
 	 */
-	async materializeChat(chat: URI, _context: AgentChatOperationContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
-		// test-workbench_change start - 新上游:host 重启后默认 chat 与 peer chat 的重挂统一走这里
+	async materializeChat(chat: URI, context: AgentChatOperationContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
+		// test-workbench_change start — subagent chat:host 重订阅时从父 transcript 找回
+		// task call 的子会话 id 并重挂(providerData 缺失走该派生路径)。
+		if (isSubagentChatUri(chat)) {
+			const parsedSub = parseChatUri(chat);
+			const toolCallId = parsedSub?.chatId.startsWith('subagent/')
+				? decodeURIComponent(parsedSub.chatId.slice('subagent/'.length))
+				: undefined;
+			if (!parsedSub || !toolCallId) { return; }
+			const parentUri = URI.parse(parsedSub.session);
+			let parent = this._resolveSessionByUri(parentUri);
+			if (!parent) {
+				// 父 default chat 也冷着:先按持久化映射重挂父会话
+				const parentOpencodeId = providerData ?? this._getOpencodeId(AgentSession.id(parentUri));
+				await this.materializeChat(URI.parse(buildDefaultChatUri(parentUri)), context, parentOpencodeId);
+				parent = this._resolveSessionByUri(parentUri);
+			}
+			if (!parent) {
+				this._logService.warn(`[OpenCode] materializeChat(subagent): parent session not restorable for ${chat.toString()}`);
+				return;
+			}
+			const child = await parent.materializeSubagent(chat, toolCallId);
+			if (child?.opencodeSessionId) {
+				return { providerData: child.opencodeSessionId, backingSession: AgentSession.uri(this.id, child.opencodeSessionId) };
+			}
+			return;
+		}
+		// test-workbench_change end
+		// test-workbench_change start - 新上游:恢复时默认 chat 与 peer chat 的重挂统一走这里
 		const sessionUri = OpenCodeAgent._hostSessionUri(chat);
 		const sessionId = AgentSession.id(sessionUri);
 		const isDefault = isDefaultChatUri(chat);
@@ -362,7 +454,8 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 				this._peerChatSessions.set(chat.toString(), session);
 			}
 			this._logService.info(`[OpenCode] chat materialized: ${chat.toString()} (opencode: ${canonicalId})`);
-			return { providerData: canonicalId };
+			// test-workbench_change - 恢复路径同样标记 backingSession(I7)
+			return { providerData: canonicalId, backingSession: AgentSession.uri(this.id, canonicalId) };
 		} catch (err) {
 			this._logService.warn(`[OpenCode] materializeChat failed for ${chat.toString()}: ${err}`);
 		}
@@ -371,11 +464,112 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 
 	// ── Permissions ────────────────────────────────────────────────────────
 
-	// test-workbench_change start - 新上游 chat-addressed 元数据/目录迁移契约
-	async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
-		// opencode 后端没有需要一次性迁移的 native 目录(agent host 创建的会话即全部)
-		return [];
+	// test-workbench_change start — 外部会话发现 + 注册迁移。与 Claude/Codex 同构:
+	// 枚举 opencode 原生 catalog,registry/本 provider 已知的不报,其余以 external
+	// provenance 推入 onDidDiscoverChats;listChatsToMigrate 返回 known 半。
+	// lazy 语义:后端未连接时返回 undefined(“尚未能枚举”,非权威空),首次
+	// _ensureConnection 建立后由 _emitOpenCodeChats 补发。
+	setKnownSessionsFilter(filter: IAgentKnownSessionsFilter): void {
+		this._knownSessionsFilter = filter;
 	}
+
+	startChatDiscovery(): Promise<void> {
+		this._chatDiscoveryRequested = true;
+		if (this._connection.kind === 'ready' && !this._chatDiscoveryDone) {
+			void this._emitOpenCodeChats();
+		}
+		return Promise.resolve();
+	}
+
+	/** 枚举 opencode 原生 session catalog;undefined = catalog 此刻不可枚举。 */
+	private async _listOpenCodeChats(): Promise<IAgentChatMetadata[] | undefined> {
+		if (this._connection.kind !== 'ready') { return undefined; }
+		const ready = this._connection;
+		try {
+			const sessionList = await this._request<Array<{
+				id: string; title?: string; slug?: string; parentID?: string;
+				directory?: string; time?: { created?: number; updated?: number; archived?: number | null };
+			}>>(ready, 'GET', '/session/');
+			const now = Date.now();
+			return sessionList
+				// task/subagent 派生的子会话与归档会话不作为顶层 external session 浮现
+				.filter(s => !s.parentID && s.time?.archived === undefined)
+				.map(s => {
+					const chat = URI.parse(buildDefaultChatUri(AgentSession.uri(this.id, s.id)));
+					return {
+						chat,
+						startTime: s.time?.created ?? now,
+						modifiedTime: s.time?.updated ?? s.time?.created ?? now,
+						summary: s.title || s.slug,
+						workingDirectories: s.directory ? [URI.file(s.directory)] : undefined,
+					} satisfies IAgentChatMetadata;
+				});
+		} catch (err) {
+			this._logService.warn(`[OpenCode] native session catalog failed: ${err}`);
+			return undefined;
+		}
+	}
+
+	/** registry 命中 + 本 provider 自有 backing(default/peer/fork/subagent)都算 known。 */
+	private async _knownChatSessionKeys(chats: readonly IAgentChatMetadata[]): Promise<ReadonlySet<string>> {
+		const sessionOf = (chat: IAgentChatMetadata): string | undefined => parseChatUri(chat.chat)?.session;
+		const known = new Set<string>();
+		if (this._knownSessionsFilter) {
+			const uris = chats
+				.map(c => { const s = sessionOf(c); return s ? URI.parse(s) : undefined; })
+				.filter((s): s is URI => !!s);
+			const registered = await this._knownSessionsFilter(uris);
+			for (const key of registered) { known.add(key); }
+		}
+		// registry 里只有父 AH session;本 provider 建过的 opencode 会话(含 peer/fork
+		// backing 与跨重启映射)从不是外部会话。
+		const local = this._localOpencodeIds();
+		for (const chat of chats) {
+			const session = sessionOf(chat);
+			if (session && local.has(AgentSession.id(URI.parse(session)))) {
+				known.add(session);
+			}
+		}
+		return known;
+	}
+
+	private _localOpencodeIds(): ReadonlySet<string> {
+		const ids = new Set<string>();
+		for (const [, s] of this._sessions) {
+			if (s.opencodeSessionId) { ids.add(s.opencodeSessionId); }
+		}
+		if (!this._sessionMap) { this._sessionMap = this._loadSessionMap(); }
+		for (const opencodeId of Object.values(this._sessionMap)) { ids.add(opencodeId); }
+		return ids;
+	}
+
+	private async _emitOpenCodeChats(): Promise<void> {
+		const chats = await this._listOpenCodeChats();
+		if (!chats) { return; }
+		try {
+			const known = await this._knownChatSessionKeys(chats);
+			this._chatDiscoveryDone = true;
+			this._onDidDiscoverChats.fire(chats.map(chat => {
+				const session = parseChatUri(chat.chat)?.session;
+				return { ...chat, external: !(session && known.has(session)) };
+			}));
+		} catch (err) {
+			this._logService.warn(`[OpenCode] failed to emit discovered chats: ${err}`);
+		}
+	}
+
+	async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
+		// 后端从未启动:Deferred(不得以空 catalog 推进迁移标记),等首次使用触发。
+		if (!this._backendActivated) { return AgentChatMigrationDeferred; }
+		const chats = await this._listOpenCodeChats();
+		if (!chats) { return undefined; }
+		const known = await this._knownChatSessionKeys(chats);
+		return chats.filter(c => {
+			const session = parseChatUri(c.chat)?.session;
+			return !!session && known.has(session);
+		});
+	}
+	// test-workbench_change end
 
 	async getChatMetadata(chat: URI, _context: AgentChatOperationContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
 		const parsed = parseChatUri(chat);
@@ -390,15 +584,25 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		if (!opencodeId) { return undefined; }
 		try {
 			const ready = await this._ensureConnection();
-			const info = await this._request<{ id?: string; title?: string; slug?: string; time?: { created?: number; updated?: number } }>(
-				ready, 'GET', `/session/${opencodeId}`,
-			);
+			// test-workbench_change start — 对齐 Codex:metadata 必须携带 workingDirectories 与
+			// model,否则 listSessions hydration / 外部会话 restore 解析不出工作根
+			// (SessionWorkingDirectoryMissingError),模型选择也不随恢复。
+			const info = await this._request<{
+				id?: string; title?: string; slug?: string; directory?: string;
+				model?: { id?: string; providerID?: string };
+				time?: { created?: number; updated?: number };
+			}>(ready, 'GET', `/session/${opencodeId}`);
 			return {
 				chat,
 				startTime: info.time?.created ?? fallback?.startTime ?? now,
 				modifiedTime: info.time?.updated ?? fallback?.modifiedTime ?? now,
 				summary: info.title ?? info.slug,
+				workingDirectories: info.directory ? [URI.file(info.directory)] : undefined,
+				model: info.model?.id && info.model.providerID
+					? { id: `${info.model.providerID}/${info.model.id}` }
+					: undefined,
 			};
+			// test-workbench_change end
 		} catch {
 			return {
 				chat,
@@ -419,12 +623,24 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		const sessionId = AgentSession.id(session);
 		const opencodeSession = this._sessions.get(sessionId);
 		if (!opencodeSession || opencodeSession.hasActiveTurn) { return; }
-		this._sessions.deleteAndDispose(sessionId);
-		this._toolSets.delete(sessionId);
-		// 一并释放挂在同一会话上的 peer chat backing
-		for (const [chatStr, s] of this._peerChatSessions) {
-			if (s === opencodeSession) { this._peerChatSessions.delete(chatStr); }
+		// test-workbench_change start — 级联释放整个 AH session 的 backing(default + peer/fork
+		// 独立 session 都以同一 sessionUri 归属;此前只删 default,peer backing 留在
+		// _sessions/_peerChatSessions 里成为 dispose 后的悬挂路由)。任一 backing
+		// 有活跃 turn 时整体不释放。
+		const uriStr = session.toString();
+		for (const [, s] of this._sessions) {
+			if (s.sessionUri.toString() === uriStr && s.hasActiveTurn) { return; }
 		}
+		for (const [key, s] of [...this._sessions]) {
+			if (s.sessionUri.toString() === uriStr) {
+				this._sessions.deleteAndDispose(key);
+				this._toolSets.delete(key);
+			}
+		}
+		for (const [chatStr, s] of [...this._peerChatSessions]) {
+			if (s.sessionUri.toString() === uriStr) { this._peerChatSessions.delete(chatStr); }
+		}
+		// test-workbench_change end
 		this._logService.info(`[OpenCode] released idle session ${sessionId} (opencode: ${opencodeSession.opencodeSessionId ?? '?'})`);
 	}
 
@@ -448,17 +664,68 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 
 	// ── Configuration ──────────────────────────────────────────────────────
 
-	// test-workbench_change start - 新上游方法改名:resolveSessionConfig→resolveChatConfig 等
-	async resolveChatConfig(_params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
-		return { schema: { type: 'object', properties: {} }, values: {} };
+	// test-workbench_change start - 新上游方法改名:resolveSessionConfig→resolveChatConfig 等。
+	// test-workbench_change — 对齐 Claude/Codex:广告单轴 permissionMode(折叠 opencode
+	// 的会话级 ruleset),取代此前返回空 schema 的实现。
+	resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
+		const values = openCodeSessionSchema.validateOrDefault(params.config, {
+			[OpenCodeSessionConfigKey.PermissionMode]: 'default' satisfies OpenCodePermissionMode,
+		});
+		return Promise.resolve({
+			schema: openCodeSessionSchema.toProtocol(),
+			values,
+		});
 	}
 
-	getInheritedChatConfig(_config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+	getInheritedChatConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+		if (config[OpenCodeSessionConfigKey.PermissionMode] !== undefined) {
+			return { [OpenCodeSessionConfigKey.PermissionMode]: config[OpenCodeSessionConfigKey.PermissionMode] };
+		}
 		return undefined;
 	}
 
 	async chatConfigCompletions(_params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
+		// permissionMode 是静态枚举,无动态候选
 		return { items: [] };
+	}
+
+	/** 把 config 中的 permissionMode 翻译为 opencode 会话级 ruleset 并下发。`default` 下发空数组 = 恢复后端自身配置。 */
+	private _applyPermissionConfig(config: Record<string, unknown> | undefined, sessions: readonly IOpenCodeSession[]): void {
+		const mode = narrowOpenCodePermissionMode(config?.[OpenCodeSessionConfigKey.PermissionMode]);
+		if (mode === undefined) { return; }
+		const rules = mapOpenCodePermissionRules(mode) ?? [];
+		for (const s of sessions) {
+			void s.setPermissionRules(rules);
+		}
+	}
+
+	/** 用户在会话设置里改 permissionMode(或 host 重放 config)→ PATCH 该 session 的全部 live backing。 */
+	private _onSessionConfigChanged(e: IAgentSessionConfigurationChangeEvent): void {
+		const mode = narrowOpenCodePermissionMode(e.config?.[OpenCodeSessionConfigKey.PermissionMode]);
+		if (mode === undefined) { return; }
+		const rules = mapOpenCodePermissionRules(mode) ?? [];
+		const parsed = parseChatUri(e.session);
+		const sessionKey = parsed ? parsed.session : e.session.toString();
+		for (const [, s] of this._sessions) {
+			if (s.sessionUri.toString() === sessionKey) {
+				void s.setPermissionRules(rules);
+			}
+		}
+	}
+
+	/**
+	 * 历史截断(与 host 已应用的 ChatTruncated 对齐):保留至 turnId,
+	 * 删除其后的后端消息;turnId undefined = 全清。opencode 消息删除不
+	 * 回滚文件(host 侧 checkpoint service 负责 discard),与 Codex
+	 * thread/rollback 的截断语义一致。 // test-workbench_change
+	 */
+	async truncateChat(chat: URI, turnId: string | undefined, _context?: AgentChatOperationContext): Promise<void> {
+		const session = this._resolveSession(chat);
+		if (!session) {
+			this._logService.warn(`[OpenCode] truncateChat: no backing for ${chat.toString()}; skipping`);
+			return;
+		}
+		await session.truncate(turnId);
 	}
 	// test-workbench_change end
 
@@ -536,6 +803,23 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		const peer = this._peerChatSessions.get(chatUri.toString());
 		if (peer) { return peer; }
 
+		// test-workbench_change start — subagent chat:只读 backing 挂在父 session 下;
+		// 不可回落到父 backing(会把父 transcript 冒充子会话历史)。冷态由
+		// materializeChat 的 subagent 分支重挂,这里 miss 就返回 undefined。
+		if (isSubagentChatUri(chatUri)) {
+			const parsedSub = parseChatUri(chatUri);
+			if (parsedSub) {
+				for (const [, s] of this._sessions) {
+					if (s.sessionUri.toString() === parsedSub.session) {
+						const child = s.getSubagentSession(chatUri);
+						if (child) { return child; }
+					}
+				}
+			}
+			return undefined;
+		}
+		// test-workbench_change end
+
 		const parsed = parseChatUri(chatUri);
 		const sessionUri = parsed ? URI.parse(parsed.session) : chatUri;
 		for (const [, s] of this._sessions) {
@@ -547,12 +831,13 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 	}
 
 	// test-workbench_change start - 新上游 fork 经由 createChat(options.fork) 进入
-	private async _createForkedChat(chat: URI, source: IAgentCreateChatForkSource): Promise<IAgentCreateChatResult | void> {
+	private async _createForkedChat(chat: URI, source: IAgentCreateChatForkSource, config?: Record<string, unknown>): Promise<IAgentCreateChatResult | void> {
 		const sourceSession = this._resolveSession(source.source);
 		if (!sourceSession) {
 			throw new Error(`OpenCode source session not found for fork: ${source.source.toString()}`);
 		}
 		const ready = await this._ensureConnection();
+		// source.turnId 为 host turn id 时由 session 内部翻译为 fork 锚点消息 // test-workbench_change
 		const forkedId = await sourceSession.fork(source.turnId);
 
 		// fork 返回的是已创建好的 opencode 会话;session URI 沿用 host 分配的(fork chat 归属同一 session)
@@ -567,14 +852,26 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		);
 		session.opencodeSessionId = forkedId;
 
-		const workingDirectory = URI.file('/tmp/opencode-' + sessionId);
+		// test-workbench_change start — 对齐 Codex fork 语义:新 chat 继承源会话的工作目录、
+		// 模型与 agent 选择(此前落到合成 /tmp 目录,首条消息会写进错误 workspace)。
+		const workingDirectory = sourceSession.currentWorkingDirectory
+			?? URI.file('/tmp/opencode-' + sessionId);
 		try { fs.mkdirSync(workingDirectory.fsPath, { recursive: true }); } catch { /* ignore */ }
-		session.setWorkingDirectory(workingDirectory); // test-workbench_change — customizations 清单用
+		session.setWorkingDirectory(workingDirectory);
+		if (sourceSession.modelOverride) { session.setModel(sourceSession.modelOverride); }
+		if (sourceSession.agentName) { session.setAgent(sourceSession.agentName); }
+		// test-workbench_change end
 		this._sessions.set(sessionId, session);
 		this._peerChatSessions.set(chat.toString(), session); // test-workbench_change — fork 目标 chat 需可寻址
+		this._applyPermissionConfig(config, [session]); // test-workbench_change — fork 会话继承会话权限模式
 		this._logService.info(`[OpenCode] forked chat ${chat.toString()} (opencode: ${forkedId})`);
 
-		return { providerData: forkedId };
+		// test-workbench_change start — backingSession 标记 fork backing,防 I7 泄漏
+		return {
+			providerData: forkedId,
+			backingSession: AgentSession.uri(this.id, forkedId),
+		};
+		// test-workbench_change end
 	}
 
 	/** 从 host 分配的 chat channel URI 反解其归属 session URI(默认与 peer chat 均适用)。 */
@@ -611,6 +908,9 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			this._startEventStream(ready.baseUrl, ready.authHeader);
 			// 连接建立后动态拉取模型列表(替代硬编码 OPENCODE_MODELS)
 			void this._refreshModels(ready);
+			// test-workbench_change — 后端已激活:补发此前 lazy 挂起的外部会话发现
+			this._backendActivated = true;
+			if (this._chatDiscoveryRequested && !this._chatDiscoveryDone) { void this._emitOpenCodeChats(); }
 			return ready;
 		}).catch(err => {
 			this._connection = { kind: 'idle' };

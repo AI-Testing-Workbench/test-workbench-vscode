@@ -269,9 +269,14 @@ async function startAgentHost(): Promise<void> {
 					return;
 				}
 				const clientId = connection.ctx;
-				if (typeof clientId !== 'string' || !clientId) {
+				// test-workbench_change start: 'agentHost' 是主进程管理连接的 clientId
+				// （electronAgentHostStarter 里 new MessagePortClient(port, 'agentHost')），
+				// 不是窗口。对它做 renderer 专用反向通道（代理 / BYOK LM 桥）的 wiring 只会
+				// 让每个请求挂 1s 超时（Unknown channel），并在两个桥里注册一个死条目。
+				if (typeof clientId !== 'string' || !clientId || clientId === 'agentHost') {
 					return;
 				}
+				// test-workbench_change end
 				const connectionStore = new DisposableStore();
 				const getChannel = (channelName: string) => server.getChannel(channelName, c => c.ctx === clientId);
 				const proxyConnection = createAgentHostClientProxyConnection(getChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL));

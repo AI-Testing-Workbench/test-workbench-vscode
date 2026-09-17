@@ -5,8 +5,11 @@
 
 # OpenCode Agent 集成方案
 
-> **状态: Beta** (2026-07-27)
-> 基本聊天、流式输出、工具调用展示已可用。权限、历史等功能尚未支持。
+> **状态: V1 功能对齐完成** (2026-09-17)
+> 聊天、流式、工具调用、permission 确认、历史/截断、多 chat/fork/sideChat、
+> 会话配置(permissionMode)、恢复重挂(materializeChat)、外部会话发现
+> (onDidDiscoverChats)、子代理 spawn 通道均已接入并对齐 Claude/Codex 的
+> 上游契约。剩余差距见 §4。
 
 ---
 
@@ -69,21 +72,22 @@
 | **backend 进程**          | `opencode serve`                 | `@github/copilot-<platform>` Node.js CLI | `@anthropic-ai/claude-agent-sdk` | `codex app-server`          |
 | **启动方式**              | `cp.spawn` + stdout 正则匹配 URL | `RuntimeConnection.forStdio()`           | SDK 内建                           | `cp.spawn` + stdio          |
 | **Agent ↔ Backend 协议** | HTTP REST + SSE (localhost)        | JSON-RPC over stdio                        | 原生 SDK                           | JSON-RPC over stdio (NDJSON)  |
-| **多 chat 支持**          | ❌ stub                            | ✅                                         | ✅                                 | ❌                            |
-| **Fork**                  | ❌                                 | ✅                                         | ✅                                 | ❌                            |
+| **多 chat 支持**          | `createChat`→独立 opencode 会话      | ✅                                         | ✅                                 | ✅                            |
+| **Fork**                  | `POST /session/:id/fork` ✅(含 turn 锚点) | ✅                                         | ✅                                 | ✅                            |
 | **tool call 模型**        | ✅ SSE + HTTP                      | SDK 处理                                   | SDK 处理                           | JSON-RPC request/notification |
 | **模型发现**              | `GET /provider` 动态获取         | SDK`models.list`                         | SDK`models.list`                 | SDK 内建                      |
 | **认证**                  | `OPENCODE_AUTH` env / Basic auth | GitHub token (CAPI)                        | API key / CAPI proxy               | GitHub token + local proxy    |
 | **文件操作**              | ❌ (opencode 自行处理)             | CopilotApiService (CAPI)                   | SDK 内建                           | codex 二进制自己处理          |
-| **permission**            | ❌ (stub)                          | SDK 内建                                   | SDK 内建                           | JSON-RPC requestApproval      |
+| **permission**            | `permission.asked` → 原生确认框 ✅   | SDK 内建                                   | SDK 内建                           | JSON-RPC requestApproval      |
 
 ### 注意事项
 
 1. **与 Codex 传输差异**: Codex 用 `child_process.spawn` + **stdio JSON-RPC (NDJSON)**，OpenCode 用 **HTTP REST + SSE**。两者的共同点是都 spawn 子进程，但 Codex 走 stdio 管道（更可靠，不需要端口探测），OpenCode 走 HTTP（依赖 `--port=0` + stdout 正则匹配，脆弱）。
 2. **与 Copilot 传输差异**: Copilot 的 `RuntimeConnection.forStdio()` 封装了 SDK 的 stdio JSON-RPC，OpenCode 直接调用 `fetch()`。后续优化方向应改为 stdio JSON-RPC。
 3. **`chatChannelUri` 处理**: 和其他 agent 一样，必须使用 `ahp-chat://default/<base64(sessionUri)>` 格式（`buildDefaultChatUri`）。`_fireAction` 的 `resource` 必须填 chat channel URI（`ahp-chat://`），不能填 session URI（`opencode:/`），否则 `AgentHostStateManager` 会抛 `"Chat action dispatched to non-chat channel"`。
-4. **`chatChannelUri` 空实现**: `createChat` 返回 `void`（无多 chat）、`fork` 抛错。如需支持多 chat，需参考 Copilot/Claude 在 `AgentSessionEntry` 中维护 `_chats: DisposableMap<string, ...>`。
-5. **硬编码模型列表**: 和 Codex/Claude 通过 SDK 动态获取模型不同，OpenCode 使用静态 `OPENCODE_MODELS` 数组。需要改为通过 `opencode` CLI 或 REST API 动态查询。
+4. **多 chat / fork**: `chats.createChat`（含 `options.fork`）为每个 chat 创建/派生独立 opencode 会话；`providerData` 统一为 opencode 会话 ID，`materializeChat` 按它重挂；返回 `backingSession` 让 orchestrator 抑制内部 backing（I7，防 fork backing 泄漏为幽灵顶层 session）。`capabilities.multipleChats: { fork: true, sideChat: true }` 已声明，sideChat 由 host 解析为 fork（`IAgentCreateChatRequestOptions` 契约）。
+
+5. **turn id 翻译**: live turn 的 host turnId（orchestrator mint 的 uuid）与 opencode 后端消息 ID 不同域。session 经 `message.updated`/轮询登记 `_hostTurnAnchors`（host turnId → 本轮最新后端消息 id），fork 锚点与 `truncateChat` 先查此映射、miss 时按 id 原样兜底（restore 后 `getMessages` 的 `Turn.id` 即后端消息 id）。与 Codex `codexTurnIdByHostTurnId` 同构。
 6. **登录跳过**: `getProtectedResources()` 返回 `[]`、`authenticate()` 返回 `true`。这是 fork 专用修改（详见 `test-workbench_change` 标记），上游集成的 OpenCode agent 可能需要 GitHub 登录才能获取 API 额度。
 
 ---
@@ -105,23 +109,32 @@
 | session 恢复列表        | ✅   | `listSessions()` 通过 `GET /session/`                                                                        |
 | 动态模型发现            | ✅   | `GET /provider` 自动获取，含 `maxContextWindow`/`maxOutputTokens`/`supportsVision`                       |
 | 用户消息回显过滤        | ✅   | `_userPrompt` 记录用户输入，SSE/HTTP 回显自动跳过                                                              |
+| Permission 弹窗确认     | ✅   | SSE `permission.asked` → `pending_confirmation` signal → `POST /permission/:id/reply`（owner session 定向回包） |
+| 多 Chat / Fork          | ✅   | `createChat(options.fork)` 派生独立会话（turn 锚点翻译）；`backingSession` 标记符合 I7                     |
+| Message 历史            | ✅   | `getMessages()` → `GET /session/:id/message` 映射为 `Turn[]`，刷新可见                                    |
+| 历史截断 (truncateChat) | ✅   | 保留至锚点、删除其后消息（`DELETE /session/:id/message/:messageID`），对齐 Codex thread/rollback 语义     |
+| 会话配置 (permissionMode) | ✅ | `resolveChatConfig` 广告 default/acceptEdits/bypassPermissions，经 `PATCH /session/:id { permission }` 下发 |
+| 附件                    | ✅   | `MessageAttachment` → opencode file parts（Resource URI / Embedded base64）                              |
+| Try Again (resumeTurn)  | ✅   | 失败 turn 以原 turnId 重发（prompt_async 续接）                                                            |
+| Slash 命令              | ✅   | 命中 `GET /command` 清单时走 `POST /session/:id/command`                                                  |
+| 外部会话发现            | ✅   | `onDidDiscoverChats`：枚举 `GET /session/`（排除子会话/归档），registry+本地映射过滤，`external: true` 推入；lazy（后端激活后补发） |
+| 子代理 spawn 通道       | ✅   | `task` part `metadata.sessionId` → `subagent_started` signal + 只读 backing 登记；冷恢复从父 transcript 反查重挂 |
+| Fork 锚点边界           | ✅   | host turnId → 消息锚点 → 后端 exclusive boundary 取锚点下一条（修复丢末条消息的语义偏差） |
+| Fork 继承               | ✅   | 新 fork chat 继承源会话工作目录/模型/agent（对齐 Codex 语义，不再落合成 /tmp 目录） |
+| Metadata 完整性         | ✅   | `getChatMetadata` 返回 `workingDirectories`/`model`（外部会话 restore 解析工作根所需） |
+| 生命周期级联            | ✅   | `releaseSession`/`disposeSession` 级联 peer/fork backing；`_request` 携带 `x-opencode-directory` 路由头 |
 
 ---
 
-## 4. 当前不支持的效果
+## 4. 与 Claude/Codex 的剩余差距
 
-| 功能                                       | 说明                                                                                                     |
+| 功能 | 说明 |
 | ------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| **Permission 弹窗确认**              | `respondToPermissionRequest` 是 stub（TODO），`onClientToolCallComplete` 空实现                      |
-| **模型切换 (changeModel)**           | 通过`_sessionModels` + `session.setModel()` 传递 `{ providerID, modelID }` 到 `sendMessage` body |
-| **多 Chat / Fork**                   | `chats.createChat` 返回 void，`chats.fork` 抛错                                                      |
-| **Message 历史**                     | `getMessages()` 返回 `[]`，刷新后看不到历史对话                                                      |
-| **Session 配置 (config)**            | `resolveSessionConfig` 返回空 schema                                                                   |
-| **Attachment 附件**                  | `sendMessage` 只传 `prompt` 文本，忽略 `_attachments`                                              |
-| **workingDirectory**                 | `OpenCodeSession` 构造接收 `workingDirectory`，所有 HTTP 请求带上 `?directory=` query param        |
-| **changeAgent**                      | 空实现                                                                                                   |
-| **sessionConfigCompletions**         | 返回空 items                                                                                             |
-| **peer chat 恢复 (materializeChat)** | 未实现`IAgent.materializeChat`                                                                         |
+| **多根工作区** | `workingDirectories` 仅取 index 0（opencode 后端单根），未声明 `multipleWorkingDirectories` |
+| **permission always 级别** | 上游 `IAgent.respondToPermissionRequest(requestId, approved: boolean)` 只有布尔位，无法把 UI 的 "always allow" 透传给 `reply: 'always'`；当前按 once/reject 映射 |
+| **模型 reasoning-effort 配置** | 后端 `PromptInput.thinkingEnabled` 是布尔，provider 侧无 per-model effort 枚举，`IAgentModelInfo` 不带 `configSchema` |
+| **auth 旁路** | `getProtectedResources()` 返回 `[]`、`authenticate()` 恒 true（fork 专用，`test-workbench_change` 标记） |
+| **传输脆弱性** | 仍为 HTTP REST + SSE（`--port=0` + stdout 正则），Codex 为 stdio JSON-RPC（NDJSON） |
 
 ---
 
@@ -129,49 +142,18 @@
 
 ### 高优先级
 
-1. ~~**流式 JSON 解析改用 NDJSON**~~ ✅ 已改善
+1. ~~**流式 JSON 解析改用 NDJSON**~~ ✅ 已改善（SSE `message.part.delta` 主导 + 轮询兜底）
+2. ~~**Tool Call 支持**~~ ✅ 已实现（`ChatToolCallStart` → `Ready` → `Complete` 状态机）
+3. ~~**Message 历史**~~ ✅ 已实现（`getMessages()` → `GET /session/:id/message` → `Turn[]`）
+4. ~~**Permission 支持**~~ ✅ 已实现（`permission.asked` → `pending_confirmation`；`respondToPermissionRequest` 按 `_pendingAskIds` owner 定向回包，不再广播）
+5. ~~**多 Chat / Fork / 恢复**~~ ✅ 已实现（`createChat`/`options.fork`、`truncateChat`、`materializeChat`、`backingSession`/I7、capabilities 声明）
+6. ~~**会话配置**~~ ✅ 已实现（`resolveChatConfig` 广告 `permissionMode`，`PATCH /session/:id { permission }` 在创建/fork/config 变化时下发）
 
-   - 现状: 流式 JSON unescape 改用 `JSON.parse('"' + raw + '"')`，SSE `message.part.delta` 提供实时增量，不再仅依赖正则。完全 NDJSON 需要 opencode 后端配合。
-2. ~~**Tool Call 支持**~~ ✅ 已实现
+### 下一轮（本轮已完成 ✅）
 
-   - `getOrCreateActiveClient` 使用 `ActiveClientToolSet` 跟踪 client tools，`setServerToolHost` 接收 server tools
-   - `_getEnabledToolNames` 合并 tools 传入 HTTP 请求 body
-   - SSE + HTTP 解析 `ToolPart`，映射为 `ChatToolCallStart` → `ChatToolCallReady` → `ChatToolCallComplete`
-3. **Message 历史**
-
-   - 现状: `getMessages()` 返回 `[]`，chat 刷新后无历史
-   - 方案: 调用 `GET /session/:id/messages` 或 opencode SDK 获取历史，映射为 `Turn[]`
-
-### 中优先级
-
-4. **传输改为 stdio JSON-RPC**
-
-   - 现状: HTTP REST + SSE，依赖端口解析 + `fetch`
-   - 方案: 参考 Codex 的 `transportFromChildProcess`，用 stdio JSON-RPC 替代
-5. ~~**动态模型获取**~~ ✅ 已实现
-
-   - `_fetchModels()` 连接建立后自动调用 `GET /provider` 获取模型列表
-   - 映射 `Provider.Model` → `IAgentModelInfo`（包含 `maxContextWindow`、`maxOutputTokens`、`supportsVision` 等可选字段）
-   - 失败时静默回退到硬编码列表
-6. **Permission 支持**
-
-   - 现状: `respondToPermissionRequest` 是 TODO
-   - 方案: 解析 opencode 的 permission SSE 事件（`permission.asked`），发射 `pending_confirmation` signal
-
-### 低优先级
-
-7. **多 Chat / Fork**
-
-   - 现状: stub 实现
-   - 方案: 参考 Copilot 的 `AgentSessionEntry` + `_chats` DisposableMap 模式
-8. ~~**模型切换**~~ ✅ 已实现
-
-   - `changeModel` 通过 `_resolveModelRef` 匹配模型列表获取 `providerID`，存入 `_sessionModels`
-   - `sendMessage` 从 `_sessionModels` 取出 `{ providerID, modelID }` 写入请求 body
-9. ~~**Attachment / workingDirectory 传递**~~ ✅ 已实现
-
-   - `OpenCodeSession` 接收 `workingDirectory`，所有 HTTP 请求通过 `?directory=` query param 传递
-   - 模型通过 `sendMessage` body 的 `model` 字段传递
+7. ~~**外部会话发现**~~ ✅ 已实现（`onDidDiscoverChats` Emitter + `startChatDiscovery`/`setKnownSessionsFilter` seam；lazy：仅后端已激活时枚举，不单独 spawn。排除 `parentID` 子会话与归档；`listChatsToMigrate` 返回 known 半，未激活返回 `AgentChatMigrationDeferred`）
+8. ~~**子代理 spawn 通道**~~ ✅ 已实现（`task` part 的 `state.metadata.sessionId` 落地 → 登记 subagent 只读 backing（`buildSubagentChatUri` 寻址）+ fire `subagent_started` signal，host 共享 converter `_sequenceSpawnedChat` 建目录；冷恢复 `materializeChat` subagent 分支从父 transcript 反查 callID→子会话 id）
+9. **传输改为 stdio JSON-RPC**：后端仅有 HTTP 面，需先给 testagent-core 加 stdio transport，再参考 Codex `transportFromChildProcess` 替换。
 
 ---
 
