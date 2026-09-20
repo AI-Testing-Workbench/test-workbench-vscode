@@ -4,6 +4,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
 import { CustomizationType } from '../../common/state/protocol/channels-session/state.js';
@@ -35,8 +38,32 @@ async function fetchList<T>(baseUrl: string, path: string, authHeader: string, w
 	}
 }
 
-function container(name: string, contents: SkillCustomization['type'] | AgentCustomization['type'], children: readonly ChildCustomization[]): DirectoryCustomization {
-	const uri = `${OPENCODE_SCHEME}:/` + name;
+/**
+ * 用户级 testagent 配置根目录(与后端 global.ts 约定一致:`$XDG_CONFIG_HOME ?? ~/.config` + `testagent`)。
+ * // test-workbench_change — deleteCustomization 复用
+ */
+export function userTestagentConfigRoot(): string {
+	const base = process.env['XDG_CONFIG_HOME'] || path.join(os.homedir(), '.config');
+	return path.join(base, 'testagent');
+}
+
+/**
+ * 用户级 testagent 配置目录（与后端 global.ts 约定一致：`$XDG_CONFIG_HOME ?? ~/.config` + `testagent`）。
+ * 返回其下 agent/skills/commands 子目录的 file URI，并尽力创建目录。容器指向真实可写目录后，
+ * 管理面板的 "New Agent/Skill/Prompt"（provideSourceFolders）即可落盘到此；清单条目本身
+ * 仍来自运行时 API（合成 URI 只读），新文件要等 testagent 实例重建后出现于清单。
+ * // test-workbench_change
+ */
+function userConfigSubDir(sub: string, logService: ILogService): URI {
+	const dir = path.join(userTestagentConfigRoot(), sub);
+	try { fs.mkdirSync(dir, { recursive: true }); } catch (err) { logService.warn(`[OpenCode] failed to ensure customization dir ${dir}: ${err}`); }
+	return URI.file(dir);
+}
+
+function container(name: string, contents: SkillCustomization['type'] | AgentCustomization['type'], children: readonly ChildCustomization[], writableDir: URI | undefined, logService: ILogService): DirectoryCustomization {
+	// test-workbench_change start — 容器 uri 优先指向真实可写的用户级目录(供 New Agent/Skill/Prompt
+	// 落盘，provideSourceFolders 只收 writable:true 的目录容器)；无落点时退回合成只读 uri。
+	const uri = writableDir ? writableDir.toString(true) : `${OPENCODE_SCHEME}:/` + name;
 	return {
 		type: CustomizationType.Directory,
 		id: customizationId(uri),
@@ -44,10 +71,11 @@ function container(name: string, contents: SkillCustomization['type'] | AgentCus
 		name,
 		enabled: true,
 		contents,
-		writable: false,
+		writable: !!writableDir,
 		load: { kind: CustomizationLoadStatus.Loaded },
 		children: [...children],
 	};
+	// test-workbench_change end
 }
 
 /**
@@ -56,6 +84,21 @@ function container(name: string, contents: SkillCustomization['type'] | AgentCus
  * 单个端点失败只省略对应容器；全失败返回空数组（调用方 TTL 缓存不存空结果以外的错误）。
  */
 export async function fetchOpenCodeCustomizations(baseUrl: string, authHeader: string, workingDirectory: URI | undefined, logService: ILogService): Promise<readonly Customization[]> {
+	// test-workbench_change start — 拉清单前先 POST /{agent,command,skill}/reload 让后端失效实例级
+	// 缓存:管理面板 "New Agent/Skill/Prompt" 落盘新文件后,下一次 GET 清单即可见(配套后端
+	// kilo_change_v2 的 reload 端点;失败忽略,退化为旧缓存)。
+	const reloadHeaders: Record<string, string> = {};
+	if (authHeader) { reloadHeaders['Authorization'] = authHeader; }
+	if (workingDirectory) { reloadHeaders['x-opencode-directory'] = encodeURIComponent(workingDirectory.fsPath); }
+	await Promise.allSettled(['/agent/reload', '/command/reload', '/skill/reload'].map(async p => {
+		try {
+			const resp = await fetch(`${baseUrl}${p}`, { method: 'POST', headers: reloadHeaders });
+			await resp.body?.cancel();
+		} catch (err) {
+			logService.warn(`[OpenCode] customization reload ${p} failed: ${err}`);
+		}
+	}));
+	// test-workbench_change end
 	const [skills, commands, agents] = await Promise.all([
 		fetchList<ISkillInfo>(baseUrl, '/skill', authHeader, workingDirectory, logService),
 		fetchList<ICommandInfo>(baseUrl, '/command', authHeader, workingDirectory, logService),
@@ -64,24 +107,26 @@ export async function fetchOpenCodeCustomizations(baseUrl: string, authHeader: s
 
 	const result: Customization[] = [];
 
-	if (skills?.length) {
+	// test-workbench_change start — 列表拉取成功(非 undefined)即上报容器,空清单也保留可写目录,
+	// 让 "New Skill/Agent/Prompt" 始终有落点;单个端点失败才省略对应容器。
+	if (skills) {
 		const children: SkillCustomization[] = skills.map(s => {
 			const uri = s.location ? URI.file(s.location).toString(true) : `${OPENCODE_SCHEME}:/skills/${s.name}`;
 			return { type: CustomizationType.Skill, id: customizationId(uri), uri, name: s.name, description: s.description };
 		});
-		result.push(container('skills', CustomizationType.Skill, children));
+		result.push(container('skills', CustomizationType.Skill, children, userConfigSubDir('skills', logService), logService));
 	}
 
-	if (commands?.length) {
+	if (commands) {
 		// source==='skill' 的条目已由 /skill 容器呈现，去重；mcp prompt 命令保留
 		const children: SkillCustomization[] = commands.filter(c => c.source !== 'skill').map(c => {
 			const uri = `${OPENCODE_SCHEME}:/commands/${c.name}`;
 			return { type: CustomizationType.Skill, id: customizationId(uri), uri, name: `/${c.name}`, description: c.description };
 		});
-		if (children.length) { result.push(container('commands', CustomizationType.Skill, children)); }
+		result.push(container('commands', CustomizationType.Skill, children, userConfigSubDir('commands', logService), logService));
 	}
 
-	if (agents?.length) {
+	if (agents) {
 		const children: AgentCustomization[] = agents.map(a => {
 			const uri = `${OPENCODE_SCHEME}:/agents/${a.name}`;
 			return {
@@ -94,8 +139,10 @@ export async function fetchOpenCodeCustomizations(baseUrl: string, authHeader: s
 				disableUserInvocation: a.hidden || undefined,
 			};
 		});
-		result.push(container('agents', CustomizationType.Agent, children));
+		// 后端扫描 {agent,agents}/**/*.md(config/agent.ts),用户级目录约定为单数 agent/
+		result.push(container('agents', CustomizationType.Agent, children, userConfigSubDir('agent', logService), logService));
 	}
+	// test-workbench_change end
 
 	return result;
 }

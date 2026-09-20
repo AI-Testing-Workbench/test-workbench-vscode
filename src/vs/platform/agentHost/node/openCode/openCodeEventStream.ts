@@ -73,6 +73,7 @@ export class OpenCodeEventStream extends Disposable {
 		if (this._authHeader) { headers['Authorization'] = this._authHeader; }
 
 		this._logService.info('[OpenCode] connecting to SSE event stream');
+		const connectStart = Date.now(); // test-workbench_change — 耗时埋点
 
 		fetch(url, { headers, signal: this._abortController.signal })
 			.then(resp => {
@@ -81,7 +82,8 @@ export class OpenCodeEventStream extends Disposable {
 					this._scheduleReconnect();
 					return;
 				}
-				this._logService.info('[OpenCode] SSE stream connected');
+				this._logService.info(`[OpenCode] SSE stream connected`);
+				this._logService.info(`[耗时][SSE建连] GET /global/event 握手→响应头 = ${Date.now() - connectStart}ms;时间消耗类型 =「流式回传通道就绪耗时,断流后的所有 [SSE断流] 重连也走这条」`); // test-workbench_change — 耗时埋点
 				const reader = resp.body?.getReader();
 				if (!reader) {
 					this._scheduleReconnect();
@@ -190,6 +192,7 @@ export class OpenCodeEventStream extends Disposable {
 	private _scheduleReconnect(): void {
 		if (!this._active) { return; }
 		this._logService.info(`[OpenCode] SSE reconnecting in ${this._reconnectDelay}ms`);
+		this._logService.warn(`[耗时][SSE断流] 事件流断开,${this._reconnectDelay}ms 后指数退避重连(1s→30s 封顶);时间消耗类型 =「断流窗口,期间输出渲染退化为 openCodeSession 的 ~800ms 轮询兜底,用户感知为掉字/卡字」`); // test-workbench_change — 耗时埋点
 		this._reconnectTimer = setTimeout(() => {
 			this._reconnectTimer = undefined;
 			this._reconnectDelay = Math.min(this._reconnectDelay * 2, 30_000);

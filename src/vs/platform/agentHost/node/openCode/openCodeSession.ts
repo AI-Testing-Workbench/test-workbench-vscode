@@ -47,6 +47,12 @@ export interface IOpenCodeSession {
 	readonly opencodeSessionId: string | undefined;
 	/** 是否有进行中的 turn(HTTP 请求在途),供 releaseSession 判断能否安全释放内存 */
 	readonly hasActiveTurn: boolean;
+	/** test-workbench_change — provisional(草稿)占位标志与升级方法,见 OpenCodeSession 实现 */
+	isProvisional: boolean;
+	materialize(): Promise<void>;
+	invalidateCustomizationsCache(): void;
+	/** test-workbench_change — turn 结束回调(agent 接线:清单缓存失效+变更广播) */
+	onTurnEnd?: () => void;
 	initialize(): Promise<void>;
 	/** 从 fork 的 POST /session/:id/fork 创建新 opencode 会话,返回新会话 id。
 	 *  messageID 允许传 host turn id,内部解析为 fork 锚点消息。 */
@@ -264,6 +270,11 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	// test-workbench_change end
 	// test-workbench_change: 恢复支持 —— 已知的 fork 会话 ID(重挂)+ 新建完成回调(记映射)
 	public knownOpencodeSessionId: string | undefined;
+	// test-workbench_change start — provisional(草稿)会话:orchestrator 预热的 untitled
+	// draft 只建内存占位,不 POST /session/;首次 sendMessage 时 materialize() 才真正建会话。
+	// 未 materialize 时 opencodeSessionId 为 undefined,所有网络方法已有守卫自然降级。
+	public isProvisional = false;
+	// test-workbench_change end
 	public onSessionCreated: ((opencodeSessionId: string) => void) | undefined;
 	// 当前 turn 的完成信号:SSE finish / abort / 请求错误时 resolve,
 	// 驱动 _pollTurn 退出(替代原阻塞 HTTP "turn 结束=响应返回" 的语义) // test-workbench_change
@@ -293,7 +304,29 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 
 	// ── Initialize ─────────────────────────────────────────────────────────
 
+	/** test-workbench_change — provisional 占位升级为真实会话:首次发送前建 opencode session。
+	 *  先清标志再 initialize(initialize 的 provisional 守卫会跳过);失败回滚标志,
+	 *  下一条消息自动重试 materialize。 */
+	async materialize(): Promise<void> {
+		if (!this.isProvisional) { return; }
+		this.isProvisional = false;
+		try {
+			await this.initialize();
+		} catch (err) {
+			this.isProvisional = true;
+			throw err;
+		}
+	}
+
+	/** test-workbench_change — 失效 customizations 缓存:外部增删源文件后下一次拉清单即重取 */
+	invalidateCustomizationsCache(): void { this._customizationsCache = undefined; }
+
+	/** test-workbench_change — turn 结束回调,由 agent 接线(清单变更广播);见 IOpenCodeSession */
+	onTurnEnd?: () => void;
+
 	async initialize(): Promise<void> {
+		// test-workbench_change — provisional 会话:推迟到 materialize,不立即建后端会话
+		if (this.isProvisional) { return; }
 		// 恢复路径:orchestrator 预分配了 agent sessionId 且映射文件记录过
 		// fork 会话,直接重挂既有会话,历史得以保留。 // test-workbench_change
 		if (this.knownOpencodeSessionId) {
@@ -307,9 +340,11 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				this._logService.info(`[OpenCode] mapped opencode session gone, creating new: ${err}`);
 			}
 		}
+		const initStart = Date.now(); // test-workbench_change — 耗时埋点
 		const resp = await this._request<{ id: string }>('POST', '/session/', {});
 		this.opencodeSessionId = resp.id;
 		this.onSessionCreated?.(resp.id);
+		this._logService.info(`[耗时][会话建立] POST /session/(创建 opencode 后端会话)= ${Date.now() - initStart}ms;时间消耗类型 =「testagent 进程内会话初始化 HTTP 往返」`); // test-workbench_change
 		this._logService.info(`[OpenCode] session created: ${this.sessionId} -> opencode ${this.opencodeSessionId}`);
 	}
 
@@ -375,6 +410,9 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			startedAt,
 			message,
 		});
+		// test-workbench_change start — 耗时埋点:轮次起点(t0),此后各 [耗时] 日志以此为基准
+		this._logService.info(`[耗时][轮次起点] TestAgent 本轮开始(turnId=${effectiveTurnId.slice(0, 8)},opencode会话=${this.opencodeSessionId});时间消耗类型 =「用户消息已进入 provider,以下均距此计时」`);
+		// test-workbench_change end
 
 		this._abortController = new AbortController();
 
@@ -410,11 +448,13 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		const headers: Record<string, string> = {};
 		if (this._authHeader) { headers['Authorization'] = this._authHeader; }
 		if (workingDirectory) { headers['x-opencode-directory'] = encodeURIComponent(workingDirectory.fsPath); }
+		const cmdListStart = Date.now(); // test-workbench_change — 耗时埋点
 		try {
 			const resp = await fetch(`${this._baseUrl}/command`, { headers });
 			if (!resp.ok) { return new Set(); } // 失败不缓存,下条消息重试
 			const list = await resp.json() as Array<{ name?: string }>;
 			this._commandNames = new Set(list.map(c => c.name).filter((n): n is string => !!n));
+			this._logService.info(`[耗时][命令清单] GET /command(slash 命令表拉取,仅首条 slash 查询时阻塞发送一次)= ${Date.now() - cmdListStart}ms;时间消耗类型 =「清单 HTTP 往返,60s 内不再发生(缓存至本进程生命周期)」`); // test-workbench_change
 			return this._commandNames;
 		} catch { return new Set(); }
 	}
@@ -458,6 +498,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			const cmdBody: Record<string, unknown> = { command: slash.name, arguments: slash.args };
 			if (this._modelOverride) { cmdBody.model = this._modelOverride.id; }
 			if (this._agentName) { cmdBody.agent = this._agentName; } // test-workbench_change
+			const cmdStart = Date.now(); // test-workbench_change — 耗时埋点
 			fetch(`${this._baseUrl}/session/${this.opencodeSessionId}/command`, {
 				method: 'POST',
 				headers,
@@ -465,6 +506,9 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				signal: this._abortController?.signal,
 			}).then(async r => {
 				if (!r.ok) { throw new Error(`HTTP ${r.status}: ${(await r.text().catch(() => '')).slice(0, 400)}`); }
+				// test-workbench_change start — 耗时埋点:command 端点整轮完成才返回,此值≈后端视角整轮耗时
+				this._logService.info(`[耗时][slash轮次] POST /session/:id/command 响应到达 = ${Date.now() - cmdStart}ms(距轮次起点 ${Date.now() - this._currentTurnStartMs}ms);时间消耗类型 =「testagent 内整轮执行:模型调用+工具循环+provider 网络,全部发生在宿主进程外」`);
+				// test-workbench_change end
 			}).catch(err => {
 				if (err instanceof Error && err.name !== 'AbortError') { this._logService.error(`[OpenCode] command /${slash.name} failed: ${err}`); }
 			});
@@ -508,7 +552,11 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				body: JSON.stringify(body),
 				signal: this._abortController?.signal,
 			};
+			const postStart = Date.now(); // test-workbench_change — 耗时埋点
 			const resp = await fetch(url, init);
+			// test-workbench_change start — 耗时埋点:prompt_async 立即返回(204),不含模型执行
+			this._logService.info(`[耗时][投递HTTP] POST /prompt_async 往返 = ${Date.now() - postStart}ms(距轮次起点 ${Date.now() - this._currentTurnStartMs}ms);时间消耗类型 =「localhost loopback HTTP,请求已交给 testagent,模型执行从此不计入本值」`);
+			// test-workbench_change end
 
 			if (!resp.ok) {
 				const text = await resp.text().catch(() => ''); // 透传服务端错误详情,便于定位 500 根因 // test-workbench_change
@@ -525,7 +573,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				});
 				return;
 			}
-			this._logService.error(`[OpenCode] sendMessage error: ${err}${formatFetchError(err)}`);
+			this._logService.error(`[OpenCode] sendMessage error: ${err}${formatFetchError(err)} (距轮次起点 ${this._currentTurnStartMs ? Date.now() - this._currentTurnStartMs : 0}ms)`); // test-workbench_change — 耗时埋点
 			this._resetStreamingState();
 			// test-workbench_change start: ChatError 协议字段是 part: ErrorResponsePart(此前误用顶层
 			// error,消息被 AgentSideEffects 吞掉)。网络/HTTP 错误可由用户 Try Again 恢复 → resumable=true。
@@ -559,6 +607,12 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			// SSE 已接管增量渲染,轮询只做"保活"等 turn 完成信号
 			if (this._sseHeard) { await this._sleep(200); continue; }
 
+			// test-workbench_change start — 耗时埋点:SSE 静默,渲染退化到轮询兜底
+			if (!this._pollFallbackLogged) {
+				this._pollFallbackLogged = true;
+				this._logService.info(`[耗时][轮询兜底] SSE 静默(重连中或后端未推送),本 turn 渲染改由 GET /session/:id/message 轮询驱动(首轮等 5×200ms 宽限,之后每轮约 800ms);时间消耗类型 =「兜底路径,首段可见文本最多比 SSE 路径晚 ~1-2s」`);
+			}
+			// test-workbench_change end
 			try {
 				const records = await this._request<Array<{ info: ForkMessageInfo; parts?: ForkPart[] }>>(
 					'GET', `/session/${this.opencodeSessionId}/message?limit=20`,
@@ -579,6 +633,9 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 					}
 				}
 				if (turnDone) {
+					// test-workbench_change start — 耗时埋点:轮询探测到完成的轮次总时长
+					this._logService.info(`[耗时][轮次总计-轮询] 轮询兜底探测到 assistant finish = 距轮次起点 ${Date.now() - this._currentTurnStartMs}ms;时间消耗类型 =「整轮耗时(轮询路径,完成判定有最多 ~800ms 探测滞后)」`);
+					// test-workbench_change end
 					this._completeTurn(turnId);
 					this._finishTurn();
 				}
@@ -815,6 +872,13 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	private _currentTurnStartMs = 0;
 	// SSE 已送达事件(收到过 message.part.delta/updated 即认为 SSE 工作,轮询可停)
 	private _sseHeard = false;
+	// test-workbench_change start — 耗时埋点日志的去重标志(每 turn 在 _resetStreamingState 复位)
+	private _sseFirstEventLogged = false;    // 首个 SSE turn 级事件(≈LLM 首输出回传)
+	private _firstTextLogged = false;        // 首段可见文本增量发往 host
+	private _firstReasoningLogged = false;   // 首段推理增量发往 host
+	private _pollFallbackLogged = false;     // SSE 静默 → 轮询兜底提示
+	private _turnFinishLogged = false;       // 轮次总计(多 finish 去重)
+	// test-workbench_change end
 	// 本 turn 见过的 messageID → role:fork 对用户消息的 part(prompt 原文)也发
 	// part 事件,按消息角色过滤,避免用户输入被渲染进响应。
 	// 用户消息的 message.updated 先于其 part 事件到达,所以 part 到达时角色已知。 // test-workbench_change
@@ -859,6 +923,12 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		if (!protocolPartId) {
 			protocolPartId = generateUuid();
 			this._partTextPartId.set(partID, protocolPartId);
+			// test-workbench_change start — 耗时埋点:首段可见文本发往编排层(此后经 reducer+IPC 回 UI)
+			if (!this._firstTextLogged && this._currentTurnStartMs) {
+				this._firstTextLogged = true;
+				this._logService.info(`[耗时][首段文本] 轮次起点→首段可见 Markdown 增量发往 host 编排层 = ${Date.now() - this._currentTurnStartMs}ms;时间消耗类型 =「回传链路上游半程,UI 真正画字再加编排+IPC+渲染约几~几十 ms(对照 UI 侧 [端到端] 日志)」`);
+			}
+			// test-workbench_change end
 			this._fireAction(ActionType.ChatResponsePart, {
 				turnId,
 				part: { kind: ResponsePartKind.Markdown, id: protocolPartId, content: delta },
@@ -883,6 +953,12 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			protocolPartId = generateUuid();
 			this._partReasoningPartId.set(partID, protocolPartId);
 		}
+		// test-workbench_change start — 耗时埋点:首段推理(思维链)增量发往编排层
+		if (!this._firstReasoningLogged && this._currentTurnStartMs) {
+			this._firstReasoningLogged = true;
+			this._logService.info(`[耗时][首段推理] 轮次起点→首段 ChatReasoning 增量发往 host 编排层 = ${Date.now() - this._currentTurnStartMs}ms;时间消耗类型 =「推理模型思维链首包,对应 UI 折叠思考区开始滚动」`);
+		}
+		// test-workbench_change end
 		this._fireAction(ActionType.ChatReasoning, {
 			turnId,
 			partId: protocolPartId,
@@ -939,6 +1015,11 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 
 		if (!this._dispatchedToolCallIds.has(callID)) {
 			this._dispatchedToolCallIds.add(callID);
+			// test-workbench_change start — 耗时埋点:本轮首个工具调用发起
+			if (this._dispatchedToolCallIds.size === 1 && this._currentTurnStartMs) {
+				this._logService.info(`[耗时][首工具调用] 轮次起点→首个工具(${tool})调用发起 = ${Date.now() - this._currentTurnStartMs}ms;时间消耗类型 =「模型决定用工具的时刻,多步 turn 中工具循环时间此后占大头」`);
+			}
+			// test-workbench_change end
 			this._fireAction(ActionType.ChatToolCallStart, {
 				turnId,
 				toolCallId: callID,
@@ -1004,6 +1085,12 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		// turn 结束:清 abortController 使 hasActiveTurn 归位
 		// (prompt_async 下请求本身早已返回,这个信号只标记 turn 生命周期的终点) // test-workbench_change
 		this._abortController = undefined;
+		// test-workbench_change start — turn 可能刚由 creator agent 写入新的 agent/skill/command
+		// 文件,失效 60s 清单缓存:管理面板下一次拉取即重扫(配套 fetchOpenCodeCustomizations
+		// 的 POST /reload 后端失效)。再通知 agent 层广播 customizations 变更刷新 state 快照。
+		this._customizationsCache = undefined;
+		this.onTurnEnd?.();
+		// test-workbench_change end
 		resolve?.();
 	}
 
@@ -1022,6 +1109,13 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		this._currentTurnId = undefined;
 		this._currentTurnStartMs = 0;
 		this._sseHeard = false;
+		// test-workbench_change start — 耗时埋点去重标志复位
+		this._sseFirstEventLogged = false;
+		this._firstTextLogged = false;
+		this._firstReasoningLogged = false;
+		this._pollFallbackLogged = false;
+		this._turnFinishLogged = false;
+		// test-workbench_change end
 		this._messageRoles.clear();
 		this._currentPrompt = undefined;
 		this._completedTurnIds.clear();
@@ -1064,6 +1158,15 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 
 		// 收到任一 turn 级 SSE 事件即标记 SSE 存活,轮询降级为兜底
 		this._sseHeard = true;
+		// test-workbench_change start — 耗时埋点:后端应答开始。只认 assistant 归属的
+		// turn 级事件(用户消息回显已排除)。注意:assistant 的 message.updated 在
+		// provider 请求发出时即创建(早于模型首 token),所以本值 ≈「testagent 排队+
+		// 预处理完成」;模型真实首包请看 [首段推理]/[首段文本]/[首工具调用]。
+		if (!this._sseFirstEventLogged && this._currentTurnStartMs && this._isAssistantTurnEvent(event)) {
+			this._sseFirstEventLogged = true;
+			this._logService.info(`[耗时][后端应答开始] 轮次起点→testagent 首个 assistant 事件抵达 agent host = ${Date.now() - this._currentTurnStartMs}ms;时间消耗类型 =「testagent 排队+预处理+provider 请求建立(不含模型 TTFT,首包见 [首段推理]/[首段文本])」`);
+		}
+		// test-workbench_change end
 
 		switch (event.type) {
 			// 完整 part 更新(text/reasoning/tool),实时工具状态机的唯一可靠源
@@ -1098,6 +1201,13 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 						},
 					});
 				}
+				// test-workbench_change start — 耗时埋点:SSE finish 到达 = provider 轮次完成(宿主侧观测);
+				// 同一 turn 允许多条 message.updated 携带 finish(如 tokens/cost 回填),只记第一条
+				if (this._currentTurnStartMs && !this._turnFinishLogged) {
+					this._turnFinishLogged = true;
+					this._logService.info(`[耗时][轮次总计] 轮次起点→SSE 收到 assistant 最终 finish = ${Date.now() - this._currentTurnStartMs}ms;时间消耗类型 =「整轮模型+工具循环总时长(宿主进程视角),UI 显示完成态再加回程几~几十 ms」`);
+				}
+				// test-workbench_change end
 				this._completeTurn(turnId);
 				this._finishTurn(); // test-workbench_change: 通知轮询/等待方 turn 已结束
 				return;
@@ -1121,6 +1231,26 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		const role = this._messageRoles.get(messageID);
 		return !!role && role !== 'assistant';
 	}
+
+	// test-workbench_change start — 耗时埋点:判定 turn 级 SSE 事件是否归属 assistant 输出
+	// (排除用户消息回显干扰 [LLM首输出] 计时;角色未登记时放行,宁可早计不可漏计)
+	private _isAssistantTurnEvent(event: { type: string; properties: Record<string, unknown> }): boolean {
+		switch (event.type) {
+			case 'message.updated':
+				return (event.properties.info as { role?: string } | undefined)?.role === 'assistant';
+			case 'message.part.updated': {
+				const messageID = (event.properties.part as { messageID?: string } | undefined)?.messageID;
+				return !messageID || this._messageRoles.get(messageID) !== 'user';
+			}
+			case 'message.part.delta': {
+				const messageID = event.properties.messageID as string | undefined;
+				return !messageID || this._messageRoles.get(messageID) !== 'user';
+			}
+			default:
+				return false; // session.error 等 turn 级事件不计入「首输出」
+		}
+	}
+	// test-workbench_change end
 
 	/**
 	 * 渲染单个 part(工具状态机 / 文本 / 推理)。

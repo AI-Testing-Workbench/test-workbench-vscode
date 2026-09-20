@@ -19,6 +19,7 @@ import {
 	IActiveClient, IAgent, IAgentChats, IAgentCreateChatOptions,
 	IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateSessionConfig,
 	IAgentCreateSessionResult, IAgentDescriptor, IAgentModelInfo,
+	IAgentMaterializeChatEvent, // test-workbench_change — provisional chat materialize 事件
 	IAgentSessionMetadata,
 	OPENCODE_AGENT_PROVIDER_ID,
 } from '../../common/agentService.js'; // test-workbench_change - 移除已改名的 IAgentResolveSessionConfigParams/IAgentSessionConfigCompletionsParams
@@ -51,7 +52,7 @@ import {
 import {
 	type MessageAttachment,
 	type ToolCallResult, type Turn,
-	type Customization, // test-workbench_change
+	type Customization, type DirectoryCustomization, // test-workbench_change
 	isDefaultChatUri,
 	parseChatUri,
 	buildDefaultChatUri, // test-workbench_change — 外部发现
@@ -60,6 +61,9 @@ import {
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { IOpenCodeSession, OpenCodeSession } from './openCodeSession.js';
 import { OpenCodeEventStream } from './openCodeEventStream.js';
+// test-workbench_change start — describeCustomization:合成 customization URI 的只读详情视图数据源
+import { fetchOpenCodeCustomizations, userTestagentConfigRoot } from './openCodeCustomizations.js';
+// test-workbench_change end
 // test-workbench_change start — 会话配置(permissionMode)+ 服务注入
 import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
 import { OpenCodeSessionConfigKey, openCodeSessionSchema, mapOpenCodePermissionRules, narrowOpenCodePermissionMode, type OpenCodePermissionMode } from './openCodeSessionConfigKeys.js';
@@ -67,7 +71,7 @@ import { OpenCodeSessionConfigKey, openCodeSessionSchema, mapOpenCodePermissionR
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const OPENCODE_STARTUP_TIMEOUT = 30_000;
+const OPENCODE_STARTUP_TIMEOUT = 90_000; // test-workbench_change — 30s→90s：163MB bun 单文件二进制在 macOS 首次 exec 需冷签名验证+页载入(企业 EDR 还会首扫),实测首轮 30s 内未打出 listening 被误杀,第二次 spawn 才 12s 就绪
 const OPENCODE_REQUEST_TIMEOUT = 120_000;
 
 // ── Connection state ──────────────────────────────────────────────────────────
@@ -96,7 +100,12 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 	readonly onDidChatProgress = this._onDidSessionProgress.event;
 
 	// 单/有限 chat provider:以下 orchestrator 事件由上层目录管理,agent 自身不触发
-	readonly onDidMaterializeChat = Event.None;
+	// test-workbench_change start — provisional chat 在首次 sendMessage 时升级为真实
+	// opencode 会话并 fire 本事件(orchestrator 借此发出 sessionAdded/SessionReady、
+	// 持久化 defaultChatProviderData 与 backingSession 标记)
+	private readonly _onDidMaterializeChat = this._register(new Emitter<IAgentMaterializeChatEvent>());
+	readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
+	// test-workbench_change end
 	readonly onDidChangeChatData = Event.None;
 	readonly onDidSpawnChat = Event.None; // subagent 经 onDidChatProgress 的 subagent_started signal 走共享 spawn channel（SubagentChatSignal）
 	// test-workbench_change start — 外部会话发现:opencode CLI 等 surface 创建的 native
@@ -111,6 +120,16 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 
 	private readonly _onDidRequireAuth = this._register(new Emitter<Omit<AuthRequiredParams, 'channel'>>());
 	readonly onDidRequireAuth = this._onDidRequireAuth.event;
+
+	// test-workbench_change start — customizations 变更事件:AgentSideEffects 订阅后对全部会话
+	// 重取 getChatCustomizations 并 dispatch SessionCustomizationsChanged(select/管理面板读的是
+	// 这份 state 快照,只清 session 缓存不会刷新 UI)。Claude 已实现本事件,OpenCode 此前缺失
+	// → 删除/新增 agent 后快照不更新,要 reload window 才可见。
+	private readonly _onDidCustomizationsChange = this._register(new Emitter<void>());
+	readonly onDidCustomizationsChange = this._onDidCustomizationsChange.event;
+	private readonly _customizationWatchers = new Map<string, fs.FSWatcher>();
+	private _customizationsDebounce: ReturnType<typeof setTimeout> | undefined;
+	// test-workbench_change end
 
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
@@ -140,6 +159,20 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		this._serverToolHost = host;
 	}
 
+	// test-workbench_change start — 释放 customization 目录 watcher 与防抖定时器
+	override dispose(): void {
+		if (this._customizationsDebounce !== undefined) {
+			clearTimeout(this._customizationsDebounce);
+			this._customizationsDebounce = undefined;
+		}
+		for (const [, w] of this._customizationWatchers) {
+			try { w.close(); } catch { /* ignore */ }
+		}
+		this._customizationWatchers.clear();
+		super.dispose();
+	}
+	// test-workbench_change end
+
 	// ── IAgent descriptor ──────────────────────────────────────────────────
 
 	getDescriptor(): IAgentDescriptor {
@@ -162,11 +195,18 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 
 	readonly chats: IAgentChats = {
 		createChat: async (chat: URI, _context: AgentChatOperationContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			const createT0 = Date.now(); // test-workbench_change — 耗时埋点
 			// test-workbench_change - 新上游 fork 并入 createChat(options.fork)
 			if (options?.fork) {
 				return this._createForkedChat(chat, options.fork, options.config);
 			}
+			const connT0 = Date.now(); // test-workbench_change — 耗时埋点
 			const ready = await this._ensureConnection();
+			// test-workbench_change start — 耗时埋点:连接等待(冷启动在此计入,>50ms 才提示,避免噪声)
+			if (Date.now() - connT0 > 50) {
+				this._logService.info(`[耗时][连接等待] createChat→_ensureConnection 等待后端就绪 = ${Date.now() - connT0}ms;时间消耗类型 =「冷启动等待,若伴随后端冷启动日志则为同一段」`);
+			}
+			// test-workbench_change end
 			// 新上游:session URI 由 orchestrator mint,provider 不得自造(signal 会寻址失败)
 			const sessionUri = OpenCodeAgent._hostSessionUri(chat);
 			const sessionId = AgentSession.id(sessionUri);
@@ -185,15 +225,28 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			);
 			this._sessions.set(sessionId, session);
 			session.setWorkingDirectory(workingDirectory); // test-workbench_change — customizations 清单用
+			this._bindSessionCustomizations(session, workingDirectory); // test-workbench_change — turn 结束广播+目录监听
 			session.onSessionCreated = (opencodeSessionId) => { // test-workbench_change - 持久化 host session → opencode 会话映射(跨重启恢复)
 				this._rememberOpencodeId(sessionId, opencodeSessionId);
 			};
 			this._peerChatSessions.set(chat.toString(), session);
+			// test-workbench_change start — provisional(预warm草稿)契约:普通新 chat(非 fork/
+			// 非 import)只建内存占位并返回 provisional:true,orchestrator 会将其隐藏(sessionAdded/
+			// SessionReady 推迟到首次 sendMessage materialize)。否则 UI 预热的 untitled 草稿会
+			// 每个都 POST /session/ 并泄漏进 sessions 列表(「点进历史会话再退出多一条」的根因)。
+			const provisional = !options?.fork && !options?.importConversation;
+			session.isProvisional = provisional;
+			// test-workbench_change end
 			await session.initialize();
 			if (options?.model) { session.setModel(options.model); }
 			if (options?.agent) { session.setAgent(OpenCodeAgent._agentNameFromUri(options.agent.uri)); } // test-workbench_change
 			this._applyPermissionConfig(options?.config, [session]); // test-workbench_change — 创建时权限模式落地
+			if (provisional) {
+				this._logService.info(`[OpenCode] chat created (provisional): ${chat.toString()};时间消耗类型 =「草稿占位,无后端会话,首条消息发送时才建立」`); // test-workbench_change — 耗时埋点
+				return { provisional: true };
+			}
 			this._logService.info(`[OpenCode] chat created: ${chat.toString()} (opencode: ${session.opencodeSessionId})`);
+			this._logService.info(`[耗时][会话创建] createChat 全链路(含冷启动等待+会话建立) = ${Date.now() - createT0}ms;时间消耗类型 =「新建 chat 后、首条消息发出前的一次性固定开销」`); // test-workbench_change — 耗时埋点
 			// providerData 统一为 fork opencode 会话 ID:materializeChat 按它重挂
 			// (fork 的 POST /session 不允许指定 ID,只能用返回值登记)。 // test-workbench_change
 			// test-workbench_change start — 返回 backingSession(I7):本 opencode 会话
@@ -250,6 +303,24 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			if (!session) {
 				throw new Error(`OpenCode session not found for chat ${chat.toString()}`);
 			}
+			// test-workbench_change start — provisional 草稿首条消息:先 materialize 真实
+			// opencode 会话,再 fire onDidMaterializeChat 让 orchestrator 补发 sessionAdded/
+			// SessionReady、持久化 providerData 与 backingSession(I7)标记,之后正常发送。
+			if (session.isProvisional) {
+				const materializeT0 = Date.now();
+				await session.materialize();
+				this._logService.info(`[耗时][会话建立] provisional materialize(首条消息触发 POST /session/)= ${Date.now() - materializeT0}ms;时间消耗类型 =「草稿升级为真实 opencode 会话,计入首条消息延迟,后续消息不再发生」`);
+				this._onDidMaterializeChat.fire({
+					chat: session.chatChannelUri,
+					result: {
+						providerData: session.opencodeSessionId,
+						backingSession: session.opencodeSessionId ? AgentSession.uri(this.id, session.opencodeSessionId) : undefined,
+					},
+					workingDirectories: session.currentWorkingDirectory ? [session.currentWorkingDirectory] : undefined,
+					project: undefined,
+				});
+			}
+			// test-workbench_change end
 			// test-workbench_change - 新上游传完整工作目录快照(index 0 = 主根),opencode 后端只支持单根
 			const workingDirectory = Array.isArray(workingDirectoriesOrDirectory)
 				? workingDirectoriesOrDirectory[0]
@@ -293,7 +364,14 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 	// ── Session lifecycle ──────────────────────────────────────────────────
 
 	async createSession(config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult> {
+		const createT0 = Date.now(); // test-workbench_change — 耗时埋点
+		const connT0 = Date.now(); // test-workbench_change — 耗时埋点
 		const ready = await this._ensureConnection();
+		// test-workbench_change start — 耗时埋点:冷启动等待
+		if (Date.now() - connT0 > 50) {
+			this._logService.info(`[耗时][连接等待] createSession→_ensureConnection 等待后端就绪 = ${Date.now() - connT0}ms;时间消耗类型 =「冷启动等待,用户视角的新会话首屏空白段」`);
+		}
+		// test-workbench_change end
 		const sessionId = config.session ? AgentSession.id(config.session) : generateUuid();
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 
@@ -333,9 +411,11 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 
 		this._sessions.set(sessionId, session);
 		session.setWorkingDirectory(workingDirectory); // test-workbench_change — customizations 清单用
+		this._bindSessionCustomizations(session, workingDirectory); // test-workbench_change — turn 结束广播+目录监听
 		if (config.agent) { session.setAgent(OpenCodeAgent._agentNameFromUri(config.agent.uri)); } // test-workbench_change — 新会话首条消息的 agent 选择走 createSession,不经 changeAgent
 		await session.initialize();
 		this._applyPermissionConfig(config.config, [session]); // test-workbench_change — 创建时权限模式落地
+		this._logService.info(`[耗时][会话创建] createSession 全链路(含冷启动等待+会话建立) = ${Date.now() - createT0}ms;时间消耗类型 =「新 session 首条消息前的固定开销(与 [后端冷启动]/[会话建立] 分段对应)」`); // test-workbench_change — 耗时埋点
 
 		return { session: sessionUri, resolvedWorkingDirectory: workingDirectory }; // test-workbench_change - 新上游字段名为 resolvedWorkingDirectory
 	}
@@ -448,6 +528,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			);
 			session.opencodeSessionId = canonicalId;
 			this._sessions.set(backingId, session);
+			this._bindSessionCustomizations(session, undefined); // test-workbench_change — turn 结束广播+用户级目录监听
 			if (isDefault) {
 				this._rememberOpencodeId(sessionId, canonicalId);
 			} else {
@@ -858,6 +939,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			?? URI.file('/tmp/opencode-' + sessionId);
 		try { fs.mkdirSync(workingDirectory.fsPath, { recursive: true }); } catch { /* ignore */ }
 		session.setWorkingDirectory(workingDirectory);
+		this._bindSessionCustomizations(session, workingDirectory); // test-workbench_change — turn 结束广播+目录监听
 		if (sourceSession.modelOverride) { session.setModel(sourceSession.modelOverride); }
 		if (sourceSession.agentName) { session.setAgent(sourceSession.agentName); }
 		// test-workbench_change end
@@ -970,6 +1052,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 
 			const authHeader = this._getAuthHeader();
 			let resolved = false;
+			const spawnStart = Date.now(); // test-workbench_change — 耗时埋点
 
 			const timer = setTimeout(() => {
 				if (!resolved) {
@@ -987,6 +1070,9 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 				if (match && !resolved) {
 					resolved = true;
 					clearTimeout(timer);
+					// test-workbench_change start — 耗时埋点:testagent 冷启动一次性开销
+					this._logService.info(`[耗时][后端冷启动] spawn(${bin})→stdout 报告监听地址 = ${Date.now() - spawnStart}ms;时间消耗类型 =「testagent 进程+Bun/Node 运行时+server 初始化,整链路最重的一次性开销(超时上限 30s),仅首次操作支付,首个发送若撞上 starting 状态会被它阻塞」`);
+					// test-workbench_change end
 					resolve({ baseUrl: match[1], child, authHeader });
 				}
 			});
@@ -1103,6 +1189,138 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 	async getChatCustomizations(chat: URI, _context: AgentChatOperationContext, _hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]> {
 		const sess = this._resolveSession(chat);
 		return sess ? sess.getCustomizations() : [];
+	}
+	// test-workbench_change end
+
+	// test-workbench_change start — opencode 合成 customization URI(opencode-customization:
+	// scheme,清单来自运行时 API,无磁盘源文件)。UI 点开 agent/command 详情时,AgentService
+	// 的 resourceRead 会落到文件服务并抛 ENOPRO 500;此处返回合成的只读 markdown 详情视图。
+	async describeCustomization(uri: URI): Promise<string | undefined> {
+		if (uri.scheme !== 'opencode-customization') { return undefined; }
+		let entries: readonly Customization[];
+		try {
+			const ready = await this._ensureConnection();
+			entries = await fetchOpenCodeCustomizations(ready.baseUrl, ready.authHeader, undefined, this._logService);
+		} catch (err) {
+			this._logService.warn(`[OpenCode] describeCustomization failed for ${uri.toString()}: ${err}`);
+			return undefined;
+		}
+		const target = uri.toString(true);
+		const header = '# opencode 运行时清单条目(只读,无源文件)';
+		for (const entry of entries) {
+			const container = entry as DirectoryCustomization;
+			const children = (container.children ?? []) as Array<{ uri: string; name?: string; description?: string; model?: string }>;
+			if (container.uri === target) {
+				const lines: string[] = [`# ${container.name ?? 'customizations'}`, '', header];
+				for (const child of children) {
+					lines.push('', `## ${child.name ?? child.uri}`);
+					if (child.description) { lines.push('', child.description); }
+					if (child.model) { lines.push('', `model: \`${child.model}\``); }
+				}
+				return lines.join('\n');
+			}
+			const child = children.find(c => c.uri === target);
+			if (child) {
+				const lines: string[] = [`# ${child.name ?? child.uri}`, ''];
+				if (child.description) { lines.push(child.description, ''); }
+				if (child.model) { lines.push(`- model: \`${child.model}\``, ''); }
+				lines.push(`- type: ${container.name ?? ''}`, `- source: ${'opencode 运行时清单(GET /' + (container.name ?? '') + ',只读,无源文件)'}`);
+				return lines.join('\n');
+			}
+		}
+		return undefined;
+	}
+	// test-workbench_change end
+
+	// test-workbench_change start — 清单源目录变更 → 会话缓存失效 + 防抖广播 agent 级事件。
+	// 触发源:① fs.watch 到 agent/command/skill 目录文件变化(覆盖手动新建/编辑/删除/外部 CLI);
+	// ② deleteCustomization;③ turn 结束(creator agent 可能刚写入新文件)。
+	private _notifyCustomizationsChanged(): void {
+		for (const [, s] of this._sessions) { s.invalidateCustomizationsCache(); }
+		if (this._customizationsDebounce === undefined) {
+			this._customizationsDebounce = setTimeout(() => {
+				this._customizationsDebounce = undefined;
+				this._onDidCustomizationsChange.fire();
+			}, 1000);
+		}
+	}
+
+	/** 监听用户级 + 项目级 customization 源目录(不存在的目录静默跳过;canonical 三目录由
+	 *  openCodeCustomizations.userConfigSubDir 在拉清单时 ensure)。 */
+	private _watchCustomizationRoots(workingDirectory: URI | undefined): void {
+		const dirs: string[] = [];
+		const subs = ['agent', 'agents', 'command', 'commands', 'skill', 'skills'];
+		const userRoot = userTestagentConfigRoot();
+		for (const sub of subs) { dirs.push(join(userRoot, sub)); }
+		if (workingDirectory) {
+			for (const base of [join(workingDirectory.fsPath, '.testagent'), join(workingDirectory.fsPath, '.opencode')]) {
+				for (const sub of subs) { dirs.push(join(base, sub)); }
+			}
+		}
+		for (const dir of dirs) {
+			if (this._customizationWatchers.has(dir)) { continue; }
+			try {
+				const watcher = fs.watch(dir, { persistent: false }, () => this._notifyCustomizationsChanged());
+				watcher.on('error', () => { this._customizationWatchers.delete(dir); try { watcher.close(); } catch { /* ignore */ } });
+				this._customizationWatchers.set(dir, watcher);
+			} catch { /* 目录不存在:跳过 */ }
+		}
+	}
+
+	/** 会话构造点统一接线:turn 结束通知 + 项目级目录监听。 */
+	private _bindSessionCustomizations(session: IOpenCodeSession, workingDirectory: URI | undefined): void {
+		session.onTurnEnd = () => this._notifyCustomizationsChanged();
+		this._watchCustomizationRoots(workingDirectory);
+	}
+	// test-workbench_change end
+
+	// test-workbench_change start — 合成 customization URI 反向映射到真实源文件路径(agent/command
+	// 的 md、skill 的目录)。搜索根:用户级 ~/.config/testagent + 各会话项目的 .testagent/.opencode;
+	// 目录/文件名候选与后端加载约定一致(config.ts ConfigAgent/ConfigCommand.load、skill/index.ts)。
+	resolveCustomizationSourcePaths(uri: URI): string[] {
+		if (uri.scheme !== 'opencode-customization') { return []; }
+		const seg = uri.path.split('/').filter(Boolean); // ['agents','workAgent']
+		if (seg.length !== 2) { return []; }
+		const kind = seg[0];
+		const name = decodeURIComponent(seg[1]);
+		const dirPairs = kind === 'agents' ? ['agent', 'agents'] : kind === 'commands' ? ['command', 'commands'] : kind === 'skills' ? ['skill', 'skills'] : [];
+		if (!dirPairs.length) { return []; }
+		const roots: string[] = [userTestagentConfigRoot()];
+		for (const [, s] of this._sessions) {
+			const wd = s.currentWorkingDirectory;
+			if (wd) { roots.push(join(wd.fsPath, '.testagent'), join(wd.fsPath, '.opencode')); }
+		}
+		const fileNames = kind === 'agents' ? [`${name}.md`, `${name}.agent.md`] : [`${name}.md`];
+		const found: string[] = [];
+		for (const root of roots) {
+			for (const dir of dirPairs) {
+				if (kind === 'skills') {
+					const skillDir = join(root, dir, name);
+					if (fs.existsSync(join(skillDir, 'SKILL.md'))) { found.push(skillDir); }
+				} else {
+					for (const f of fileNames) {
+						const p = join(root, dir, f);
+						if (fs.existsSync(p)) { found.push(p); }
+					}
+				}
+			}
+		}
+		return found;
+	}
+
+	// 删除合成 customization 条目:删掉全部映射到的源文件,随后失效所有会话的清单缓存让 UI
+	// 立即刷新。内置 agent 与 config JSONC 声明的条目无源文件,抛出明确错误(不可删)。
+	async deleteCustomization(uri: URI): Promise<void> {
+		if (uri.scheme !== 'opencode-customization') {
+			throw new Error(`Unsupported customization uri: ${uri.toString()}`);
+		}
+		const paths = this.resolveCustomizationSourcePaths(uri);
+		if (!paths.length) {
+			throw new Error(`no source file for ${uri.path} (built-in or config-declared customizations cannot be deleted)`);
+		}
+		for (const p of paths) { fs.rmSync(p, { recursive: true, force: true }); }
+		this._notifyCustomizationsChanged();
+		this._logService.info(`[OpenCode] deleted customization ${uri.path} from ${paths.length} source file(s)`);
 	}
 	// test-workbench_change end
 

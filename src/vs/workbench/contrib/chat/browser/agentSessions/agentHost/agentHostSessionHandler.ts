@@ -1951,6 +1951,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				preparingStatus.clear();
 				if (firstProgress === undefined && parts.some(isFirstVisibleProgressPart)) {
 					firstProgress = stopWatch.elapsed();
+					// test-workbench_change start — 耗时埋点:端到端 TTFT(到 UI 渲染 sink,不含 DOM 帧)
+					this._logService.info(`[耗时][端到端TTFT] 发送管线→首个可见 LLM 输出抵达 UI progress sink = ${firstProgress}ms;时间消耗类型 =「用户感知:按下发送到看见第一字(减去 [冷启动]/[会话创建] 即纯发送链),≈UI发送前+发送前置+[LLM首输出]+SSE→host→reducer→MessagePort→UI 回程,DOM 绘制再加一帧 ~16ms」`);
+					// test-workbench_change end
 				}
 				progress(parts);
 			};
@@ -3028,6 +3031,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		onFailureStage('prepareTurn');
+		// test-workbench_change start — 耗时埋点:UI 侧发送前分段计时(日志前缀 [耗时])
+		const uiT0 = Date.now();
+		let uiLast = uiT0;
+		const uiStage = (label: string, kind: string) => {
+			const now = Date.now();
+			this._logService.info(`[耗时][UI发送前] ${label} = ${now - uiLast}ms(距发送入口累计 ${now - uiT0}ms);时间消耗类型 =「${kind}」`);
+			uiLast = now;
+		};
+		// test-workbench_change end
 		// Synchronous, so the turn dispatched next observes the current script.
 		this._shellInitSynchronizer.reconcile(session);
 		if (request.acceptedConfirmationData?.some(isResumeTurnConfirmationData)) {
@@ -3036,6 +3048,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// This waits only for local trust checks and ordered optimistic dispatch;
 		// working-directory action envelopes are not a turn-start barrier.
 		await this._workingDirectorySynchronizer.reconcile(session, cancellationToken);
+		uiStage('工作目录 envelope 同步等待', '等 renderer 状态与 host 目录一致(本地信任检查),通常几 ms 内'); // test-workbench_change — 耗时埋点
 		if (cancellationToken.isCancellationRequested) {
 			return;
 		}
@@ -3043,6 +3056,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const chatURI = this._getChatURI(request.sessionResource);
 		const turnChannel = chatURI;
 		const messageAttachments = await this._convertVariablesToAttachments(request);
+		uiStage('变量附件转换', '把 #file/#selection 等变量读取为附件(可能含文件 IO),大文件选择会放大'); // test-workbench_change — 耗时埋点
 		if (cancellationToken.isCancellationRequested) {
 			return;
 		}
@@ -3052,6 +3066,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// so that opening a session doesn't eagerly register this client while
 		// another client is in the middle of a turn.
 		await this._ensureActiveClient(request.sessionResource, session, cancellationToken);
+		uiStage('activeClient 注册(setActiveClient 含一次 IPC 往返)', '客户端工具集/定制同步到 host,常态几十 ms 内'); // test-workbench_change — 耗时埋点
 		if (cancellationToken.isCancellationRequested) {
 			return;
 		}
@@ -3105,6 +3120,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._ensureTurnStopWatch(turnChannel, turnId);
 		onFailureStage('dispatchTurn');
 		this._config.connection.dispatch(turnChannel, turnAction);
+		this._logService.info(`[耗时][UI投递] ChatTurnStarted 经 MessagePort IPC 发往 agent host = 距发送入口累计 ${Date.now() - uiT0}ms;时间消耗类型 =「UI 侧全部前置开销,下一站见 host 侧 [发送前置] 分段」`); // test-workbench_change — 耗时埋点
 
 		// Ensure the snapshot controller records a sentinel checkpoint for this
 		// request so it appears in requestDisablement even if the turn

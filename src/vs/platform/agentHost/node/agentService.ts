@@ -6553,6 +6553,19 @@ export class AgentService extends Disposable implements IAgentService {
 			return this._fetchGitBlobContent(blobFields);
 		}
 
+		// test-workbench_change start — opencode 合成 customization URI(运行时 API 清单,
+		// 无磁盘源文件):委托 provider 合成只读 markdown 详情,避免落入文件服务抛
+		// ENOPRO(no file system provider)500。
+		if (uri.scheme === 'opencode-customization') {
+			const describer = this._providerService.getProvider('opencode') as { describeCustomization?: (u: URI) => Promise<string | undefined> } | undefined;
+			const content = await describer?.describeCustomization?.(uri);
+			if (content === undefined) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri.toString()}`);
+			}
+			return { data: content, encoding: ContentEncoding.Utf8, contentType: 'text/markdown' };
+		}
+		// test-workbench_change end
+
 		try {
 			const content = await this._fileService.readFile(uri);
 			return {
@@ -6772,6 +6785,22 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult> {
 		const fileUri = URI.parse(params.uri);
+		// test-workbench_change start — 合成 customization 条目(opencode-customization: scheme,
+		// 无磁盘文件):委托 provider 反向映射到源文件删除;文件服务对该 scheme 无 provider,
+		// 直接落到下面会误报 NotFound。内置/config 声明条目删不掉时返回明确错误。
+		if (fileUri.scheme === 'opencode-customization') {
+			const deleter = this._providerService.getProvider('opencode') as { deleteCustomization?: (u: URI) => Promise<void> } | undefined;
+			if (!deleter?.deleteCustomization) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${fileUri.toString()}`);
+			}
+			try {
+				await deleter.deleteCustomization(fileUri);
+				return {};
+			} catch (e) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, `Cannot delete customization: ${toErrorMessage(e instanceof Error ? e : new Error(String(e)))}`);
+			}
+		}
+		// test-workbench_change end
 		try {
 			await this._fileService.del(fileUri, { recursive: params.recursive });
 			return {};
@@ -6803,6 +6832,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
 		const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		// test-workbench_change — opencode 合成 customization URI:按只读文件上报,
+		// 内容由 resourceRead 的 provider 分支合成(无 stat 可谈)
+		if (uri.scheme === 'opencode-customization') {
+			return { uri: uri.toString(), type: ResourceType.File };
+		}
+		// test-workbench_change end
 		try {
 			const stat = await this._fileService.stat(uri);
 			let type: ResourceType;
@@ -6859,6 +6894,28 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult> {
 		const root = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		// test-workbench_change start — 合成 customization 条目(opencode-customization: scheme,
+		// 文件服务无该 provider):有源文件的按源文件做存在性校验;无源文件的(内置/config 声明)
+		// 放行成"永不触发"的 watch(内容不变,无需事件),不再误报 NotFound。
+		if (root.scheme === 'opencode-customization') {
+			const resolver = this._providerService.getProvider('opencode') as { resolveCustomizationSourcePaths?: (u: URI) => string[] } | undefined;
+			const paths = resolver?.resolveCustomizationSourcePaths?.(root) ?? [];
+			if (paths.length) {
+				try {
+					await this._fileService.stat(URI.file(paths[0]));
+				} catch {
+					throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${root.toString()}`);
+				}
+			}
+			const channel = buildResourceWatchChannelUri({
+				root: root.toString(),
+				recursive: params.recursive === true,
+				excludes: params.excludes,
+				includes: params.includes,
+			});
+			return { channel };
+		}
+		// test-workbench_change end
 		// Verify the URI exists before we mint a channel; spec requires
 		// `NotFound` when the URI is missing rather than silently producing
 		// a watcher that will never fire. The watcher itself is not
@@ -6910,6 +6967,20 @@ export class AgentService extends Disposable implements IAgentService {
 		const disposables = new DisposableStore();
 		try {
 			const root = URI.parse(descriptor.root);
+			// test-workbench_change — 合成 customization URI:文件服务无该 scheme 的 watcher,
+			// 注册为永不触发的空 watch(仅保留 channel 生命周期/订阅计数)。
+			if (root.scheme === 'opencode-customization') {
+				this._resourceWatches.set(channel, {
+					channel,
+					descriptor,
+					subscribers: 1,
+					disposables,
+					pendingGc: disposables.add(new MutableDisposable()),
+					dispose: () => disposables.dispose(),
+				});
+				return descriptor;
+			}
+			// test-workbench_change end
 			const watchOptions = {
 				recursive: descriptor.recursive,
 				excludes: descriptor.excludes?.items ?? [],
