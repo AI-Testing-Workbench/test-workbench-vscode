@@ -165,7 +165,9 @@ jobs:
 
           export ELECTRON_ENABLE_GPU=0
           export LIBGL_ALWAYS_SOFTWARE=1
-          export NODE_OPTIONS="--max-old-space-size=4096"
+          # Do NOT export NODE_OPTIONS here: packaged Electron strips most NODE_OPTIONS and
+          # logs "[ERROR] Most NODE_OPTIONs are not supported in packaged apps". Pass
+          # --js-flags=<flag> as an Electron switch on the exec below instead.
           export ELECTRON_DISABLE_SANDBOX=1
           export GDK_BACKEND=x11
           export QT_QPA_PLATFORM=xcb
@@ -198,6 +200,7 @@ jobs:
               --disable-gpu-sandbox \
               --disable-gpu \
               --disable-crash-reporter \
+              --js-flags=--max-old-space-size=4096 \
               --password-store=basic \
               --extensions-dir="$TSCODE_EXTENSIONS_DIR" \
               --user-data-dir="$TSCODE_APPDATA" \
@@ -216,6 +219,47 @@ jobs:
 
           chmod +x start-tscode.sh
           echo "   ✅ start-tscode.sh created"
+
+          echo ""
+          echo "📌 Creating CLI wrapper script (tscode-cli.sh)..."
+
+          cat > tscode-cli.sh << 'CLIEOF'
+          #!/bin/bash
+          # CLI entry point. VS Code CLI commands (--install-extension, --list-extensions,
+          # --uninstall-extension, ...) are handled by resources/app/out/cli.js, which must
+          # run through Electron in Node mode (ELECTRON_RUN_AS_NODE=1). Without a CLI command
+          # this same entry spawns the regular GUI, so behavior matches `code` on Linux.
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+          export TSCODE_APPDATA="$HOME/.local/share/tscode"
+          export TSCODE_EXTENSIONS_DIR="$HOME/.tscode/extensions"
+          export TSCODE_SYSTEM_EXTENSIONS="$SCRIPT_DIR/resources/app/extensions"
+          mkdir -p "$TSCODE_APPDATA" 2>/dev/null || true
+          mkdir -p "$TSCODE_EXTENSIONS_DIR" 2>/dev/null || true
+
+          CLI_JS="$SCRIPT_DIR/resources/app/out/cli.js"
+          if [ ! -f "$CLI_JS" ]; then
+              echo "❌ CLI entry not found: $CLI_JS" 1>&2
+              exit 1
+          fi
+
+          export ELECTRON_RUN_AS_NODE=1
+          exec "$SCRIPT_DIR/tscode" \
+              "$CLI_JS" \
+              --no-sandbox \
+              --disable-gpu-sandbox \
+              --disable-gpu \
+              --disable-crash-reporter \
+              --password-store=basic \
+              --extensions-dir="$TSCODE_EXTENSIONS_DIR" \
+              --user-data-dir="$TSCODE_APPDATA" \
+              --builtin-extensions-dir="$TSCODE_SYSTEM_EXTENSIONS" \
+              --enable-proposed-api=vscode.github-authentication \
+              "$@"
+          CLIEOF
+
+          chmod +x tscode-cli.sh
+          echo "   ✅ tscode-cli.sh created"
 
           chmod +x tscode
           chmod +x chrome-sandbox 2>/dev/null || true
@@ -373,6 +417,21 @@ jobs:
           fi
 
           echo ""
+          echo "9️⃣ Checking CLI wrapper..."
+          if [ -x "$SCRIPT_DIR/tscode-cli.sh" ]; then
+            if [ -f "$SCRIPT_DIR/resources/app/out/cli.js" ]; then
+              echo "   ✅ tscode-cli.sh exists and cli.js entry present"
+              ((PASSED++))
+            else
+              echo "   ❌ tscode-cli.sh present but resources/app/out/cli.js missing"
+              ((FAILED++))
+            fi
+          else
+            echo "   ❌ tscode-cli.sh missing"
+            ((FAILED++))
+          fi
+
+          echo ""
           echo "=========================================="
           echo "Validation Results:"
           echo "   ✅ Passed: $PASSED"
@@ -441,6 +500,7 @@ jobs:
           chmod +x "$DEB_ROOT/opt/tscode/tscode" 2>/dev/null || true
           chmod +x "$DEB_ROOT/opt/tscode/run.sh" 2>/dev/null || true
           chmod +x "$DEB_ROOT/opt/tscode/start-tscode.sh" 2>/dev/null || true
+          chmod +x "$DEB_ROOT/opt/tscode/tscode-cli.sh" 2>/dev/null || true
           chmod +x "$DEB_ROOT/opt/tscode/validate.sh" 2>/dev/null || true
           chmod +x "$DEB_ROOT/opt/tscode/test-debug.sh" 2>/dev/null || true
 
@@ -488,6 +548,16 @@ jobs:
 
           cat > "$DEB_ROOT/usr/bin/tscode" << 'WRAPEOF'
           #!/bin/bash
+          # VS Code CLI commands (extension management, etc.) are handled by
+          # /opt/tscode/tscode-cli.sh which runs resources/app/out/cli.js in Node mode.
+          # Everything else opens the GUI via /opt/tscode/run.sh.
+          for arg in "$@"; do
+              case "$arg" in
+                  --install-source|--install-extension|--uninstall-extension|--list-extensions|--update-extensions|--locate-extension|--locate-shell-integration-path|--file-write|--add-mcp|--telemetry|--status|--version|--help|-v|-h)
+                      exec /opt/tscode/tscode-cli.sh "$@"
+                      ;;
+              esac
+          done
           exec /opt/tscode/run.sh "$@"
           WRAPEOF
 
@@ -555,6 +625,7 @@ jobs:
           chmod +x /opt/tscode/run.sh 2>/dev/null || true
           chmod +x /opt/tscode/tscode 2>/dev/null || true
           chmod +x /opt/tscode/start-tscode.sh 2>/dev/null || true
+          chmod +x /opt/tscode/tscode-cli.sh 2>/dev/null || true
           chmod +x /usr/bin/tscode 2>/dev/null || true
           chmod +x /opt/tscode/test-debug.sh 2>/dev/null || true
 
