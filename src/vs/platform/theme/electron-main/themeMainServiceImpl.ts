@@ -69,6 +69,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly DEFAULT_BAR_WIDTH = 300;
+	private static readonly DEFAULT_AUXILIARY_BAR_WIDTH = 500; // test-workbench_change
 
 	private static readonly WORKSPACE_OVERRIDE_LIMIT = 50;
 
@@ -372,12 +373,12 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		if (workspace) {
 			const auxiliaryBarVisible = override.layoutInfo.workspaces[workspace.id]?.auxiliaryBarVisible;
 			if (auxiliaryBarVisible === true) {
-				auxiliaryBarWidth = override.layoutInfo.auxiliaryBarWidth || partSplash.layoutInfo.auxiliaryBarWidth || ThemeMainService.DEFAULT_BAR_WIDTH;
+				auxiliaryBarWidth = override.layoutInfo.auxiliaryBarWidth || partSplash.layoutInfo.auxiliaryBarWidth || ThemeMainService.DEFAULT_AUXILIARY_BAR_WIDTH; // test-workbench_change
 			} else if (auxiliaryBarVisible === false) {
 				auxiliaryBarWidth = 0;
 			} else {
 				if (startupEditor !== 'agentSessionsWelcomePage' && (auxiliaryBarDefaultVisibility === 'visible' || auxiliaryBarDefaultVisibility === 'visibleInWorkspace')) {
-					auxiliaryBarWidth = override.layoutInfo.auxiliaryBarWidth || partSplash.layoutInfo.auxiliaryBarWidth || ThemeMainService.DEFAULT_BAR_WIDTH;
+					auxiliaryBarWidth = override.layoutInfo.auxiliaryBarWidth || partSplash.layoutInfo.auxiliaryBarWidth || ThemeMainService.DEFAULT_AUXILIARY_BAR_WIDTH; // test-workbench_change
 				} else if (startupEditor !== 'agentSessionsWelcomePage' && (auxiliaryBarDefaultVisibility === 'maximized' || auxiliaryBarDefaultVisibility === 'maximizedInWorkspace')) {
 					auxiliaryBarWidth = Number.MAX_SAFE_INTEGER; // marker for a maximised auxiliary bar
 				} else {
@@ -405,7 +406,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			override = {
 				layoutInfo: {
 					sideBarWidth: ThemeMainService.DEFAULT_BAR_WIDTH,
-					auxiliaryBarWidth: ThemeMainService.DEFAULT_BAR_WIDTH,
+					auxiliaryBarWidth: ThemeMainService.DEFAULT_AUXILIARY_BAR_WIDTH, // test-workbench_change
 					workspaces: {}
 				}
 			};
@@ -416,7 +417,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		}
 
 		if (!override.layoutInfo.auxiliaryBarWidth) {
-			override.layoutInfo.auxiliaryBarWidth = ThemeMainService.DEFAULT_BAR_WIDTH;
+			override.layoutInfo.auxiliaryBarWidth = ThemeMainService.DEFAULT_AUXILIARY_BAR_WIDTH; // test-workbench_change
 		}
 
 		if (!override.layoutInfo.workspaces) {
