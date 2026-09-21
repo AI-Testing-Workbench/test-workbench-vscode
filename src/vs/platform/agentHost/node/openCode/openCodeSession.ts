@@ -12,6 +12,9 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import { MessageKind, buildDefaultChatUri, buildSubagentChatUri, createErrorResponsePart, type Customization } from '../../common/state/sessionState.js'; // test-workbench_change
+// test-workbench_change start — task 工具 stamp subagent 渲染 meta,触发 host 对未登记子 chat 的有界等待
+import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+// test-workbench_change end
 import { fetchOpenCodeCustomizations } from './openCodeCustomizations.js'; // test-workbench_change
 import { AgentSignal, IAgentActionSignal, IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, ResponsePartKind, TurnState, ToolCallConfirmationReason, ToolCallStatus, type Turn, type Message, type ResponsePart, type MessageAttachment, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ModelSelection, type ToolCallState } from '../../common/state/protocol/state.js';
@@ -63,6 +66,10 @@ export interface IOpenCodeSession {
 	setPermissionRules(ruleset: readonly IOpenCodePermissionRule[]): Promise<void>;
 	/** test-workbench_change — 已登记的 subagent 子会话 backing(按 subagent chat URI) */
 	getSubagentSession(chat: URI): IOpenCodeSession | undefined;
+	/** test-workbench_change — 按 opencode 子会话 id 查找已登记的 subagent backing(SSE 事件路由用) */
+	findSubagentByOpencodeId(opencodeSessionId: string): IOpenCodeSession | undefined;
+	/** test-workbench_change — 递归 yield 全部后代 subagent backing(应答路由/广播用) */
+	iterateSubagentBackings(): Iterable<IOpenCodeSession>;
 	/** test-workbench_change — 冷恢复:从父 transcript 中按 task toolCallId 找回子会话并登记 */
 	materializeSubagent(chat: URI, toolCallId: string): Promise<IOpenCodeSession | undefined>;
 	/** test-workbench_change — dispose subagent backing */
@@ -109,6 +116,9 @@ interface ForkPart {
 	id?: string;
 	type?: string;
 	text?: string;
+	// test-workbench_change — 文本化 provider(OpenAI chat-completions 等)下,opencode 把工具
+	// 调用/结果序列化为 text part 并标记 synthetic:true。非真实对话内容,历史与 live 均须过滤。
+	synthetic?: boolean;
 	callID?: string;
 	tool?: string;
 	state?: { status?: string; title?: string; output?: string; error?: string; metadata?: Record<string, unknown> };
@@ -122,14 +132,14 @@ function forkMessageToTurn(record: { info: ForkMessageInfo; parts?: ForkPart[] }
 	const { info, parts = [] } = record;
 	const isUser = info.role === 'user';
 
-	// 用户消息的文本来自其 text part(或 info.text)
-	const textParts = parts.filter(p => p.type === 'text' && typeof p.text === 'string');
+	// 用户消息的文本来自其 text part(或 info.text);跳过 synthetic(工具调用/结果的文本化内容) // test-workbench_change
+	const textParts = parts.filter(p => p.type === 'text' && typeof p.text === 'string' && !p.synthetic);
 	const text = (isUser ? (info.text ?? '') : '') || textParts.map(p => p.text).join('\n');
 
 	const responseParts: ResponsePart[] = [];
 	for (const part of parts) {
 		const partId = part.id ?? generateUuid();
-		if (part.type === 'text' && typeof part.text === 'string') {
+		if (part.type === 'text' && typeof part.text === 'string' && !part.synthetic) {
 			responseParts.push({ kind: ResponsePartKind.Markdown, id: partId, content: part.text });
 		} else if (part.type === 'reasoning' && typeof part.text === 'string') {
 			responseParts.push({ kind: ResponsePartKind.Reasoning, id: partId, content: part.text });
@@ -292,6 +302,33 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	) {
 		super();
 	}
+
+	// test-workbench_change start — subagent 只读 backing 的路由状态(由父在 _registerSubagentSession
+	// 注入):_rootChatUri=顶层 chat(remap key),_subagentContext=本 backing 的被 spawn 边
+	// (parentChat=顶层 chat + 父 task callID)。普通 backing 二者均 undefined。
+	private _rootChatUri: URI | undefined;
+	private _subagentContext: { readonly parentChat: URI; readonly toolCallId: string } | undefined;
+	// 已发过 model_call_completed 的 opencode assistant 消息 id(去重;每 turn 在 _resetStreamingState 清)
+	private _modelCallIdsSeen = new Set<string>();
+
+	setSubagentContext(ctx: { readonly parentChat: URI; readonly toolCallId: string }): void {
+		this._subagentContext = ctx;
+	}
+
+	/** 子 backing 无 sendMessage 生命周期:激活一个稳定占位 turnId,真实 turn 由 host remap。 */
+	activateSubagentTurn(): void {
+		if (this._currentTurnId === undefined) { this._currentTurnId = this.sessionId; }
+	}
+
+	/** 一次模型响应完成(provider 计时/用量关联)。子会话经 parentToolCallId 走 host remap 到子 chat。 */
+	private _fireModelCallCompleted(turnId: string, modelCallId: string): void {
+		const ctx = this._subagentContext;
+		const signal: AgentSignal = ctx
+			? { kind: 'model_call_completed', resource: ctx.parentChat, turnId, modelCallId, parentToolCallId: ctx.toolCallId }
+			: { kind: 'model_call_completed', resource: this.chatChannelUri, turnId, modelCallId };
+		try { this._onProgress.fire(signal); } catch { /* disposed */ }
+	}
+	// test-workbench_change end
 
 	get chatChannelUri(): URI {
 		return this._chatChannelUri ?? URI.parse(buildDefaultChatUri(this.sessionUri)); // test-workbench_change
@@ -760,7 +797,18 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			this._onProgress, this._logService,
 			URI.parse(subChat), // test-workbench_change — signal 寻址到 subagent chat
 		);
+		// test-workbench_change start — 根 chat 逐层继承:嵌套 subagent 的 spawn 信号与 action
+		// remap 必须以顶层 chat 为 key(host 的 _subagentChats 第一层 key 即 subagent_started
+		// 的 chat)。单层时 root=父 chatChannelUri,与旧行为一致。
+		const rootChat = this._rootChatUri ?? this.chatChannelUri;
+		child._rootChatUri = rootChat;
+		child.setSubagentContext({ parentChat: rootChat, toolCallId });
 		child.opencodeSessionId = childOpencodeId;
+		// 子 backing 不调 sendMessage,_currentTurnId 恒空会让 handleEvent 早退丢弃所有
+		// turn 级事件。给一个稳定占位 turnId:子 backing 的 action 经 parentToolCallId 走
+		// host remap 路径,占位值会被替换成子 chat 的真实 active turnId。
+		child.activateSubagentTurn();
+		// test-workbench_change end
 		this._subagentSessions.set(subChat, child);
 		this._logService.info(`[OpenCode] subagent backing registered: ${subChat} (opencode: ${childOpencodeId})`);
 		return child;
@@ -769,6 +817,29 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	getSubagentSession(chat: URI): IOpenCodeSession | undefined {
 		return this._subagentSessions.get(chat.toString());
 	}
+
+	// test-workbench_change start — SSE 事件按 opencode 子会话 id 路由到已登记的 subagent backing。
+	// 递归:嵌套 subagent 的孙 backing 挂在子 backing 的 _subagentSessions 下。
+	findSubagentByOpencodeId(opencodeSessionId: string): IOpenCodeSession | undefined {
+		for (const [, s] of this._subagentSessions) {
+			if (s.opencodeSessionId === opencodeSessionId) { return s; }
+			const nested = s.findSubagentByOpencodeId(opencodeSessionId);
+			if (nested) { return nested; }
+		}
+		return undefined;
+	}
+
+	// test-workbench_change start — 递归遍历全部后代 subagent backing。permission/question 的
+	// 应答在 agent 层按 requestId 广播,但子 backing 不在顶层 _sessions 里;不展开后代,
+	// 子会话内工具的用户应答(批准/回答 question)永远传不回 opencode 后端 → 子会话卡死。
+	*iterateSubagentBackings(): Iterable<IOpenCodeSession> {
+		for (const [, child] of this._subagentSessions) {
+			yield child;
+			yield* child.iterateSubagentBackings();
+		}
+	}
+	// test-workbench_change end
+	// test-workbench_change end
 
 	/** 冷恢复:host 重订阅 subagent chat 时,从父 transcript 找回 task call 的子会话 id 并重挂。 */
 	async materializeSubagent(chat: URI, toolCallId: string): Promise<IOpenCodeSession | undefined> {
@@ -899,11 +970,15 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	// subagent(chat URI → 子会话 backing)与已发出 spawn 事件的 task callID
 	private readonly _subagentSessions = this._register(new DisposableMap<string, OpenCodeSession>());
 	private _spawnedSubagentCallIds = new Set<string>();
+	// 已发出 subagent_completed 的 task callID(去重,防重复关闭子 turn) // test-workbench_change
+	private _completedSubagentCallIds = new Set<string>();
 	// test-workbench_change end
 	// 轮询/SSE 共用:按 partID 追踪文本/推理增量与 part 类型
 	// (全量 part 与增量 delta 共用一套判重)
 	private _partTypes = new Map<string, 'text' | 'reasoning' | 'tool'>();
 	private _partText = new Map<string, string>();
+	// test-workbench_change — synthetic text part(文本化工具调用/结果)的 partID,turn 内跳过渲染
+	private _syntheticPartIds = new Set<string>();
 	private _partTextSent = new Map<string, number>();
 	private _partTextPartId = new Map<string, string>();
 	private _partReasoning = new Map<string, string>();
@@ -983,6 +1058,12 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		// part metadata 中暴露子会话 id(ctx.metadata 落地),登记只读 backing 并发
 		// subagent_started,host 的 spawn channel 据此把子会话加入 chat catalog。
 		if (tool === 'task') {
+			// test-workbench_change start — spawn/completed 信号以顶层 chat 为寻址 key(host 的
+			// _subagentChats 第一层 key);嵌套时再带本 backing 的被 spawn 边 parentToolCallId,
+			// 让发现块挂到 immediate parent。单层时 spawnChat=chatChannelUri、parentEdge 空,与旧行为一致。
+			const spawnChat = this._rootChatUri ?? this.chatChannelUri;
+			const parentEdge = this._subagentContext?.toolCallId;
+			// test-workbench_change end
 			const childOpencodeId = state.metadata?.sessionId;
 			if (typeof childOpencodeId === 'string' && !this._spawnedSubagentCallIds.has(callID)) {
 				this._spawnedSubagentCallIds.add(callID);
@@ -991,20 +1072,45 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				const agentName = typeof taskInput.subagent_type === 'string' && taskInput.subagent_type ? taskInput.subagent_type : 'subagent';
 				const signal: AgentSignal = {
 					kind: 'subagent_started',
-					chat: this.chatChannelUri,
+					chat: spawnChat,
 					toolCallId: callID,
 					agentName,
 					agentDisplayName: agentName,
 					taskDescription: taskInput.description,
 					taskPrompt: taskInput.prompt,
+					...(parentEdge !== undefined ? { parentToolCallId: parentEdge } : {}),
 				};
 				try { this._onProgress.fire(signal); } catch { /* disposed */ }
 			}
+			// test-workbench_change start — 子会话关闭:task 工具进入终态时发 subagent_completed,
+			// host 据此关闭子 chat 的 active turn(此前 opencode 从不发该信号,子会话永远停在
+			// “思考中”)。仅对本 provider 登记过的 subagent 发,且按 callID 去重。
+			if ((state.status === 'completed' || state.status === 'error')
+				&& this._spawnedSubagentCallIds.has(callID) && !this._completedSubagentCallIds.has(callID)) {
+				this._completedSubagentCallIds.add(callID);
+				try {
+					this._onProgress.fire({ kind: 'subagent_completed', chat: spawnChat, toolCallId: callID });
+				} catch { /* disposed */ }
+			}
+			// test-workbench_change end
 		}
 		// test-workbench_change end
 
 		const status = state.status;
 		const title = state.title;
+
+		// test-workbench_change start — task 工具的 Start/Ready 必须 stamp `_meta.subagentChatUri`
+		// (host agentService._trackPendingSubagentChatFromEnvelope 据此在子会话登记前对 client 的
+		// subscribe 做有界等待)。此前 opencode 未 stamp → opencode 后端在 task running 后才暴露子会话
+		// id、subagent_started 晚 ~1s,client 抢先订阅未登记的子 chat 报「Resource not found」。
+		// subagentChatUri 只依赖 callID(Start 即已知),不需等子会话 id。
+		const subagentToolMeta = tool === 'task' ? toToolCallMeta({
+			toolKind: 'subagent',
+			subagentChatUri: buildSubagentChatUri(this.sessionUri, callID),
+			subagentDescription: (state.input as { description?: string } | undefined)?.description,
+			subagentAgentName: (typeof (state.input as { subagent_type?: string } | undefined)?.subagent_type === 'string' && (state.input as { subagent_type?: string }).subagent_type) || 'subagent',
+		}) : undefined;
+		// test-workbench_change end
 
 		// 文件类工具(read/write/edit 等):把路径拼进 markdown 文件链接,
 		// chat UI 据此渲染可点击文件 widget(对齐 copilot host 行为)。
@@ -1026,6 +1132,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				toolName: tool,
 				displayName: title ?? tool,
 				intention: title ?? tool,
+				...(subagentToolMeta ? { _meta: subagentToolMeta } : {}), // test-workbench_change
 			});
 		}
 
@@ -1046,6 +1153,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				...(input !== undefined ? { toolInput: typeof input === 'string' ? input : JSON.stringify(input) } : {}),
 				confirmationTitle: tool,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
+				...(subagentToolMeta ? { _meta: subagentToolMeta } : {}), // test-workbench_change — arm host 的 pending-subagent 等待
 			});
 		}
 
@@ -1069,10 +1177,44 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		}
 	}
 
+	/**
+	 * turn 结束时的 subagent 兜底收敛:遍历本父会话登记过的所有 task subagent,
+	 * 对因 SSE 漏推终态而仍未关闭的,补发 task 卡片的 ChatToolCallComplete 与
+	 * 子 chat 的 subagent_completed。幂等(按 callID 去重),正常路径下全部跳过。 // test-workbench_change
+	 */
+	private _finalizePendingSubagents(turnId: string): void {
+		for (const callID of this._spawnedSubagentCallIds) {
+			if (this._completedSubagentCallIds.has(callID)) { continue; }
+			this._completedSubagentCallIds.add(callID);
+			if (!this._completedToolCallIds.has(callID)) {
+				this._completedToolCallIds.add(callID);
+				this._fireAction(ActionType.ChatToolCallComplete, {
+					turnId,
+					toolCallId: callID,
+					result: { success: true, pastTenseMessage: 'Subagent completed' },
+				});
+			}
+			try {
+				this._onProgress.fire({ kind: 'subagent_completed', chat: this._rootChatUri ?? this.chatChannelUri, toolCallId: callID });
+			} catch { /* disposed */ }
+		}
+	}
+
 	/** 发一次 ChatTurnComplete,按 turn 去重(SSE message.updated 与轮询探测都会到)。 */
 	private _completeTurn(turnId: string): void {
 		if (this._completedTurnIds.has(turnId)) { return; }
 		this._completedTurnIds.add(turnId);
+		// test-workbench_change start — subagent 只读 backing 不发 ChatTurnComplete:
+		// 子 chat 的 turn 由父 task 工具完成时的 subagent_completed 信号统一关闭
+		// (对齐 Codex,避免双重完成与 turnTracker 泄漏)。
+		if (this._subagentContext) { return; }
+		// test-workbench_change end
+		// test-workbench_change start — turn 完成即意味着所有阻塞式 task 子会话已 return。
+		// opencode SSE 在长子会话后可能漏推父 task part 的 running→completed 终态,而轮询在
+		// _sseHeard 后只保活不再拉取 → task 子卡片与子 chat turn 永不关闭(假性“正在运行”)。
+		// 兜底:强制收敛所有未关闭的 subagent,再结束父 turn。幂等,正常 SSE 路径下无副作用。
+		this._finalizePendingSubagents(turnId);
+		// test-workbench_change end
 		this._fireAction(ActionType.ChatTurnComplete, { turnId, duration: 0 });
 	}
 
@@ -1097,6 +1239,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	private _resetStreamingState(): void {
 		this._partTypes.clear();
 		this._partText.clear();
+		this._syntheticPartIds.clear(); // test-workbench_change — synthetic part 记录随 turn 复位
 		this._partTextSent.clear();
 		this._partTextPartId.clear();
 		this._partReasoning.clear();
@@ -1119,6 +1262,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		this._messageRoles.clear();
 		this._currentPrompt = undefined;
 		this._completedTurnIds.clear();
+		this._modelCallIdsSeen.clear(); // test-workbench_change — model_call 去重集随 turn 复位
 		// 结束上一个 turn 的等待(新 turn 起点 / abort / 请求错误) // test-workbench_change
 		this._finishTurn();
 	}
@@ -1153,7 +1297,13 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		}
 
 		// 以下均为 turn 级事件,无当前 turn 时丢弃
-		const turnId = this._currentTurnId;
+		let turnId = this._currentTurnId;
+		// test-workbench_change start — subagent 只读 backing 无 sendMessage 生命周期,
+		// abort/reset 后 _currentTurnId 可能为空:补占位 turnId,真实 turn 由 host remap。
+		if (!turnId && this._subagentContext) {
+			turnId = this._currentTurnId = this.sessionId;
+		}
+		// test-workbench_change end
 		if (!turnId) { return; }
 
 		// 收到任一 turn 级 SSE 事件即标记 SSE 存活,轮询降级为兜底
@@ -1187,6 +1337,14 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				// 记录 host turn → 本轮最新 opencode 消息 id 锚点(fork/truncate 翻译用;
 				// user/assistant 消息都更新,保留的自然是本轮最后一条) // test-workbench_change
 				if (info?.id && this._currentTurnId) { this._hostTurnAnchors.set(this._currentTurnId, info.id); }
+				// test-workbench_change start — 对齐 Claude/Codex:每条 assistant 消息的 finish(含
+				// 中间 tool-calls 步)即一次模型响应完成 → model_call_completed,供 host 记录
+				// provider 计时与用量关联。按消息 id 去重(同消息 finish 会多次回填)。
+				if (info?.role === 'assistant' && info.id && info.finish && info.finish !== 'unknown' && !this._modelCallIdsSeen.has(info.id)) {
+					this._modelCallIdsSeen.add(info.id);
+					this._fireModelCallCompleted(turnId, info.id);
+				}
+				// test-workbench_change end
 				// 多步 turn 中 finish 会多次落地(中间步是 tool-calls),只认最终态
 				if (info?.role !== 'assistant' || !info.finish || info.finish === 'tool-calls' || info.finish === 'unknown') {
 					return;
@@ -1265,6 +1423,10 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			this._partTypes.set(partID, 'tool');
 			this._handleToolPart(turnId, part);
 		} else if (partType === 'text' && typeof part.text === 'string') {
+			// test-workbench_change — synthetic text part(文本化工具调用/结果)非真实对话,
+			// 不渲染;登记 partID 使后续 delta 也跳过。
+			if (part.synthetic === true) { this._syntheticPartIds.add(partID); return; }
+			// test-workbench_change end
 			this._partTypes.set(partID, 'text');
 			this._emitText(turnId, partID, part.text);
 		} else if (partType === 'reasoning' && typeof part.text === 'string') {
@@ -1280,6 +1442,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		const delta = props.delta as string | undefined;
 		if (!partID || !delta) { return; }
 		if (this._isForeignPart(props.messageID as string | undefined)) { return; }
+		if (this._syntheticPartIds.has(partID)) { return; } // test-workbench_change — synthetic part 的增量不渲染
 
 		const partType = this._partTypes.get(partID) ?? 'text';
 		if (partType === 'reasoning') {
@@ -1446,12 +1609,24 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	// ── Action emission ────────────────────────────────────────────────────
 
 	private _fireAction(type: string, fields: Record<string, unknown>): void {
-		const signal: IAgentActionSignal = {
-			kind: 'action',
-			resource: this.chatChannelUri,
-			// eslint-disable-next-line local/code-no-dangerous-type-assertions
-			action: { type, ...fields } as unknown as SessionAction | ChatAction,
-		};
+		// test-workbench_change start — subagent 只读 backing 的 action 必须以父 chat 为 resource
+		// 并带 parentToolCallId:host 的 spawn channel 据此 remap 到子 chat 的 active turn。
+		// 若直接用子 chat URI 作 resource,会走 preserve 路径,占位 turnId 与 host turnId 不符被丢。
+		const signal: IAgentActionSignal = this._subagentContext
+			? {
+				kind: 'action',
+				resource: this._subagentContext.parentChat,
+				parentToolCallId: this._subagentContext.toolCallId,
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
+				action: { type, ...fields } as unknown as SessionAction | ChatAction,
+			}
+			: {
+				kind: 'action',
+				resource: this.chatChannelUri,
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
+				action: { type, ...fields } as unknown as SessionAction | ChatAction,
+			};
+		// test-workbench_change end
 		try { this._onProgress.fire(signal); } catch { /* disposed */ }
 	}
 }

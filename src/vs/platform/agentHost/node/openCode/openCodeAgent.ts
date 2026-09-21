@@ -732,15 +732,24 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 	// test-workbench_change end
 
 	respondToPermissionRequest(_requestId: string, _approved: boolean): void {
+		// test-workbench_change start — 必须展开后代 subagent backing:子会话内工具的 permission
+		// 应答此前只广播到顶层 _sessions,子 backing 收不到 → 子会话权限卡死。owner 去重保证
+		// 仅登记该 requestId 的 backing 真正回包。
 		for (const [, s] of this._sessions) {
 			s.respondToPermissionRequest(_requestId, _approved);
+			for (const child of s.iterateSubagentBackings()) { child.respondToPermissionRequest(_requestId, _approved); }
 		}
+		// test-workbench_change end
 	}
 
 	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void {
+		// test-workbench_change start — 同上:子会话内 question 的应答需展开后代 backing,
+		// 否则用户回答子会话的 question 永远传不回 opencode 后端(截图「Running question」卡死)。
 		for (const [, s] of this._sessions) {
 			s.respondToUserInputRequest(requestId, response, answers);
+			for (const child of s.iterateSubagentBackings()) { child.respondToUserInputRequest(requestId, response, answers); }
 		}
+		// test-workbench_change end
 	}
 
 	// ── Configuration ──────────────────────────────────────────────────────
@@ -1168,6 +1177,14 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 				return s;
 			}
 		}
+		// test-workbench_change start — subagent 只读 backing 不在顶层 _sessions(挂在父 session
+		// 的 _subagentSessions 下),SSE 按子会话 opencode id 推送的事件此前路由不到 → 子会话
+		// live 内容全丢。顶层未命中时递归查各 session 的子 backing。
+		for (const [, s] of this._sessions) {
+			const child = s.findSubagentByOpencodeId(opencodeSessionId);
+			if (child) { return child; }
+		}
+		// test-workbench_change end
 		return undefined;
 	}
 
