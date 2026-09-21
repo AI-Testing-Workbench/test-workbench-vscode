@@ -354,8 +354,18 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			this._logService.info(`[OpenCode] changeAgent chat=${chat.toString()} agent=${agent ? OpenCodeAgent._agentNameFromUri(agent.uri) : '(default)'} resolved=${!!session}`);
 			session?.setAgent(agent ? OpenCodeAgent._agentNameFromUri(agent.uri) : undefined);
 		},
-		getMessages: async (chat: URI): Promise<readonly Turn[]> => {
-			const session = this._resolveSession(chat);
+		getMessages: async (chat: URI, context: AgentChatOperationContext): Promise<readonly Turn[]> => {
+			let session = this._resolveSession(chat);
+			// test-workbench_change start — 冷恢复 subagent chat:host 的 _doRestoreSubagentChat
+			// 直接调 getMessages(不经 materializeChat)。子 backing 未登记时 _resolveSession 落空,
+			// 此前返回 [] → host 判定无内容、不 addChat → 打开 subagent tab 报 "Couldn't open
+			// session"。复用 materializeChat 的 subagent 自举(重挂父会话 + materializeSubagent
+			// 登记子 backing)后再读历史。仅对 subagent chat 触发,普通/peer/fork chat 行为不变。
+			if (!session && isSubagentChatUri(chat)) {
+				await this.materializeChat(chat, context, undefined);
+				session = this._resolveSession(chat);
+			}
+			// test-workbench_change end
 			if (!session) { return []; }
 			return session.getMessages();
 		},
