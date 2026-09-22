@@ -1133,7 +1133,10 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		if (process.platform === 'win32') {
 			try { cp.execFileSync('taskkill', ['/pid', String(child.pid), '/T', '/F']); } catch { /* already exited */ }
 		} else {
-			try { child.kill(); } catch { /* already exited */ }
+			// test-workbench_change — SIGKILL 而非 SIGTERM:testagent 的 serve 可能捕获 SIGTERM
+			// 做 graceful shutdown 而卡住不退(尤其有活跃 SSE 连接时),导致 agentHost 退出后
+			// 它成孤儿。关闭/超时场景无优雅需求,与 win32 的 taskkill /F 对称强杀。
+			try { child.kill('SIGKILL'); } catch { /* already exited */ }
 		}
 	}
 
@@ -1292,6 +1295,24 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 				this._customizationWatchers.set(dir, watcher);
 			} catch { /* 目录不存在:跳过 */ }
 		}
+		// test-workbench_change start — Instructions(Rule):监听全局 config 根与项目根的
+		// AGENTS.md 系列文件变化(filename 窄化,避免项目根其它文件的噪音),触发清单失效刷新。
+		const ruleWatchTargets: Array<{ dir: string; filter: (f: string | null) => boolean }> = [
+			{ dir: userRoot, filter: f => !!f && /^AGENTS\.md$/i.test(f) },
+		];
+		if (workingDirectory) {
+			ruleWatchTargets.push({ dir: workingDirectory.fsPath, filter: f => !!f && /^(AGENTS|CLAUDE|CONTEXT)\.md$/i.test(f) });
+		}
+		for (const { dir, filter } of ruleWatchTargets) {
+			const key = `rules:${dir}`;
+			if (this._customizationWatchers.has(key)) { continue; }
+			try {
+				const watcher = fs.watch(dir, { persistent: false }, (_event, filename) => { if (filter(filename)) { this._notifyCustomizationsChanged(); } });
+				watcher.on('error', () => { this._customizationWatchers.delete(key); try { watcher.close(); } catch { /* ignore */ } });
+				this._customizationWatchers.set(key, watcher);
+			} catch { /* 目录不存在:跳过 */ }
+		}
+		// test-workbench_change end
 	}
 
 	/** 会话构造点统一接线:turn 结束通知 + 项目级目录监听。 */

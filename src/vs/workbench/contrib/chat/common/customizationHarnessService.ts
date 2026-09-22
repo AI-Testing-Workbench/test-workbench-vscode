@@ -60,6 +60,13 @@ export interface ISectionOverride {
 	 * (e.g. `.instructions.md`).
 	 */
 	readonly fileExtension?: string;
+	/**
+	 * When `true`, the create button (New …) is hidden entirely for this section.
+	 * Use for harnesses where the section is read-only — e.g. opencode's
+	 * Instructions, whose backing is a fixed-name `AGENTS.md` the backend loads
+	 * directly and which cannot be created as a free-named `.instructions.md`.
+	 */
+	readonly disableCreate?: boolean;
 }
 
 export interface ICustomizationItemAction {

@@ -10,7 +10,7 @@ import * as path from 'path';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
 import { CustomizationType } from '../../common/state/protocol/channels-session/state.js';
-import { CustomizationLoadStatus, customizationId, type AgentCustomization, type ChildCustomization, type Customization, type DirectoryCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, customizationId, type AgentCustomization, type ChildCustomization, type Customization, type DirectoryCustomization, type RuleCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
 
 /** GET /skill → Skill.Info[]（fork: packages/opencode/src/skill/index.ts） */
 interface ISkillInfo { name: string; description?: string; location?: string }
@@ -60,7 +60,7 @@ function userConfigSubDir(sub: string, logService: ILogService): URI {
 	return URI.file(dir);
 }
 
-function container(name: string, contents: SkillCustomization['type'] | AgentCustomization['type'], children: readonly ChildCustomization[], writableDir: URI | undefined, logService: ILogService): DirectoryCustomization {
+function container(name: string, contents: SkillCustomization['type'] | AgentCustomization['type'] | RuleCustomization['type'], children: readonly ChildCustomization[], writableDir: URI | undefined, logService: ILogService): DirectoryCustomization {
 	// test-workbench_change start — 容器 uri 优先指向真实可写的用户级目录(供 New Agent/Skill/Prompt
 	// 落盘，provideSourceFolders 只收 writable:true 的目录容器)；无落点时退回合成只读 uri。
 	const uri = writableDir ? writableDir.toString(true) : `${OPENCODE_SCHEME}:/` + name;
@@ -76,6 +76,59 @@ function container(name: string, contents: SkillCustomization['type'] | AgentCus
 		children: [...children],
 	};
 	// test-workbench_change end
+}
+
+/**
+ * opencode 后端 `session/instruction.ts` 实际加载为 system instructions 的 rules 文件
+ * （AGENTS.md 系列）候选路径。provider 侧磁盘扫描这些路径映射成 `CustomizationType.Rule`，
+ * 对齐 Claude 的 `claudeRuleScan`：真实 `file:` uri、`alwaysApply`、可点开编辑。
+ * 后端总是加载这些文件，故不提供 enablement 开关、不支持删除（AGENTS.md 是核心文件）；
+ * 祖先目录 findUp 与 Claude 一样不在范围内（只查项目根与已知子目录）。
+ * // test-workbench_change
+ */
+function ruleCandidatePaths(workingDirectory: URI | undefined): string[] {
+	const home = os.homedir();
+	const xdg = process.env['XDG_CONFIG_HOME'] || path.join(home, '.config');
+	const out: string[] = [
+		path.join(xdg, 'testagent', 'AGENTS.md'),   // 后端 global.config/AGENTS.md
+		path.join(xdg, 'opencode', 'AGENTS.md'),    // 后端 opencodeConfig/AGENTS.md（legacy）
+		path.join(home, '.testagent', 'AGENTS.md'),
+		path.join(home, '.claude', 'CLAUDE.md'),
+	];
+	if (workingDirectory) {
+		const root = workingDirectory.fsPath;
+		out.push(
+			path.join(root, 'AGENTS.md'),
+			path.join(root, 'CLAUDE.md'),
+			path.join(root, 'CONTEXT.md'),          // 后端 FILES 含 CONTEXT.md（deprecated）
+			path.join(root, '.testagent', 'AGENTS.md'),
+			path.join(root, '.opencode', 'AGENTS.md'),
+		);
+	}
+	return out;
+}
+
+/** 扫描存在的 rules 文件为 RuleCustomization（按解析路径去重）。 */
+function scanOpenCodeRules(workingDirectory: URI | undefined): RuleCustomization[] {
+	const seen = new Set<string>();
+	const rules: RuleCustomization[] = [];
+	for (const candidate of ruleCandidatePaths(workingDirectory)) {
+		let isFile = false;
+		try { isFile = fs.statSync(candidate).isFile(); } catch { continue; }
+		if (!isFile) { continue; }
+		const resolved = path.resolve(candidate);
+		if (seen.has(resolved)) { continue; }
+		seen.add(resolved);
+		const uri = URI.file(candidate).toString(true);
+		rules.push({
+			type: CustomizationType.Rule,
+			id: customizationId(uri),
+			uri,
+			name: path.basename(candidate),
+			alwaysApply: true,
+		});
+	}
+	return rules;
 }
 
 /**
@@ -142,6 +195,13 @@ export async function fetchOpenCodeCustomizations(baseUrl: string, authHeader: s
 		// 后端扫描 {agent,agents}/**/*.md(config/agent.ts),用户级目录约定为单数 agent/
 		result.push(container('agents', CustomizationType.Agent, children, userConfigSubDir('agent', logService), logService));
 	}
+
+	// test-workbench_change start — Instructions(Rule):opencode 后端无 rules HTTP 端点,
+	// provider 侧磁盘扫描后端实际加载的 AGENTS.md 系列(对齐 Claude claudeRuleScan)。opencode 的
+	// "instruction" 概念就是固定名 AGENTS.md(后端只读 AGENTS.md/CLAUDE.md + config.instructions,
+	// 无 rules 目录自动加载),故不提供 "New Instruction"(新建自由命名文件后端不读,入口会误导):
+	// 容器只读(writableDir=undefined),仅展示+点开编辑现有文件。不提供 enablement/删除。
+	result.push(container('rules', CustomizationType.Rule, scanOpenCodeRules(workingDirectory), undefined, logService));
 	// test-workbench_change end
 
 	return result;

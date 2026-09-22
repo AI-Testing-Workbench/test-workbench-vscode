@@ -1253,6 +1253,14 @@ export class AICustomizationListWidget extends Disposable {
 		const override = descriptor.sectionOverrides?.get(this.currentSection);
 		const hasWorkspace = this.hasActiveWorkspace();
 
+		// test-workbench_change start — 只读 section(如 opencode Instructions:后端只读固定名
+		// AGENTS.md,无法作为自由命名 .instructions.md 新建)隐藏整个 New 按钮。返回空 →
+		// updateAddButton 见 primary 缺失即 display:none。
+		if (override?.disableCreate) {
+			return [];
+		}
+		// test-workbench_change end
+
 		// Full command override (e.g. Claude hooks) — single action, no dropdown
 		if (override?.commandId) {
 			return [{
