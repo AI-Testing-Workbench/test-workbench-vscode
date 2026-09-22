@@ -180,7 +180,10 @@ export async function fetchOpenCodeCustomizations(baseUrl: string, authHeader: s
 	}
 
 	if (agents) {
-		const children: AgentCustomization[] = agents.map(a => {
+		// test-workbench_change start — 过滤后端 hidden 内部 agent(compaction/summary/title 等,
+		// agent.ts 标 hidden:true):它们是 opencode 生命周期内部 agent,非用户可配置项,不应出现在
+		// Agents 面板。此前仅设 disableUserInvocation 仍会展示(只是不可手动调用),不符"隐藏"语义。
+		const children: AgentCustomization[] = agents.filter(a => !a.hidden).map(a => {
 			const uri = `${OPENCODE_SCHEME}:/agents/${a.name}`;
 			return {
 				type: CustomizationType.Agent,
@@ -189,9 +192,9 @@ export async function fetchOpenCodeCustomizations(baseUrl: string, authHeader: s
 				name: a.name,
 				description: a.description,
 				model: a.model?.providerID && a.model.modelID ? `${a.model.providerID}/${a.model.modelID}` : undefined,
-				disableUserInvocation: a.hidden || undefined,
 			};
 		});
+		// test-workbench_change end
 		// 后端扫描 {agent,agents}/**/*.md(config/agent.ts),用户级目录约定为单数 agent/
 		result.push(container('agents', CustomizationType.Agent, children, userConfigSubDir('agent', logService), logService));
 	}
