@@ -7,6 +7,9 @@ import { localize } from '../../nls.js';
 import product from '../../platform/product/common/product.js';
 import { INativeWindowConfiguration, IWindowsConfiguration } from '../../platform/window/common/window.js';
 import { Workbench } from '../browser/workbench.js';
+// test-workbench_change start
+import { installRendererLogCapture, registerRendererLogCaptureReporter } from '../contrib/capturedLog/browser/rendererLogCapture.js';
+// test-workbench_change end
 import { NativeWindow } from './window.js';
 import { setFullscreen } from '../../base/browser/browser.js';
 import { domContentLoaded } from '../../base/browser/dom.js';
@@ -33,7 +36,11 @@ import { IFileService } from '../../platform/files/common/files.js';
 import { RemoteFileSystemProviderClient } from '../services/remote/common/remoteFileSystemProviderClient.js';
 import { ConfigurationCache } from '../services/configuration/common/configurationCache.js';
 import { ISignService } from '../../platform/sign/common/sign.js';
-import { IProductService } from '../../platform/product/common/productService.js';
+import { IProductService, isCapturedLogSourceEnabled, isCapturedLogTraceEnabled } from '../../platform/product/common/productService.js';
+// test-workbench_change start
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../platform/telemetry/common/telemetryUtils.js';
+// test-workbench_change end
 import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
 import { INativeKeyboardLayoutService, NativeKeyboardLayoutService } from '../services/keybinding/electron-browser/nativeKeyboardLayoutService.js';
@@ -136,6 +143,24 @@ export class DesktopMain extends Disposable {
 
 		// Startup
 		const instantiationService = workbench.startup();
+
+		// test-workbench_change start
+		// 渲染进程核心日志上报：渲染进程 telemetry 就绪后注册上报器，并 flush 启动期缓冲。
+		// 仅受 capturedLog.logSourceEnabled 控制（与 extensionIdEnabled / outputChannelNameEnabled 无关）。
+		if (isCapturedLogSourceEnabled({ _serviceBrand: undefined, ...product }, 'renderer')) {
+			const telemetryService = instantiationService.invokeFunction(accessor => accessor.get(ITelemetryService));
+			registerRendererLogCaptureReporter((message, logLevel, traceFields) => {
+				// 链路追踪（capturedLog 第二阶段）：traceId/traceIndex 由截获点产生侧
+				// 赋值；此处仅在 capturedLog.traceEnabled 开启时携带上报。
+				telemetryService.publicLog('capturedLog', {
+					message: new TelemetryTrustedValue(message),
+					logSource: 'renderer',
+					logLevel,
+					...(isCapturedLogTraceEnabled({ _serviceBrand: undefined, ...product }) && traceFields ? { traceId: traceFields.traceId, traceIndex: traceFields.traceIndex } : {})
+				});
+			});
+		}
+		// test-workbench_change end
 
 		// Window
 		this._register(instantiationService.createInstance(NativeWindow));
@@ -417,6 +442,22 @@ export interface IDesktopMain {
 }
 
 export function main(configuration: INativeWindowConfiguration): Promise<void> {
+	// test-workbench_change start
+	// 渲染进程核心日志截获：仅当 capturedLog.logSourceEnabled 含 'renderer' 时安装 console hook，
+	// 未启用时零开销（不 hook console、不监听 window 事件），避免对启动性能造成影响。
+	if (isCapturedLogSourceEnabled({ _serviceBrand: undefined, ...product }, 'renderer')) {
+		try {
+			// traceEnabled 下沉：把 capturedLog.traceEnabled 传入产生侧（关闭时跳过 trace 计算）
+			// logLevelEnabled 下沉：把 capturedLog.logLevelEnabled 传入产生侧（'all' | 级别数组 |
+			// undefined，过滤先于 trace 推进，被过滤日志不占 traceIndex、不上报，原生 console 不受影响）
+			installRendererLogCapture(isCapturedLogTraceEnabled({ _serviceBrand: undefined, ...product }), product.capturedLog?.logLevelEnabled);
+		} catch (error) {
+			// 日志截获为增强特性：安装失败时仅记录，不应影响工作台启动
+			console.warn('[capturedLog] 安装渲染进程日志截获失败', error);
+		}
+	}
+	// test-workbench_change end
+
 	const workbench = new DesktopMain(configuration);
 
 	return workbench.open();

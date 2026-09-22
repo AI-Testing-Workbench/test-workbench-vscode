@@ -10,13 +10,18 @@ import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js'
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+// test-workbench_change start
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+// test-workbench_change end
 import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, IOutputViewFilters, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT, IMultiSourceOutputChannelDescriptor, isSingleSourceOutputChannelDescriptor, HIDE_CATEGORY_FILTER_CONTEXT, isMultiSourceOutputChannelDescriptor, ILogEntry } from '../../../services/output/common/output.js';
 import { OutputLinkProvider } from './outputLinkProvider.js';
 import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ILogService, ILoggerService, LogLevel, LogLevelToString } from '../../../../platform/log/common/log.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { DelegatedOutputChannelModel, FileOutputChannelModel, IOutputChannelModel, MultiFileOutputChannelModel } from '../common/outputChannelModel.js';
+// test-workbench_change start
+import { AbstractFileOutputChannelModel, DelegatedOutputChannelModel, FileOutputChannelModel, IOutputChannelModel, MultiFileOutputChannelModel } from '../common/outputChannelModel.js';
+// test-workbench_change end
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { OutputViewPane } from './outputView.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -26,7 +31,12 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { localize } from '../../../../nls.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { telemetryLogId } from '../../../../platform/telemetry/common/telemetryUtils.js';
+// test-workbench_change start
+import { IProductService, isCapturedLogSourceEnabled, isCapturedExtensionIdEnabled, isCapturedOutputChannelNameEnabled, isCapturedLogTraceEnabled, isCapturedLogLevelEnabled } from '../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { telemetryLogId, TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { TraceContextState } from '../../../../base/common/traceContext.js';
+// test-workbench_change end
 import { toLocalISOString } from '../../../../base/common/date.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IDefaultLogLevelsService } from '../../../services/log/common/defaultLogLevels.js';
@@ -47,13 +57,110 @@ class OutputChannel extends Disposable implements IOutputChannel {
 		private readonly outputDirPromise: Promise<void>,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		// test-workbench_change start
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IProductService private readonly productService: IProductService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		// test-workbench_change end
 	) {
 		super();
 		this.id = outputChannelDescriptor.id;
 		this.label = outputChannelDescriptor.label;
 		this.uri = URI.from({ scheme: Schemas.outputChannel, path: this.id });
 		this.model = this._register(this.createOutputChannelModel(this.uri, outputChannelDescriptor));
+		// test-workbench_change start
+		// capturedLog 日志截获：扩展/内置输出内容统一经文件轮询增量读取（AbstractFileOutputChannelModel.appendContent），
+		// 在此注入回调上报，确保覆盖 appendLine 等全部输出路径（OutputChannel.append 对 File 型 model 不可用）。
+		if (this.model instanceof AbstractFileOutputChannelModel || this.model instanceof DelegatedOutputChannelModel) {
+			this.model.onAppendedContent = content => this.reportOutputChannelLog(content);
+		}
+		// test-workbench_change end
 	}
+
+	// test-workbench_change start
+	private readonly _extensionVersionCache = new Map<string, string | undefined>();
+	// 链路追踪状态机（capturedLog 第二阶段）：按 channel 实例独立维护（每个 channel 一条链），
+	// 文件轮询读取无业务调用栈，仅按时间窗判定流程边界。
+	// 同一 traceId 内 traceIndex 从 1 开始递增编号（同一次处理流程的消息按产生顺序排序）。
+	private readonly _traceContext = new TraceContextState();
+
+	private async _getExtensionVersion(extensionId: string | undefined): Promise<string | undefined> {
+		if (!extensionId) {
+			return undefined;
+		}
+		if (this._extensionVersionCache.has(extensionId)) {
+			return this._extensionVersionCache.get(extensionId);
+		}
+		let version: string | undefined;
+		try {
+			const ext = await this.extensionService.getExtension(extensionId);
+			version = ext?.version;
+		} catch {
+			version = undefined;
+		}
+		this._extensionVersionCache.set(extensionId, version);
+		return version;
+	}
+
+	private async reportOutputChannelLog(content: string): Promise<void> {
+		// Telemetry 日志 channel 的内容本身就是上报动作的副产物（TelemetryLogAppender 会把每条 telemetry
+		// 事件写回该 channel）。若对它也上报，上报日志又会写回该 channel，形成"截获->上报->写回->再截获"
+		// 的递归循环（本地日志无限膨胀，且每次 publicLog 都会经 OneDataSystemAppender 网络上报）。
+		// 故排除该 channel：id 恒为 telemetryLogId，label 视 nls 可能为英文 "Telemetry" 或中文 "遥测"，一并拦截。
+		if (this.id === telemetryLogId || this.label === 'Telemetry' || this.label === '遥测') {
+			return;
+		}
+		// 配置开关：product.json 的 capturedLog.logSourceEnabled 不含 'outputChannel' 时不上报；
+		// 配置维度：capturedLog.extensionIdEnabled 决定该 extensionId 是否上报，
+		// capturedLog.outputChannelNameEnabled 决定该 outputChannelName（this.label）是否上报；
+		// 两者为 OR 关系，再与 logSourceEnabled 做 AND：满足任一维度即上报。
+		if (isCapturedLogSourceEnabled(this.productService, 'outputChannel') && (isCapturedExtensionIdEnabled(this.productService, this.outputChannelDescriptor.extensionId) || isCapturedOutputChannelNameEnabled(this.productService, this.label))) {
+			const extensionVersion = await this._getExtensionVersion(this.outputChannelDescriptor.extensionId);
+			// 增量内容来自日志文件的原始字节，末尾可能带行尾换行符（Windows 下为 \r\n）。
+			// 该换行符是文件行尾而非日志正文，上报前清理尾部换行（仅尾部，多行内容内部的换行保留），
+			// 与其他链路（extensionHost/webview）的 message 格式保持一致。
+			const cleanContent = content.replace(/(\r?\n)+$/, '');
+			// logLevelEnabled 级别过滤（方案 2，四条链路统一应用）：解析行首级别标记（_parseLogLevel
+			// 为纯函数无副作用），过滤判断先于 trace 状态机推进（next）——被过滤日志不占 traceIndex
+			// （编号连续）且不上报；日志文件内容本身不受影响（输出通道显示零变化）。
+			const logLevel = this._parseLogLevel(cleanContent);
+			if (!isCapturedLogLevelEnabled(this.productService, logLevel)) {
+				return;
+			}
+			// 链路追踪（capturedLog 第二阶段）：产生侧（本 channel 实例）赋值。outputChannel 为
+			// 文件轮询增量读取、无业务调用栈，仅按时间窗判定流程边界（TRACE_WINDOW_MS（3s）内
+			// 连续读取视为同一次处理流程）。
+			// 下沉：traceEnabled 关闭时跳过状态机推进与 trace 字段（与改动前行为一致）。
+			const traceEnabled = isCapturedLogTraceEnabled(this.productService);
+			const traceFields = traceEnabled ? this._traceContext.next(undefined) : undefined;
+			this.telemetryService.publicLog('capturedLog', {
+				message: new TelemetryTrustedValue(cleanContent),
+				logSource: 'outputChannel',
+				// log 型通道（Extension Host 等）由 spdlog 写入，行首带 "[level]" 级别标记，
+				// 解析首行标记映射为与其他链路一致的缩写 logLevel；纯文本通道无标记时保持 'info'。
+				logLevel,
+				extensionId: this.outputChannelDescriptor.extensionId,
+				...(extensionVersion ? { extensionVersion } : {}),
+				outputChannelName: this.label,
+				...(traceFields ? { traceId: traceFields.traceId, traceIndex: traceFields.traceIndex } : {})
+			});
+		}
+	}
+
+	// log 型通道（如 Extension Host 日志）由 spdlog 按 "%Y-%m-%d %H:%M:%S.%e [%l] %v" 写入文件，
+	// 每行行首带 [info]/[error]/[warning]/[debug]/[trace] 级别标记；普通 appendLine 输出的纯文本无标记。
+	// 增量读取内容通常以完整行开头，此处解析首行标记，映射为与其他链路（extensionHost/webview）
+	// 一致的缩写 logLevel（warning -> warn），解析失败时返回默认 'info'。
+	private _parseLogLevel(content: string): 'info' | 'warn' | 'error' | 'debug' | 'trace' {
+		const match = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}\s\[(info|trace|debug|error|warning)\]/.exec(content)
+			|| /^\[(info|trace|debug|error|warning)\]\s/.exec(content);
+		if (match) {
+			const level = match[1];
+			return level === 'warning' ? 'warn' : level as 'info' | 'warn' | 'error' | 'debug' | 'trace';
+		}
+		return 'info';
+	}
+	// test-workbench_change end
 
 	private createOutputChannelModel(uri: URI, outputChannelDescriptor: IOutputChannelDescriptor): IOutputChannelModel {
 		const language = outputChannelDescriptor.languageId ? this.languageService.createById(outputChannelDescriptor.languageId) : this.languageService.createByMimeType(outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME);
@@ -71,6 +178,7 @@ class OutputChannel extends Disposable implements IOutputChannel {
 	}
 
 	append(output: string): void {
+		// capturedLog 日志截获已在 model 层（onAppendedContent 回调）统一处理，此处仅正常写入
 		this.model.append(output);
 	}
 

@@ -327,5 +327,25 @@
 	"extensionsAutoInstall": [
 		"test-tech.test-task-manager",
 		"test-tech.testcase-select"
-	]
+	],
+	"capturedLog": {
+		"logSourceEnabled": [
+			"extensionHost",
+			"webview",
+			"outputChannel",
+			"renderer"
+		],
+        "extensionIdEnabled": [
+            "test-tech.hello-plugin-sample",
+            "test-tech.TestAgent",
+            "test-tech.test-task-manager",
+            "test-tech.mind-map",
+            "test-tech.testcase-select"
+        ],
+		"outputChannelNameEnabled": [
+			"Extension Host"
+	    ],
+		"logLevelEnabled": ["info","warn","error","debug","trace"],
+	    "traceEnabled": true
+	}
 }

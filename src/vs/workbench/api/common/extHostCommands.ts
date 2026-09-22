@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { validateConstraint } from '../../../base/common/types.js';
+// test-workbench_change start
+import { resetTraceContext } from '../../../base/common/traceContext.js';
+// test-workbench_change end
 import { ICommandMetadata } from '../../../platform/commands/common/commands.js';
 import * as extHostTypes from './extHostTypes.js';
 import * as extHostTypeConverter from './extHostTypeConverters.js';
@@ -244,6 +247,12 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 
 		const stopWatch = StopWatch.create();
+		// test-workbench_change start
+		// 命令边界重置 traceId：执行前重置使本命令日志从 traceIndex 1 开始独立成 trace；
+		// finally 中命令结束再重置，隔离下一条命令（解决匿名回调指纹相同 + 间隔在时间窗内
+		// 两次不同命令被误合并成同一 traceId 的问题）。
+		resetTraceContext();
+		// test-workbench_change end
 		try {
 			return await callback.apply(thisArg, args);
 		} catch (err) {
@@ -278,6 +287,11 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 		finally {
 			this._reportTelemetry(command, id, stopWatch.elapsed());
+			// test-workbench_change start
+			// 命令结束：重置 trace 状态，使下一条命令（即使调用路径指纹相同、间隔在时间窗内）
+			// 也会开启新 trace，避免被误合并。
+			resetTraceContext();
+			// test-workbench_change end
 		}
 	}
 

@@ -1,3 +1,12 @@
+# test-workbench_change - new file
+# 与 docker-compose.yml 生产上之前版本的差异（仅 2 处，均在 es-setup）：
+#   1) logstash_writer / telemetry_viewer 角色 index.names
+#      追加 "tscode-captured-log-*"（否则 capturedLog 事件会 403 丢失）
+#   2) 新增 tscode-captured-log 索引模板（与 raw 同构，防字段爆炸）
+# 其它（容器名、端口、数据目录、logstash 挂载）全部保持不变
+#
+#
+
 services:
   elasticsearch:
     image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/elasticsearch:8.18.1
@@ -8,19 +17,21 @@ services:
       - discovery.type=single-node
       - cluster.name=tscode-telemetry-cluster
       - node.name=node-1
-      - xpack.ml.enabled=false
+      - xpack.ml.enabled=true
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=false
       - xpack.security.transport.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms16g -Xmx16g -XX:+UseG1GC
+      - path.repo=/usr/share/elasticsearch/snapshot
     ports:
       - "9200:9200"
       - "9300:9300"
     volumes:
-      - elasticsearch-data:/usr/share/elasticsearch/data
+      - /var/lib/elasticsearch:/usr/share/elasticsearch/data
       - /etc/localtime:/etc/localtime:ro
+      - /var/lib/elasticsearch-snapshot:/usr/share/elasticsearch/snapshot
     networks:
       - elk
-      - telemetry_elk
     healthcheck:
       test: ["CMD-SHELL", "curl -f -u elastic:Admin@123456 http://localhost:9200/_cluster/health || exit 1"]
       interval: 30s
@@ -45,28 +56,30 @@ services:
         echo "=== 设置 kibana_system 密码 ===" &&
         curl -s -X POST -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_security/user/kibana_system/_password -d '{"password":"Kibana@123456"}' &&
         echo "=== 创建 logstash_writer 角色 ===" &&
-        curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_security/role/logstash_writer -d '{"cluster":["monitor","manage_index_templates"],"indices":[{"names":["tscode-telemetry-*"],"privileges":["create_index","create","index","write","manage"]}]}' &&
+        curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_security/role/logstash_writer -d '{"cluster":["monitor","manage_index_templates"],"indices":[{"names":["tscode-telemetry-*","tscode-captured-log-*"],"privileges":["create_index","create","index","write","manage"]}]}' &&
         echo "=== 创建 logstash_user 用户 ===" &&
         curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_security/user/logstash_user -d "{\"password\":\"$$LOGSTASH_PASSWORD\",\"roles\":[\"logstash_writer\"],\"full_name\":\"Logstash Writer\"}" &&
         echo "=== 创建 telemetry_viewer 角色 ===" &&
-        curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_security/role/telemetry_viewer -d '{"cluster":["monitor"],"indices":[{"names":["tscode-telemetry-*"],"privileges":["read","view_index_metadata"]}],"applications":[{"application":"kibana-.kibana","privileges":["read"],"resources":["*"]}]}' &&
+        curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_security/role/telemetry_viewer -d '{"cluster":["monitor"],"indices":[{"names":["tscode-telemetry-*","tscode-captured-log-*"],"privileges":["read","view_index_metadata"]}],"applications":[{"application":"kibana-.kibana","privileges":["read"],"resources":["*"]}]}' &&
         echo "=== 创建 viewer 访客用户 ===" &&
         curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_security/user/viewer -d "{\"password\":\"$$VIEWER_PASSWORD\",\"roles\":[\"telemetry_viewer\"],\"full_name\":\"Telemetry Viewer\"}" &&
         echo "=== 注册原始数据索引模板 ===" &&
-        curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_index_template/tscode-telemetry-raw -d '{"index_patterns":["tscode-telemetry-raw-*"],"priority":200,"template":{"settings":{"index.mapping.total_fields.limit":3000,"number_of_shards":1,"number_of_replicas":1,"index.refresh_interval":"5s"},"mappings":{"dynamic":true,"dynamic_templates":[{"strings_as_keywords":{"match_mapping_type":"string","mapping":{"type":"keyword","ignore_above":512}}}],"properties":{"@timestamp":{"type":"date"},"@version":{"type":"keyword"},"type":{"type":"keyword"},"tags":{"type":"keyword"},"name":{"type":"keyword"},"time":{"type":"date"},"iKey":{"type":"keyword"},"ver":{"type":"keyword"}}}},"_meta":{"description":"TSCode 遥测原始数据索引模板 - 防止字段爆炸，字符串统一映射为 keyword","version":"1.0.0"}}' &&
+        curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_index_template/tscode-telemetry-raw -d '{"index_patterns":["tscode-telemetry-raw-*"],"priority":200,"template":{"settings":{"index.mapping.total_fields.limit":3000,"number_of_shards":1,"number_of_replicas":1,"index.refresh_interval":"5s"},"mappings":{"dynamic":true,"dynamic_templates":[{"strings_as_keywords":{"match_mapping_type":"string","mapping":{"type":"keyword","ignore_above":512}}}],"properties":{"@timestamp":{"type":"date"},"@version":{"type":"keyword"},"type":{"type":"keyword"},"tags":{"type":"keyword"},"name":{"type":"keyword"},"time":{"type":"date"},"iKey":{"type":"keyword"},"ver":{"type":"keyword"}}}},"_meta":{"description":"TSCode 遥测原始数据索引模板 - 防止字段爆炸，字符串统一映射为keyword","version":"1.0.0"}}' &&
+        echo "=== 注册 captured-log 索引模板 ===" &&
+        curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_index_template/tscode-captured-log -d '{"index_patterns":["tscode-captured-log-*"],"priority":250,"template":{"settings":{"index.mapping.total_fields.limit":3000,"number_of_shards":1,"number_of_replicas":1,"index.refresh_interval":"5s"},"mappings":{"dynamic":true,"dynamic_templates":[{"strings_as_keywords":{"match_mapping_type":"string","mapping":{"type":"keyword","ignore_above":512}}}],"properties":{"@timestamp":{"type":"date"},"@version":{"type":"keyword"},"type":{"type":"keyword"},"tags":{"type":"keyword"},"name":{"type":"keyword"},"time":{"type":"date"},"iKey":{"type":"keyword"},"ver":{"type":"keyword"}}}},"_meta":{"description":"TSCode capturedLog 索引模板 - 与 raw 同构，防止字段爆炸","version":"1.0.0"}}' &&
         echo "=== 初始化完成 ==="
     restart: "no"
 
   logstash:
     image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/logstash:8.18.1
     container_name: logstash
+    restart: always
     user: root
     environment:
       - TZ=Asia/Shanghai
       - ES_HOSTS=http://elasticsearch:9200
       - ES_USER=logstash_user
       - ES_PASSWORD=Logstash@123456
-      - MONITORING_ENABLED=false # test-workbench_change
     volumes:
       - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
       - /etc/localtime:/etc/localtime:ro
@@ -76,12 +89,11 @@ services:
       - "9600:9600"
     networks:
       - elk
-      - telemetry_elk
     depends_on:
       es-setup:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9600 || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8081 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -97,13 +109,15 @@ services:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - ELASTICSEARCH_USERNAME=kibana_system
       - ELASTICSEARCH_PASSWORD=Kibana@123456
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=b8e7a9f4c1d23e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9
+      - XPACK_SECURITY_ENCRYPTIONKEY=c9f0b1a2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9
+      - XPACK_REPORTING_ENCRYPTIONKEY=d0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0
     volumes:
       - /etc/localtime:/etc/localtime:ro
     ports:
       - "5601:5601"
     networks:
       - elk
-      - telemetry_elk
     depends_on:
       es-setup:
         condition: service_completed_successfully
@@ -113,6 +127,23 @@ services:
       timeout: 10s
       retries: 5
 
+  otel-collector:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.148.0
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yml"]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel-collector-config.yml:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - elk
+
+
+
 volumes:
   elasticsearch-data:
     driver: local
@@ -120,6 +151,3 @@ volumes:
 networks:
   elk:
     driver: bridge
-  telemetry_elk:
-    external: true
-    name: telemetry_elk # test-workbench_change

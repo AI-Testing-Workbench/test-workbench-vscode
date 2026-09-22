@@ -21,6 +21,9 @@ import { boolean } from '../../../editor/common/config/editorOptions.js';
 import product from '../../../platform/product/common/product.js';
 import { ExtensionHostMain, IExitFn } from '../common/extensionHostMain.js';
 import { IHostUtils } from '../common/extHostExtensionService.js';
+// test-workbench_change start
+import { setCurrentConsoleStack } from '../common/consoleCaptureShared.js';
+// test-workbench_change end
 import { createURITransformer } from '../../../base/common/uriTransformer.js';
 import { ExtHostConnectionType, readExtHostConnection } from '../../services/extensions/common/extensionHostEnv.js';
 import { ExtensionHostExitCode, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, IExtHostSocketMessage, IExtensionHostInitData, MessageType, createMessageOfType, isMessageOfType } from '../../services/extensions/common/extensionHostProtocol.js';
@@ -337,7 +340,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 			first.dispose();
 
 			const initData = <IExtensionHostInitData>JSON.parse(raw.toString());
-
+			// test-workbench_change start
 			if (!process.env.VSCODE_DISABLE_CLIENT_VALIDATION) { // test-workbench_change start
 				const rendererCommit = initData.commit;
 				const myCommit = product.commit;
@@ -348,7 +351,8 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 						nativeExit(ExtensionHostExitCode.VersionMismatch);
 					}
 				}
-			} // test-workbench_change end
+			}
+			// test-workbench_change end
 
 			if (initData.parentPid) {
 				// Kill oneself if one's parent dies. Much drama.
@@ -410,13 +414,25 @@ async function startExtensionHostProcess(): Promise<void> {
 				promise.catch(e => {
 					unhandledPromises.splice(idx, 1);
 					if (!isCancellationError(e)) {
-						console.warn(`rejected promise not handled within 1 second: ${e}`);
-						if (e && e.stack) {
-							console.warn(`stack trace: ${e.stack}`);
+						// test-workbench_change start
+						// 此处 console.warn 发生在 setTimeout 异步回调中，new Error().stack 不含插件路径，
+						// 无法反查扩展；而被 reject 的 Error 对象栈（e.stack）在创建时捕获、含插件路径，
+						// 因此先写入共享通道，供 extHostConsoleForwarder 的 _findExtensionInfo 优先匹配。
+						setCurrentConsoleStack(e && e.stack);
+						try {
+							console.warn(`rejected promise not handled within 1 second: ${e}`);
+							if (e && e.stack) {
+								console.warn(`stack trace: ${e.stack}`);
+							}
+						} finally {
+							setCurrentConsoleStack(undefined);
 						}
-						if (reason) {
+						// 非 Error 的 reason（如空对象 {}）无 stack/message，无法反查扩展来源，
+						// 原样上报主进程只会触发 "出现未知错误" 噪音，故仅上报 Error 实例。
+						if (reason instanceof Error) {
 							onUnexpectedError(reason);
 						}
+						// test-workbench_change end
 					}
 				});
 			}

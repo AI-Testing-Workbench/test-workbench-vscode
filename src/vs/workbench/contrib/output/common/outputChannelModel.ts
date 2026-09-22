@@ -478,6 +478,10 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 	private replacePromise: Promise<void> | undefined;
 
 	abstract readonly source: IOutputContentSource | ReadonlyArray<IOutputContentSource>;
+	// test-workbench_change start
+	// capturedLog 日志截获：由 OutputChannel 注入的回调，接收文件轮询读取到的增量内容
+	onAppendedContent: ((content: string) => void) | undefined = undefined;
+	// test-workbench_change end
 
 	constructor(
 		private readonly modelUri: URI,
@@ -487,6 +491,15 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 	) {
 		super();
+		// test-workbench_change start
+		// capturedLog 日志截获：尽早启动文件轮询并注册 onDidAppend/onDidReset 响应。
+		// 扩展 appendLine 在 channel 不可见时不主动 $update（见 ExtHostOutputChannel.log）；
+		// 若 channel 从未打开（model 未加载），loadModel 内的监听尚未注册，轮询发现的增量无消费者，
+		// 故在此兜底注册，保证增量内容能被截获上报（Telemetry 等本地 append 走 update 显式读取，不受影响）。
+		this.outputContentProvider.watch();
+		this._register(this.outputContentProvider.onDidAppend(() => this.onDidContentChange(false, false)));
+		this._register(this.outputContentProvider.onDidReset(() => this.onDidContentChange(true, true)));
+		// test-workbench_change end
 	}
 
 	async loadModel(): Promise<ITextModel> {
@@ -494,11 +507,20 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 			try {
 				this.modelDisposable.value = new DisposableStore();
 				this.model = this.modelService.createModel('', this.language, this.modelUri);
+				// test-workbench_change start
+				// 修复首次打开 channel 看不到已输出内容：构造函数兜底注册的 onDidAppend 在 model 未加载时
+				// 已消费（consume）过文件增量，导致 getContent() 从 endOffset 读取为空。此处先 reset() 回文件头，
+				// 保证首次打开从头显示全部内容（与上游行为一致；切走再切回时 onWillDispose 本就会 reset）。
+				this.outputContentProvider.reset();
+				// test-workbench_change end
 				const { content, consume } = await this.outputContentProvider.getContent();
 				consume();
 				this.doAppendContent(this.model, content);
-				this.modelDisposable.value.add(this.outputContentProvider.onDidReset(() => this.onDidContentChange(true, true)));
-				this.modelDisposable.value.add(this.outputContentProvider.onDidAppend(() => this.onDidContentChange(false, false)));
+				// test-workbench_change start
+				// onDidReset/onDidAppend 已在构造函数注册（覆盖 model 未加载场景），此处不再重复注册，避免双重上报
+				// this.modelDisposable.value.add(this.outputContentProvider.onDidReset(() => this.onDidContentChange(true, true)));
+				// this.modelDisposable.value.add(this.outputContentProvider.onDidAppend(() => this.onDidContentChange(false, false)));
+				// test-workbench_change end
 				this.outputContentProvider.watch();
 				this.modelDisposable.value.add(toDisposable(() => this.outputContentProvider.unwatch()));
 				this.modelDisposable.value.add(this.model.onWillDispose(() => {
@@ -530,9 +552,13 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		if (mode === OutputChannelUpdateMode.Clear || mode === OutputChannelUpdateMode.Replace) {
 			this.cancelModelUpdate();
 		}
-		if (!this.model) {
+		// test-workbench_change start
+		// capturedLog 截获：model 未加载（channel 未在视图中打开）时，Clear/Replace 无需处理；
+		// 但 Append 仍需读取文件增量用于日志截获上报（不显示）。
+		if (!this.model && mode !== OutputChannelUpdateMode.Append) {
 			return;
 		}
+		// test-workbench_change end
 
 		this.modelUpdateInProgress = true;
 		if (!this.modelUpdateCancellationSource.value) {
@@ -541,11 +567,19 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		const token = this.modelUpdateCancellationSource.value.token;
 
 		if (mode === OutputChannelUpdateMode.Clear) {
-			this.clearContent(this.model);
+			// test-workbench_change start
+			if (this.model) {
+				this.clearContent(this.model);
+			}
+			// test-workbench_change end
 		}
 
 		else if (mode === OutputChannelUpdateMode.Replace) {
-			this.replacePromise = this.replaceContent(this.model, token).finally(() => this.replacePromise = undefined);
+			// test-workbench_change start
+			if (this.model) {
+				this.replacePromise = this.replaceContent(this.model, token).finally(() => this.replacePromise = undefined);
+			}
+			// test-workbench_change end
 		}
 
 		else {
@@ -558,8 +592,10 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		this.modelUpdateInProgress = false;
 	}
 
-	private appendContent(model: ITextModel, immediate: boolean, token: CancellationToken): void {
+	// test-workbench_change start
+	private appendContent(model: ITextModel | null, immediate: boolean, token: CancellationToken): void {
 		this.appendThrottler.trigger(async () => {
+			// test-workbench_change end
 			/* Abort if operation is cancelled */
 			if (token.isCancellationRequested) {
 				return;
@@ -583,7 +619,15 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 
 			/* Appned Content */
 			consume();
-			this.doAppendContent(model, content);
+			// test-workbench_change start
+			// capturedLog 日志截获：无论 model 是否已加载，读取到的增量内容都交由回调上报
+			if (this.onAppendedContent && content) {
+				this.onAppendedContent(content);
+			}
+			if (model) {
+				this.doAppendContent(model, content);
+			}
+			// test-workbench_change end
 			this.modelUpdateInProgress = false;
 		}, immediate ? 0 : undefined).catch(error => {
 			if (!isCancellationError(error)) {
@@ -791,6 +835,10 @@ export class DelegatedOutputChannelModel extends Disposable implements IOutputCh
 
 	private readonly outputChannelModel: Promise<IOutputChannelModel>;
 	readonly source: IOutputContentSource;
+	// test-workbench_change start
+	// capturedLog 日志截获：转发给内部 OutputChannelBackedByFile 的上报回调
+	onAppendedContent: ((content: string) => void) | undefined = undefined;
+	// test-workbench_change end
 
 	constructor(
 		id: string,
@@ -812,6 +860,10 @@ export class DelegatedOutputChannelModel extends Disposable implements IOutputCh
 		const file = resources.joinPath(outputDir, `${id.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
 		await this.fileService.createFile(file);
 		const outputChannelModel = this._register(this.instantiationService.createInstance(OutputChannelBackedByFile, id, modelUri, language, file));
+		// test-workbench_change start
+		// capturedLog 日志截获：把内部模型读取到的增量内容转发给上层回调
+		outputChannelModel.onAppendedContent = (content) => this.onAppendedContent?.(content);
+		// test-workbench_change end
 		this._register(outputChannelModel.onDispose(() => this._onDispose.fire()));
 		return outputChannelModel;
 	}

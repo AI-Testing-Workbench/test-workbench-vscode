@@ -5,6 +5,9 @@
 
 import { AbstractExtHostConsoleForwarder } from '../common/extHostConsoleForwarder.js';
 import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
+// test-workbench_change start
+import { IExtHostExtensionService } from '../common/extHostExtensionService.js';
+// test-workbench_change end
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { NativeLogMarkers } from '../../services/extensions/common/extensionHostProtocol.js';
 
@@ -17,8 +20,13 @@ export class ExtHostConsoleForwarder extends AbstractExtHostConsoleForwarder {
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
+		// test-workbench_change start
+		@IExtHostExtensionService extHostExtensionService: IExtHostExtensionService,
+		// test-workbench_change end
 	) {
-		super(extHostRpc, initData);
+		// test-workbench_change start
+		super(extHostRpc, initData, extHostExtensionService);
+		// test-workbench_change end
 
 		this._wrapStream('stderr', 'error');
 		this._wrapStream('stdout', 'log');

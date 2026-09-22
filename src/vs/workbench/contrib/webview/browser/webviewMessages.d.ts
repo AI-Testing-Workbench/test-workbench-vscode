@@ -42,6 +42,11 @@ export type FromWebviewMessage = {
 	'drag-start': void;
 	'drag': WebViewDragEvent;
 	'updated-intrinsic-content-size': { width: number; height: number };
+	// test-workbench_change start
+	// 扩展 webview 日志截获上报（pre/index.html 转发），携带消息内容、日志级别与
+	// 链路追踪字段（traceId/traceIndex 在 webview 截获脚本产生侧赋值）
+	'__vscode-log-capture': { message: string; logLevel?: string; traceId?: string; traceIndex?: number };
+	// test-workbench_change end
 };
 
 interface UpdateContentEvent {
@@ -51,6 +56,18 @@ interface UpdateContentEvent {
 		allowMultipleAPIAcquire: boolean;
 		allowScripts: boolean;
 		allowForms: boolean;
+		// test-workbench_change start
+		// capturedLog 注入决策下沉（宿主 webviewElement 计算后透传）：
+		// logCaptureEnabled 为 logSourceEnabled('webview') 与 extensionIdEnabled 的合成
+		// （false 时不注入截获脚本，postMessage 全链路归零）；
+		// logCaptureTraceEnabled 为 capturedLog.traceEnabled（控制脚本内 traceId 计算）；
+		// logCaptureLogLevels 为 capturedLog.logLevelEnabled（'all' | 级别数组 | undefined，
+		// 控制脚本内级别过滤，过滤判断先于 trace 推进，被过滤日志不占 traceIndex）。
+		logCaptureEnabled?: boolean;
+		logCaptureTraceEnabled?: boolean;
+		// 与 product.ts 的 logLevelEnabled?: string | readonly string[] 保持一致
+		logCaptureLogLevels?: string | readonly string[];
+		// test-workbench_change end
 	};
 	state: any;
 	cspSource: string;

@@ -54,6 +54,23 @@ export interface IExtensionHostInitData {
 	autoStart: boolean;
 	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null };
 	consoleForward: { includeStack: boolean; logNative: boolean };
+	// test-workbench_change start
+	/**
+	 * capturedLog 功能在产生侧（extensionHost 进程）的合成配置（渲染进程从 product.json 计算后传入）：
+	 * - logSourceEnabled：capturedLog.logSourceEnabled 是否含 'extensionHost'
+	 * - extensionIdEnabled：'all' | string[] | undefined（undefined = 无名单，产生侧按关闭处理）
+	 * - traceEnabled：capturedLog.traceEnabled
+	 * - logLevelEnabled：'all' | string[] | undefined（undefined = 无名单，产生侧按全部屏蔽处理；
+	 *   过滤判断须在 trace 状态机推进（next）之前完成，被过滤日志不占 traceIndex）
+	 * 未提供该字段（remote / web worker 等场景）时，产生侧默认全部关闭。
+	 */
+	capturedLog?: {
+		logSourceEnabled: boolean;
+		extensionIdEnabled: 'all' | string[] | undefined;
+		traceEnabled: boolean;
+		logLevelEnabled: 'all' | string[] | undefined;
+	};
+	// test-workbench_change end
 	uiKind: UIKind;
 	messagePorts?: ReadonlyMap<string, MessagePortLike>;
 	handle?: string;

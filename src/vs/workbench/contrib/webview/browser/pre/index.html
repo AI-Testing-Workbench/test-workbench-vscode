@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-TaWGDzV7c9rUH2q/5ygOyYUHSyHIqBMYfucPh3lnKvU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-ySATChdeAn/eOILF90OcWrC9aOhfhz7K+Pxk8Oy8zW0=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -244,6 +244,223 @@
 					window.frameElement = null;
 				`;
 		}
+
+		// test-workbench_change start
+		/**
+		 * 生成“日志截获脚本”：包装 console 方法（log/info/warn/error/debug/trace/dir/assert），
+		 * 并监听 unhandledrejection 与 window error 事件。
+		 * 该脚本注入到扩展 webview 内容所在的 iframe 文档中，先于 vscodeApiScript 执行，
+		 * 因此能截获扩展 webview 内的所有控制台输出，并将日志通过 postMessage
+		 * 发送到父窗口（webview 宿主 pre/index.html），由宿主转发到 vscode 主线程。
+	 * @param {boolean} traceEnabled capturedLog.traceEnabled（宿主透传）：关闭时脚本跳过
+	 *   traceId 计算与栈指纹提取（traceEnabled 下沉，与改动前行为一致），消息不带 trace 字段。
+	 * @param {string|string[]|undefined} logLevels capturedLog.logLevelEnabled（宿主透传）：
+	 *   'all' 或有效级别数组（info/warn/error/debug/trace）；未配置（undefined）时全部屏蔽。
+	 *   过滤判断在 trace 状态机推进（safeTraceFields）之前执行，被过滤日志不占 traceIndex
+	 *   （编号连续）且不发送 postMessage（仅影响上报，webview 自身 console 输出不受影响）。
+	 * @return {string}
+	 */
+	function getLogCaptureScript(traceEnabled, logLevels) {
+		return /* js */`
+			(function() {
+				if (globalThis.__vscodeLogCaptureInstalled) { return; }
+				globalThis.__vscodeLogCaptureInstalled = true;
+
+				// capturedLog 注入决策下沉（宿主透传 traceEnabled / logLevels）：
+				// traceEnabled 关闭时跳过 traceId 计算与 new Error().stack 栈捕获（与改动前行为一致）。
+				const TRACE_ENABLED = ${!!traceEnabled};
+
+				// 级别过滤（capturedLog.logLevelEnabled 下沉，四条链路统一应用）：
+				// LOG_LEVEL_ENABLED 为 'all'（全放行）、级别数组（仅放行数组内级别）或 null（全部屏蔽）。
+				// 过滤判断先于 safeTraceFields（trace 状态机推进）执行——被过滤日志不占 traceIndex
+				// （编号连续），且不发送 postMessage（上报归零；webview 自身 console 输出不受影响，
+				// native(...) 已在包装内先行执行）。
+				const LOG_LEVEL_ENABLED = ${JSON.stringify(logLevels ?? null)};
+				const isLogLevelAllowed = (logLevel) => {
+					if (LOG_LEVEL_ENABLED === 'all') { return true; }
+					if (Array.isArray(LOG_LEVEL_ENABLED)) { return LOG_LEVEL_ENABLED.indexOf(logLevel) >= 0; }
+					return false;
+				};
+
+				// 保存真实父窗口引用（webview 宿主 pre/index.html）。
+					// 注意：vscodeApiScript 稍后会执行 window.parent = window 覆盖该引用，
+					// 因此本脚本必须先于 vscodeApiScript 注入执行，才能拿到真实父窗口。
+					const realParent = window.parent;
+
+					// 链路追踪（capturedLog 第二阶段）：同一次“业务处理流程”的日志共享 traceId；
+					// traceIndex 为同一 traceId 内的消息顺序编号（从 1 开始递增）。
+					// 说明：spanId/parentSpanId 的语义是标识多个处理节点（进程）的先后顺序，
+					// 本场景是同一进程内的一条消息流，无多节点概念，故不使用这两个字段。
+				// 边界判定：调用路径指纹一致且间隔在 TRACE_WINDOW_MS 内视为同一次流程；
+				// 指纹取调用栈（跳过首行与截获脚本自身 1 帧，去掉行号列号）。
+				// 时间窗取 3s 的平衡点：过短（1s）会把异步步骤误拆成多个 traceId；
+				// 过长（30s）会把指纹近似的不同业务流（同文件匿名帧）误合并。
+				const TRACE_WINDOW_MS = 3000;
+					let traceState = null;
+					const genId = () => {
+						if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+							return crypto.randomUUID();
+						}
+						return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+							const r = Math.random() * 16 | 0;
+							const v = c === 'x' ? r : (r & 0x3 | 0x8);
+							return v.toString(16);
+						});
+					};
+					// skipFrames：显式跳过调用栈顶部帧数。
+					//  - console 包装的 new Error() 栈顶是截获脚本包装帧（文件名为扩展 webview 自身
+					//    文档路径，无法按模式排除），须跳 1 帧（skipFrames=1）；
+					//  - unhandledrejection/error 的错误对象栈由业务代码创建、不含截获脚本帧，
+					//    只跳过首行“Error: ...”行（skipFrames=0）。若误用 1，内联脚本
+					//    （<anonymous> 单帧栈）的仅有业务帧会被删除导致指纹为空、独立成 traceId。
+					const extractStackKey = (stack, skipFrames = 0) => {
+						if (!stack) { return undefined; }
+						const frames = stack.split('\\n').slice(1 + skipFrames).map((line) => line.trim()).filter(Boolean);
+						const keys = [];
+						for (const frame of frames) {
+							if (frame.indexOf('__vscode_log_capture__') >= 0) { continue; }
+							keys.push(frame.replace(/:\\d+:\\d+\\)?\\s*$/, ''));
+							if (keys.length >= 3) { break; }
+						}
+						return keys.length > 0 ? keys.join('|') : undefined;
+					};
+					const nextTraceFields = (stackKey) => {
+						const now = Date.now();
+						if (traceState && stackKey === traceState.lastStackKey && now - traceState.lastTimestamp <= TRACE_WINDOW_MS) {
+							const traceIndex = traceState.traceIndex + 1;
+							traceState.traceIndex = traceIndex;
+							traceState.lastStackKey = stackKey;
+							traceState.lastTimestamp = now;
+							return { traceId: traceState.traceId, traceIndex };
+						}
+						const traceId = genId();
+						traceState = { traceId, traceIndex: 1, lastStackKey: stackKey, lastTimestamp: now };
+						return { traceId, traceIndex: 1 };
+					};
+
+					// 通过 postMessage 将日志发送到父窗口（pre/index.html），
+					// 由宿主转发到 vscode 主线程。用 source 标记区分消息来源。
+					// 链路字段由本脚本（产生侧）赋值，随消息一并发送。
+					const sendToParent = (message, logLevel, traceFields) => {
+						try {
+							realParent.postMessage({
+								source: '__vscode_log_capture__',
+								message: String(message),
+								logLevel: logLevel || 'info',
+								...(traceFields ? { traceId: traceFields.traceId, traceIndex: traceFields.traceIndex } : {})
+							}, '*');
+						} catch (e) {
+							// 发送失败时静默忽略（不影响原输出）
+						}
+					};
+
+					// trace 计算统一走安全包装：extractStackKey / nextTraceFields 为纯字符串与
+					// 数字操作，理论异常面极小，但本脚本注入到三方扩展 webview 文档中，统一
+					// try/catch 兜底——意外抛错时降级为无 trace 字段（undefined），不影响
+					// 日志截获与发送，也不破坏扩展 webview 内的 console 调用。
+					// traceEnabled 关闭时直接短路（跳过栈捕获），与改动前行为一致。
+					const safeTraceFields = (stack, skipFrames = 0) => {
+						if (!TRACE_ENABLED) { return undefined; }
+						try {
+							return nextTraceFields(extractStackKey(stack, skipFrames));
+						} catch (e) {
+							return undefined;
+						}
+					};
+
+					const argsToString = (args) => {
+						const result = [];
+						for (let i = 0; i < args.length; i++) {
+							const arg = args[i];
+							try {
+								if (typeof arg === 'string') { result.push(arg); continue; }
+								if (arg instanceof Error) { result.push(arg.stack || (arg.name + ': ' + arg.message)); continue; }
+								const json = JSON.stringify(arg);
+								result.push(json === undefined ? String(arg) : json);
+							} catch (e) {
+								result.push(String(arg));
+							}
+						}
+						return result.join(' ');
+					};
+
+					const nativeConsole = {
+						log: console.log.bind(console),
+						info: console.info.bind(console),
+						warn: console.warn.bind(console),
+						error: console.error.bind(console),
+						debug: console.debug.bind(console),
+						trace: console.trace.bind(console),
+						dir: console.dir.bind(console),
+						assert: console.assert.bind(console)
+					};
+
+					// 根据截获来源映射日志级别：error/warn/debug/trace 各归其位，
+					// log、info、dir 及其他一般输出统一为 info。
+					const methodToLogLevel = (method) => {
+						switch (method) {
+							case 'error': return 'error';
+							case 'warn': return 'warn';
+							case 'debug': return 'debug';
+							case 'trace': return 'trace';
+							default: return 'info';
+						}
+					};
+
+					for (const method of ['log', 'info', 'warn', 'error', 'debug', 'trace', 'dir']) {
+						const native = nativeConsole[method];
+						console[method] = (...args) => {
+							native(...args);
+							// native('webview已截获日志:' + method + ' ' + argsToString(args));
+							// 只把原始日志内容发送到父窗口（不带“webview已截获日志”前缀），并携带 logLevel 与链路字段
+							// 级别过滤（logLevelEnabled）：被过滤级别不发送 postMessage（上报归零）；
+							// safeTraceFields 在过滤判断之后才求值——不推进 trace 状态机（不占 traceIndex）。
+							const level = methodToLogLevel(method);
+							if (isLogLevelAllowed(level)) {
+								sendToParent(argsToString(args), level, safeTraceFields(new Error().stack, 1));
+							}
+						};
+					}
+
+					// console.assert 签名特殊：第一个参数是断言条件而非输出内容，
+					// 且断言成功时无输出、仅失败时输出 warn 级消息（与原生 assert 语义一致），故不能并入上方循环，需单独处理。
+					const nativeAssert = nativeConsole.assert;
+					console.assert = (condition, ...args) => {
+						nativeAssert(condition, ...args);
+						// 级别过滤：assert 失败固定 warn 级（与 README 映射表一致），被过滤时不发送 postMessage
+						if (!condition && isLogLevelAllowed('warn')) {
+							sendToParent(args.length > 0 ? ('Assertion failed: ' + argsToString(args)) : 'Assertion failed', 'warn', safeTraceFields(new Error().stack, 1));
+						}
+					};
+
+					window.addEventListener('unhandledrejection', (event) => {
+						const reason = event.reason;
+						const content = (reason instanceof Error) ? (reason.stack || (reason.name + ': ' + reason.message)) : String(reason);
+						// nativeConsole.log('webview已截获日志:unhandledrejection ' + content);
+						// 用被 reject 的 Error 对象自身栈做指纹（错误产生位置的调用路径）。
+						// 该栈由业务代码创建、不含截获脚本帧，skipFrames 传 0（仅跳过首行），
+						// 否则内联脚本（<anonymous> 单帧栈）的仅有业务帧会被删除，指纹为空而独立成 traceId。
+						// 级别过滤：unhandledrejection 固定 error 级，被过滤时不发送 postMessage
+						if (isLogLevelAllowed('error')) {
+							sendToParent(content, 'error', safeTraceFields(reason instanceof Error ? reason.stack : undefined, 0));
+						}
+					});
+
+					window.addEventListener('error', (event) => {
+						const error = event.error;
+						const content = (error instanceof Error) ? (error.stack || (error.name + ': ' + error.message)) : (event.message || String(error));
+						// nativeConsole.log('webview已截获日志:error ' + content);
+						// 用错误对象自身栈做指纹（错误产生位置的调用路径），不含截获脚本帧，skipFrames 传 0（仅跳过首行）
+						// 级别过滤：error 事件固定 error 级，被过滤时不发送 postMessage
+						if (isLogLevelAllowed('error')) {
+							sendToParent(content, 'error', safeTraceFields(error instanceof Error ? error.stack : undefined, 0));
+						}
+					});
+
+				})();
+			`;
+		}
+		// test-workbench_change end
 
 		/** @type {Promise<void>} */
 		const workerReady = new Promise((resolve, reject) => {
@@ -891,6 +1108,24 @@
 				defaultScript.id = '_vscodeApiScript';
 				defaultScript.textContent = getVsCodeApiScript(options.allowMultipleAPIAcquire, data.state);
 				newDocument.head.prepend(defaultScript);
+
+				// test-workbench_change start
+				// 注入日志截获脚本（包装 console、监听 unhandledrejection/error）。
+				// 注入决策下沉：仅当 logSourceEnabled('webview') 与 extensionIdEnabled 均满足时
+				// 才注入（关闭时不注入，postMessage 全链路归零）；logCaptureTraceEnabled 为
+				// capturedLog.traceEnabled，控制脚本内 traceId 计算（traceEnabled 下沉）；
+				// logCaptureLogLevels 为 capturedLog.logLevelEnabled，控制脚本内级别过滤
+				// （过滤先于 trace 推进，被过滤日志不占 traceIndex）。
+				// 必须放在 vscodeApiScript 之前执行：vscodeApiScript 会执行
+				// window.parent = window 覆盖父窗口引用，截获脚本需先保存真实父窗口，
+				// 以便通过 postMessage 将日志发送给宿主。
+				if (options.logCaptureEnabled) {
+					const logCaptureScript = newDocument.createElement('script');
+					logCaptureScript.id = '_vscodeLogCaptureScript';
+					logCaptureScript.textContent = getLogCaptureScript(options.logCaptureTraceEnabled, options.logCaptureLogLevels);
+					newDocument.head.prepend(logCaptureScript);
+				}
+				// test-workbench_change end
 			}
 
 			// Inject default styles
@@ -1349,6 +1584,22 @@
 				onFocus: () => hostMessaging.postMessage('did-focus', undefined),
 				onBlur: () => hostMessaging.postMessage('did-blur', undefined)
 			});
+
+			// test-workbench_change start
+			// 接收扩展 webview iframe 通过 postMessage 发送的日志截获消息，
+			// 并转发到 vscode 主线程（webviewElement.ts 中监听 '__vscode-log-capture' channel）。
+			window.addEventListener('message', (event) => {
+				if (event.data && event.data.source === '__vscode_log_capture__') {
+					// 链路字段（traceId/traceIndex）由截获脚本产生侧赋值，此处原样透传
+					hostMessaging.postMessage('__vscode-log-capture', {
+						message: event.data.message,
+						logLevel: event.data.logLevel || 'info',
+						traceId: event.data.traceId,
+						traceIndex: event.data.traceIndex
+					});
+				}
+			});
+			// test-workbench_change end
 
 			(/** @type {any} */ (window))[vscodePostMessageFuncName] = (/** @type {string} */ command, /** @type {any} */ data) => {
 				switch (command) {

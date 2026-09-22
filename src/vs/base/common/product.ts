@@ -71,6 +71,35 @@ export interface IProductConfiguration {
 	readonly commit?: string;
 	readonly gitVersion?: string; // test-workbench_change
 
+	// test-workbench_change start
+	// capturedLog 日志截获配置（product.json）：logSourceEnabled 存在且为有效数组时，
+	// 仅对数组中列出的 logSource（如 extensionHost / webview）启用日志截获与 telemetry 上报；
+	// 配置为字符串 all 时对所有 logSource 启用；未配置或配置无效时默认对所有 logSource 关闭。
+	// extensionIdEnabled 为另一独立配置维度（与 logSourceEnabled 是 AND 关系）：
+	// 存在且为有效数组时，仅对数组中列出的 extensionId 启用；为字符串 all 时对
+	// extensionId 非空（非 undefined/null/空串）时启用；其他情况（未配置或配置无效）时
+	// 默认对所有 extensionId 关闭。
+	// outputChannelNameEnabled 仅作用于 logSource='outputChannel' 链路（与 logSourceEnabled 是
+	// AND 关系、与 extensionIdEnabled 是 OR 关系）：存在且为有效数组时，仅对数组中列出的
+	// outputChannelName 启用；为字符串 all 时对所有 outputChannelName 启用；未配置或配置无效时
+	// 默认对所有 outputChannelName 关闭。
+	// traceEnabled 为链路追踪总开关（capturedLog 第二阶段）：为 true 时，各 logSource 上报的
+	// capturedLog 事件额外携带链路追踪字段（traceId/traceIndex，由各 logSource 截获点在产生侧
+	// 赋值——同一次业务处理流程的日志共享 traceId，同一 traceId 内 traceIndex 从 1 开始递增编号）；
+	// 为 false 或未配置时，上报事件与不开启链路追踪时完全一致。
+	// logLevelEnabled 为日志级别过滤（四条链路统一应用）：为字符串 all 时所有级别放行；
+	// 为有效数组时仅数组内列出的级别（info/warn/error/debug/trace）放行，过滤判断在各链路
+	// trace 状态机推进（next）之前完成，被过滤日志不占 traceIndex（编号连续）；
+	// 未配置或配置无效时默认全部屏蔽（与 extensionIdEnabled 的 none 语义一致）。
+	readonly capturedLog?: {
+		readonly logSourceEnabled?: string | readonly string[];
+		readonly extensionIdEnabled?: string | readonly string[];
+		readonly outputChannelNameEnabled?: string | readonly string[];
+		readonly traceEnabled?: boolean;
+		readonly logLevelEnabled?: string | readonly string[];
+	};
+	// test-workbench_change end
+
 	readonly nameShort: string;
 	readonly nameLong: string;
 

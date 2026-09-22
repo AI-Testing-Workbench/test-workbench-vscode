@@ -153,7 +153,11 @@ export abstract class ErrorHandler {
 		});
 
 		errors.errorHandler.addListener(err => {
-			mainThreadErrors.$onUnexpectedError(err);
+			// test-workbench_change start
+			// Error 的 message/stack 是非枚举属性，直接透传会被 RPC JSON 序列化丢弃（主进程只收到空对象 {}），
+			// 需经 transformErrorForSerialization 显式序列化为 $isError 数据对象后再上报。
+			mainThreadErrors.$onUnexpectedError(errors.transformErrorForSerialization(err));
+			// test-workbench_change end
 		});
 	}
 }

@@ -17,6 +17,9 @@ import { COI } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+// test-workbench_change start
+import { ITraceFields } from '../../../../base/common/traceContext.js';
+// test-workbench_change end
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -28,6 +31,9 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+// test-workbench_change start
+import { IProductService, isCapturedLogSourceEnabled, isCapturedExtensionIdEnabled, isCapturedLogTraceEnabled } from '../../../../platform/product/common/productService.js';
+// test-workbench_change end
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -97,6 +103,19 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	protected get platform(): string { return 'browser'; }
 
+	// test-workbench_change start
+	// 扩展 webview 日志到达渲染进程后的处理入口。
+	// 基类钩子（无默认行为，早期用于 console.log 验证渲染进程能收到日志，现已移除）；
+	// capturedLog 的 telemetry 上报由桌面版（ElectronWebviewElement）override 后调用渲染进程
+	// TelemetryService 完成。
+	// extensionId：创建该 webview 的插件 id（webview 在创建时就绑定了归属扩展，天然精确）。
+	// traceFields：链路追踪字段（traceId/traceIndex，capturedLog 第二阶段），由 webview
+	// 截获脚本产生侧赋值并经 pre/index.html 透传，此处原样透传给 override 实现。
+	protected handleLogCapture(_data: string, _logLevel: string = 'info', _extensionId?: string, _traceFields?: ITraceFields): void {
+		// 基类无默认行为。
+	}
+	// test-workbench_change end
+
 	private readonly _expectedServiceWorkerVersion = 4; // Keep this in sync with the version in service-worker.js
 
 	private _element: HTMLIFrameElement | undefined;
@@ -165,6 +184,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		// test-workbench_change start
+		// protected：桌面版（ElectronWebviewElement）需要读取该字段判断 capturedLog.traceEnabled
+		@IProductService protected readonly _productService: IProductService,
+		// test-workbench_change end
 	) {
 		super();
 
@@ -213,6 +236,28 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			this.state = state;
 			this._onDidUpdateState.fire(state);
 		}));
+
+		// test-workbench_change start
+		// 接收扩展 webview 日志截获上报（来源：pre/index.html 转发的扩展 webview 日志）。
+		// extensionId 取 this.extension（创建该 webview 的插件），整个 webview 的日志都归属它。
+		// 配置开关：product.json 的 capturedLog.logSourceEnabled 不含 'webview' 时，提前终止处理流程。
+		// 配置维度：capturedLog.extensionIdEnabled 决定该 extensionId 是否上报
+		// （与 logSourceEnabled 为 AND 关系），不满足时同样终止处理流程。
+		this._register(this.on('__vscode-log-capture', (data) => {
+			const extensionId = this.extension?.id.value;
+			if (!isCapturedLogSourceEnabled(this._productService, 'webview') || !isCapturedExtensionIdEnabled(this._productService, extensionId)) {
+				return;
+			}
+			// 链路追踪（capturedLog 第二阶段）：traceId/traceIndex 由 webview 截获脚本
+			// 产生侧赋值并随消息透传，此处构造 ITraceFields 传入处理入口。
+			// traceId 与 traceIndex 必须成对出现（traceIndex 须为 number），
+			// 防止截获脚本与宿主版本不一致时透传来只有 traceId 的残缺字段。
+			const traceFields: ITraceFields | undefined = data.traceId && typeof data.traceIndex === 'number'
+				? { traceId: data.traceId, traceIndex: data.traceIndex }
+				: undefined;
+			this.handleLogCapture(data?.message ?? '', data?.logLevel ?? 'info', extensionId, traceFields);
+		}));
+		// test-workbench_change end
 
 		this._register(this.on('did-focus', () => {
 			this.handleFocusChange(true);
@@ -668,6 +713,15 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				allowMultipleAPIAcquire: !!this._content.options.allowMultipleAPIAcquire,
 				allowScripts: allowScripts,
 				allowForms: this._content.options.allowForms ?? allowScripts, // For back compat, we allow forms by default when scripts are enabled
+				// test-workbench_change start
+				// capturedLog 注入决策下沉：截获脚本是否注入由 logSourceEnabled('webview') 与
+				// extensionIdEnabled 在宿主侧提前判定（关闭时不注入截获脚本，postMessage 全链路归零）；
+				// logCaptureTraceEnabled 控制脚本内 traceId 计算（traceEnabled 下沉）；
+				// logCaptureLogLevels 为级别过滤名单（logLevelEnabled 下沉，脚本内过滤先于 trace 推进）。
+				logCaptureEnabled: isCapturedLogSourceEnabled(this._productService, 'webview') && isCapturedExtensionIdEnabled(this._productService, this.extension?.id.value),
+				logCaptureTraceEnabled: isCapturedLogTraceEnabled(this._productService),
+				logCaptureLogLevels: this._productService.capturedLog?.logLevelEnabled,
+				// test-workbench_change end
 			},
 			state: this._content.state,
 			cspSource: webviewGenericCspSource,

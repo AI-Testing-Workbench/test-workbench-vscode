@@ -24,7 +24,9 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService, ILoggerService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
+// test-workbench_change start
+import { IProductService, isCapturedLogSourceEnabled } from '../../../../platform/product/common/productService.js';
+// test-workbench_change end
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLoggingOnly } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -505,6 +507,21 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		const initData = await this._initDataProvider.getInitData();
 		this.extensions = initData.extensions;
 		const workspace = this._contextService.getWorkspace();
+		// test-workbench_change start
+		// capturedLog 产生侧合成配置：聚合 product.json 的 logSourceEnabled / extensionIdEnabled /
+		// traceEnabled / logLevelEnabled，随 initData 传入 extensionHost 进程（该进程无 productService，
+		// 无法自行读取）。logLevelEnabled 未配置或无效时置 undefined（产生侧按全部屏蔽处理）。
+		const capturedLogConfigured = this._productService.capturedLog?.extensionIdEnabled;
+		const capturedLogExtensionIdEnabled: 'all' | string[] | undefined =
+			capturedLogConfigured === 'all' ? 'all'
+				: (Array.isArray(capturedLogConfigured) && capturedLogConfigured.length > 0) ? capturedLogConfigured
+					: undefined;
+		const capturedLogLevelConfigured = this._productService.capturedLog?.logLevelEnabled;
+		const capturedLogLogLevelEnabled: 'all' | string[] | undefined =
+			capturedLogLevelConfigured === 'all' ? 'all'
+				: (Array.isArray(capturedLogLevelConfigured) && capturedLogLevelConfigured.length > 0) ? capturedLogLevelConfigured
+					: undefined;
+		// test-workbench_change end
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
@@ -543,6 +560,14 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 				includeStack: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
 				logNative: !this._isExtensionDevTestFromCli && this._isExtensionDevHost
 			},
+			// test-workbench_change start
+			capturedLog: {
+				logSourceEnabled: isCapturedLogSourceEnabled(this._productService, 'extensionHost'),
+				extensionIdEnabled: capturedLogExtensionIdEnabled,
+				traceEnabled: this._productService.capturedLog?.traceEnabled === true,
+				logLevelEnabled: capturedLogLogLevelEnabled
+			},
+			// test-workbench_change end
 			extensions: this.extensions.toSnapshot(),
 			telemetryInfo: {
 				sessionId: this._telemetryService.sessionId,
