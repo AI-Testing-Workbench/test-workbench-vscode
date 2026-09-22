@@ -109,6 +109,9 @@ interface ForkMessageInfo {
 	summary?: { title?: string; body?: string };
 	// test-workbench_change: 轮询需要 finish 探测 turn 完成(prompt_async 模式下无阻塞响应可依赖)
 	finish?: string;
+	// test-workbench_change: assistant 实际用的模型(历史 reload 后 footer 模型名来源)
+	modelID?: string;
+	providerID?: string;
 }
 
 /** fork 消息中的 part(TextPart/ReasoningPart/ToolPart 等的公共字段) */
@@ -166,12 +169,19 @@ function forkMessageToTurn(record: { info: ForkMessageInfo; parts?: ForkPart[] }
 		origin: { kind: isUser ? MessageKind.User : MessageKind.Agent },
 	};
 
+	// test-workbench_change start — 历史 assistant turn 的 usage.model:reload 后 footer 模型名
+	// 来源(与 live ChatUsage.model 同格式 providerID/modelID)。user 消息无模型。
+	const usage: Turn['usage'] = isUser || !info.modelID
+		? undefined
+		: { model: info.providerID ? `${info.providerID}/${info.modelID}` : info.modelID };
+	// test-workbench_change end
+
 	return {
 		id: info.id,
 		startedAt: info.time?.created ? new Date(info.time.created).toISOString() : undefined,
 		message,
 		responseParts,
-		usage: undefined,
+		usage,
 		state: TurnState.Complete,
 	};
 }
@@ -1017,13 +1027,14 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		}
 	}
 
-	/** 增量推送推理 part(与 _emitText 同构) */
+	/** 增量推送推理 part(与 _emitText 同构:先创建、后增量) */
 	private _emitReasoning(turnId: string, partID: string, fullText: string): void {
 		const sent = this._partReasoningSent.get(partID) ?? 0;
 		if (fullText.length <= sent) { return; }
 		const delta = fullText.slice(sent);
 		this._partReasoningSent.set(partID, fullText.length);
 		let protocolPartId = this._partReasoningPartId.get(partID);
+		const isNew = !protocolPartId; // test-workbench_change
 		if (!protocolPartId) {
 			protocolPartId = generateUuid();
 			this._partReasoningPartId.set(partID, protocolPartId);
@@ -1034,11 +1045,23 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			this._logService.info(`[耗时][首段推理] 轮次起点→首段 ChatReasoning 增量发往 host 编排层 = ${Date.now() - this._currentTurnStartMs}ms;时间消耗类型 =「推理模型思维链首包,对应 UI 折叠思考区开始滚动」`);
 		}
 		// test-workbench_change end
-		this._fireAction(ActionType.ChatReasoning, {
-			turnId,
-			partId: protocolPartId,
-			content: delta,
-		});
+		// test-workbench_change start — 首个增量必须先创建 Reasoning part:协议 reducer 的
+		// ChatReasoning 走 updateResponsePart,partId 不存在则整段丢弃 → live 思考链不显示
+		//(此前只发 ChatReasoning、从不创建,是 opencode 特有缺陷;reload 后 fork 历史会构造
+		// Reasoning part 故"重开才看得到")。与 _emitText 同构:创建用 ChatResponsePart{Reasoning}。
+		if (isNew) {
+			this._fireAction(ActionType.ChatResponsePart, {
+				turnId,
+				part: { kind: ResponsePartKind.Reasoning, id: protocolPartId, content: delta },
+			});
+		} else {
+			this._fireAction(ActionType.ChatReasoning, {
+				turnId,
+				partId: protocolPartId,
+				content: delta,
+			});
+		}
+		// test-workbench_change end
 	}
 
 	/**
@@ -1215,7 +1238,14 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		// 兜底:强制收敛所有未关闭的 subagent,再结束父 turn。幂等,正常 SSE 路径下无副作用。
 		this._finalizePendingSubagents(turnId);
 		// test-workbench_change end
-		this._fireAction(ActionType.ChatTurnComplete, { turnId, duration: 0 });
+		// test-workbench_change — 报真实 elapsed:reload 后步骤头 "in Xs" 依赖 duration
+		// (此前恒 0 → "in Xs" 在 reload 后消失)。live 时 renderer 有本地兜底,不影响实时观感。
+		this._fireAction(ActionType.ChatTurnComplete, { turnId, duration: this._turnElapsedMs() });
+	}
+
+	/** 当前 turn 已耗时(ms);无起点(abort 后已 reset)返回 0。 */
+	private _turnElapsedMs(): number {
+		return this._currentTurnStartMs ? Math.max(0, Date.now() - this._currentTurnStartMs) : 0;
 	}
 
 	private _completedTurnIds = new Set<string>();
@@ -1331,7 +1361,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				break;
 			// 消息状态更新(含 turn 完成信号:assistant finish 落地)
 			case 'message.updated': {
-				const info = props.info as { id?: string; role?: string; finish?: string; tokens?: Record<string, number> } | undefined;
+				const info = props.info as { id?: string; role?: string; finish?: string; tokens?: Record<string, number>; modelID?: string; providerID?: string } | undefined;
 				// 记录每条消息的角色(用户消息的 part 事件到达前,其角色必须已知) // test-workbench_change
 				if (info?.id && info?.role) { this._messageRoles.set(info.id, info.role); }
 				// 记录 host turn → 本轮最新 opencode 消息 id 锚点(fork/truncate 翻译用;
@@ -1349,16 +1379,23 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				if (info?.role !== 'assistant' || !info.finish || info.finish === 'tool-calls' || info.finish === 'unknown') {
 					return;
 				}
-				if (info.tokens) {
+				// test-workbench_change start — usage.model 供 footer 模型名:stateToProgressAdapter
+				// 读 turn.usage.model 为最高优先级来源。opencode assistant info 带 modelID/providerID,
+				// 拼成与 models catalog 一致的 `providerID/modelID`。不依赖 ChatTurnStarted 的
+				// message.model(会被重复 turn-start 覆盖),也不触碰 subagent 路径。
+				if (info.tokens || info.modelID) {
+					const modelId = info.modelID ? (info.providerID ? `${info.providerID}/${info.modelID}` : info.modelID) : undefined;
 					this._fireAction(ActionType.ChatUsage, {
 						turnId,
 						usage: {
-							totalTokens: info.tokens.total ?? 0,
-							inputTokens: info.tokens.input ?? 0,
-							outputTokens: info.tokens.output ?? 0,
+							totalTokens: info.tokens?.total ?? 0,
+							inputTokens: info.tokens?.input ?? 0,
+							outputTokens: info.tokens?.output ?? 0,
+							...(modelId ? { model: modelId } : {}),
 						},
 					});
 				}
+				// test-workbench_change end
 				// test-workbench_change start — 耗时埋点:SSE finish 到达 = provider 轮次完成(宿主侧观测);
 				// 同一 turn 允许多条 message.updated 携带 finish(如 tokens/cost 回填),只记第一条
 				if (this._currentTurnStartMs && !this._turnFinishLogged) {

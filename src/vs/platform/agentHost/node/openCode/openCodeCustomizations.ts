@@ -174,7 +174,12 @@ export async function fetchOpenCodeCustomizations(baseUrl: string, authHeader: s
 		// source==='skill' 的条目已由 /skill 容器呈现，去重；mcp prompt 命令保留
 		const children: SkillCustomization[] = commands.filter(c => c.source !== 'skill').map(c => {
 			const uri = `${OPENCODE_SCHEME}:/commands/${c.name}`;
-			return { type: CustomizationType.Skill, id: customizationId(uri), uri, name: `/${c.name}`, description: c.description };
+			// test-workbench_change start — command 的 name 用裸名(不带前导 "/"):slash command 的
+			// name 约定为裸名,补全层(chatInputCompletions colonLabel `/${c.name}`)与执行
+			// resolvePromptSlashCommand 都按裸名加前缀/匹配。此前 `/${c.name}` 会让补全显示成
+			// "//init"(双斜杠),且 resolve 按 "init" 匹配不上。与 skills 容器(name: s.name)一致。
+			return { type: CustomizationType.Skill, id: customizationId(uri), uri, name: c.name, description: c.description };
+			// test-workbench_change end
 		});
 		result.push(container('commands', CustomizationType.Skill, children, userConfigSubDir('commands', logService), logService));
 	}
