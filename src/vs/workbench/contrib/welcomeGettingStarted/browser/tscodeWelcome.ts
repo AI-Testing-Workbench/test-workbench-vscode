@@ -38,6 +38,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js'; // test-workbench_change
 import { ITsCodeTokenStore } from '../../tsCodeAuth/common/tsCodeAuth.js'; // test-workbench_change
 
 interface TscodeWelcomeMemento {
@@ -83,6 +84,7 @@ export class TscodeWelcomePage extends GettingStartedPage {
 		@IAccessibilityService accessibilityService: any,
 		@IMarkdownRendererService markdownRendererService: any,
 		@IChatEntitlementService chatEntitlementService: any,
+		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 		@ITsCodeTokenStore tokenStore: ITsCodeTokenStore,
 	) {
 		super(
@@ -91,7 +93,7 @@ export class TscodeWelcomePage extends GettingStartedPage {
 			themeService, storageService, extensionService, instantiationService, notificationService,
 			groupsService, contextService, quickInputService, workspacesService, labelService,
 			hostService, webviewService, workspaceContextService, accessibilityService, markdownRendererService,
-			chatEntitlementService
+			chatEntitlementService, defaultAccountService
 		);
 		this.tscodeStorageService = storageService;
 		this.tscodeTokenStore = tokenStore; // test-workbench_change
