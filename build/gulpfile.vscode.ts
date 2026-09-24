@@ -69,8 +69,7 @@ const packageLock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.jso
 };
 const copilotRuntimeVersion = getCopilotRuntimeVersion(path.join(root, 'node_modules'));
 if (packageJson.copilotRuntimeVersion !== copilotRuntimeVersion) {
-	// TEMP-LOCAL-VERIFY: 本地验证移植时绕过(编译后还原),node_modules 尚未更新
-	console.warn(`WARNING: Copilot runtime version mismatch: declared ${packageJson.copilotRuntimeVersion}, bundled ${copilotRuntimeVersion} (temporarily ignored for local verification)`);
+	throw new Error(`package.json declares Copilot runtime ${packageJson.copilotRuntimeVersion}, but @github/copilot-sdk bundles ${copilotRuntimeVersion}.`);
 }
 
 function getLockedPackageVersion(packageName: string): string {

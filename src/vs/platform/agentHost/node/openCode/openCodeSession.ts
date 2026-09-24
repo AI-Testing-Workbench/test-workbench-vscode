@@ -827,6 +827,21 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		// → 404 NotFoundError → 应答永远送不回提问实例 → 子会话「Running question」永久卡死。
 		if (this._workingDirectory) { child.setWorkingDirectory(this._workingDirectory); }
 		// test-workbench_change end
+		// test-workbench_change start — 子会话的 backend instance 目录可能与父不同:父会话在无工作区
+		// 窗口下用合成目录(/tmp/testagent-<id>),而 task 子会话落在项目目录。应答 POST 的
+		// x-opencode-directory 必须匹配子会话实际所属实例,否则 question/permission 的 pending
+		// map 查不到(后端「reply for unknown request」)→ 用户作答石沉大海。异步取子会话自身
+		// directory 覆盖继承值;失败则保留继承值(与旧行为一致)。
+		void this._request<{ directory?: unknown }>('GET', `/session/${childOpencodeId}`)
+			.then(info => {
+				// setWorkingDirectory 是 first-write-wins(??=),继承值无法被覆盖:
+				// 这里直接赋值修正后的目录,确保应答 POST 路由到子会话实际所属实例
+				if (typeof info.directory === 'string' && info.directory) {
+					child._workingDirectory = URI.file(info.directory);
+				}
+			})
+			.catch(err => this._logService.warn(`[TestAgent] subagent directory lookup failed (keeping inherited cwd): ${err}`));
+		// test-workbench_change end
 		// 子 backing 不调 sendMessage,_currentTurnId 恒空会让 handleEvent 早退丢弃所有
 		// turn 级事件。给一个稳定占位 turnId:子 backing 的 action 经 parentToolCallId 走
 		// host remap 路径,占位值会被替换成子 chat 的真实 active turnId。

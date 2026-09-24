@@ -4434,6 +4434,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatArtifactsWidget.value?.setSessionResource(undefined);
 	}
 
+	// test-workbench_change — question 卡片的挂载容器是否真正可见:只读子会话视图隐藏输入区时,挂进输入区等于不可见,渲染器据此回退到内联渲染
+	get questionCarouselContainerVisible(): boolean {
+		return this.chatQuestionCarouselContainer?.isConnected === true && this.chatQuestionCarouselContainer.offsetParent !== null;
+	}
+
 	renderQuestionCarousel(carousel: IChatQuestionCarousel, context: IChatContentPartRenderContext, options: IChatQuestionCarouselOptions): ChatQuestionCarouselPart {
 
 		const carouselKey = carousel.resolveId ?? `${isResponseVM(context.element) ? context.element.requestId : ''}_${context.contentIndex}`;

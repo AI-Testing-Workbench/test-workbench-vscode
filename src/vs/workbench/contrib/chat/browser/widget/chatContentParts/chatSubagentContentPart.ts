@@ -977,7 +977,8 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		const message = IChatToolInvocation.isComplete(toolInvocation) && !wasCancelled
 			? toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage
 			: toolInvocation.invocationMessage;
-		const messageText = typeof message === 'string' ? message : message.value;
+		// test-workbench_change — 上游假定 invocationMessage 恒存在;TestAgent 的 question 等工具调用可能缺省,防御 undefined 崩溃(原崩溃:Cannot read properties of undefined (reading 'value'))
+		const messageText = typeof message === 'string' ? message : message?.value ?? '';
 		const label = messageText.replace(/\s+/g, ' ').trim();
 		if (!label) {
 			return undefined;
