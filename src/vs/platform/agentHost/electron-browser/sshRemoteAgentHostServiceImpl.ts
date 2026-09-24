@@ -372,7 +372,16 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 	}
 
 	private _getRemoteAgentHostCommand(): string | undefined {
-		return this._configurationService.getValue<string>('chat.sshRemoteAgentHostCommand') || undefined;
+		// test-workbench_change start
+		// 保留用户显式覆盖;未配置时,默认让远端直接运行镜像内置 server 的 standalone AHP server,
+		// 不再安装/使用 Rust CLI。命令在 `bash -l -c` 登录 shell 中执行,故 $HOME / TestAgent 等
+		// 登录环境可用;用 glob 兼容 server commit 目录变化。服务端自带 testagent 作为唯一后端。
+		const configured = this._configurationService.getValue<string>('chat.sshRemoteAgentHostCommand');
+		if (configured) {
+			return configured;
+		}
+		return `bash -c 'D=$(ls -d "$HOME/.tscode-server/bin/"*/ 2>/dev/null | head -n 1); D=\${D%/}; exec "$D/node" "$D/out/vs/platform/agentHost/node/agentHostServerMain.js" --port 0 --host 127.0.0.1 --without-connection-token --user-data-dir "$HOME/.tscode-server/agent-host-data"'`;
+		// test-workbench_change end
 	}
 
 	private _isSSHAgentForwardingEnabled(): boolean | undefined {

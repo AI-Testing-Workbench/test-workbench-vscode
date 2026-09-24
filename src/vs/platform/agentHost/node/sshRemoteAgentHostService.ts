@@ -5,7 +5,7 @@
 
 import type WebSocket from 'ws';
 import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
-import { promises as fsp } from 'fs';
+import { existsSync, promises as fsp } from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
 import { dirname, join, isAbsolute, basename } from '../../../base/common/path.js';
@@ -106,6 +106,13 @@ interface SSHClient {
 }
 
 const LOG_PREFIX = '[SSHRemoteAgentHost]';
+
+// test-workbench_change start
+// TestAgent 沙箱的 SSH 配置源。沙箱主机(Host/HostName/Port/User/StrictHostKeyChecking/
+// UserKnownHostsFile/ContainerId/ExpiresAt)由 testagent-cloud-remote-ssh 扩展写入该文件,
+// 本 fork 直接以它为唯一来源,不再读取 ~/.ssh/config,也不依赖 Include 兼容。
+const TESTAGENT_SANDBOX_CONFIG_PATH = join(os.homedir(), '.local', 'share', 'testagent', 'sandbox.config');
+// test-workbench_change end
 
 /**
  * Maximum time to wait for {@link SSHRemoteAgentHostMainService._createWebSocketRelay}
@@ -1229,7 +1236,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	async listSSHConfigHosts(): Promise<string[]> {
-		const configPath = join(os.homedir(), '.ssh', 'config');
+		// test-workbench_change: 主机来源改为 TestAgent 沙箱配置(不再读 ~/.ssh/config)
+		const configPath = TESTAGENT_SANDBOX_CONFIG_PATH;
 		try {
 			const content = await fsp.readFile(configPath, 'utf-8');
 			return this._parseSSHConfigHosts(content, dirname(configPath));
@@ -1240,13 +1248,14 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	async ensureUserSSHConfig(): Promise<URI> {
-		const sshDir = join(os.homedir(), '.ssh');
-		const configPath = join(sshDir, 'config');
+		// test-workbench_change: 确保 TestAgent 沙箱配置存在(不再创建 ~/.ssh/config)
+		const configDir = dirname(TESTAGENT_SANDBOX_CONFIG_PATH);
+		const configPath = TESTAGENT_SANDBOX_CONFIG_PATH;
 		const isPosix = process.platform !== 'win32';
 		try {
-			await fsp.mkdir(sshDir, { recursive: true, mode: isPosix ? 0o700 : undefined });
+			await fsp.mkdir(configDir, { recursive: true, mode: isPosix ? 0o700 : undefined });
 		} catch (err) {
-			this._logService.warn(`${LOG_PREFIX} Failed to ensure ~/.ssh directory: ${err}`);
+			this._logService.warn(`${LOG_PREFIX} Failed to ensure sandbox config directory: ${err}`);
 			throw err;
 		}
 		try {
@@ -1265,7 +1274,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	async listSSHConfigFiles(): Promise<URI[]> {
 		const isWindows = process.platform === 'win32';
-		const userConfigPath = join(os.homedir(), '.ssh', 'config');
+		const userConfigPath = TESTAGENT_SANDBOX_CONFIG_PATH; // test-workbench_change
 		const systemConfigPath = isWindows
 			? join(process.env['ProgramData'] ?? 'C:\\ProgramData', 'ssh', 'ssh_config')
 			: '/etc/ssh/ssh_config';
@@ -1304,8 +1313,15 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	protected async _doResolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
+		// test-workbench_change start
+		// 直接以 TestAgent 沙箱配置为唯一来源解析主机(HostName/Port/User/known_hosts 等),
+		// 通过 `ssh -F <sandbox.config> -G` 让 ssh 自己完成配置求值;文件不存在时回退默认行为。
+		const sshArgs = existsSync(TESTAGENT_SANDBOX_CONFIG_PATH)
+			? ['-F', TESTAGENT_SANDBOX_CONFIG_PATH, '-G', '--', host]
+			: ['-G', '--', host];
+		// test-workbench_change end
 		return new Promise<ISSHResolvedConfig>((resolve, reject) => {
-			cp.execFile('ssh', ['-G', '--', host], { timeout: 5000 }, (err, stdout) => {
+			cp.execFile('ssh', sshArgs, { timeout: 5000 }, (err, stdout) => {
 				if (err) {
 					reject(new Error(`${LOG_PREFIX} ssh -G failed for ${host}: ${err.message}`));
 					return;
