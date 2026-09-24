@@ -267,11 +267,11 @@ async function main(): Promise<void> {
 			disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
 		}
 		*/
-		// OpenCode agent: enabled by default (opt-out via env var)
+		// TestAgent provider: enabled by default (opt-out via env var)
 		if (isAgentEnabled(process.env[AgentHostOpenCodeAgentEnabledEnvVar], true)) {
 			const openCodeAgent = disposables.add(instantiationService.createInstance(OpenCodeAgent));
 			providerService.registerProvider(openCodeAgent);
-			log('OpenCodeAgent registered');
+			log('TestAgent provider registered');
 		}
 		// test-workbench_change end
 	}

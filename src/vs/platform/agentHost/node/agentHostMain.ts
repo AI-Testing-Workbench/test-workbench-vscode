@@ -187,7 +187,7 @@ async function startAgentHost(): Promise<void> {
 		}
 		*/
 
-		// OpenCode agent: enabled by default (opt-out via env var) // test-workbench_change
+		// TestAgent provider: enabled by default (opt-out via env var) // test-workbench_change
 		if (isAgentEnabled(process.env[AgentHostOpenCodeAgentEnabledEnvVar], true)) {
 			providerService.registerProvider(instantiationService.createInstance(OpenCodeAgent));
 		}

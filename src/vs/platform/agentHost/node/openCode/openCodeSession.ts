@@ -380,11 +380,11 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			try {
 				const info = await this._request<{ id: string }>('GET', `/session/${this.knownOpencodeSessionId}`);
 				this.opencodeSessionId = info.id ?? this.knownOpencodeSessionId;
-				this._logService.info(`[OpenCode] session restored: ${this.sessionId} -> opencode ${this.opencodeSessionId}`);
+				this._logService.info(`[TestAgent] session restored: ${this.sessionId} -> opencode ${this.opencodeSessionId}`);
 				return;
 			} catch (err) {
 				// 会话已被删除(404 等),回退到新建
-				this._logService.info(`[OpenCode] mapped opencode session gone, creating new: ${err}`);
+				this._logService.info(`[TestAgent] mapped backend session gone, creating new: ${err}`);
 			}
 		}
 		const initStart = Date.now(); // test-workbench_change — 耗时埋点
@@ -392,14 +392,14 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		this.opencodeSessionId = resp.id;
 		this.onSessionCreated?.(resp.id);
 		this._logService.info(`[耗时][会话建立] POST /session/(创建 opencode 后端会话)= ${Date.now() - initStart}ms;时间消耗类型 =「testagent 进程内会话初始化 HTTP 往返」`); // test-workbench_change
-		this._logService.info(`[OpenCode] session created: ${this.sessionId} -> opencode ${this.opencodeSessionId}`);
+		this._logService.info(`[TestAgent] session created: ${this.sessionId} -> backend ${this.opencodeSessionId}`);
 	}
 
 	// ── Fork ───────────────────────────────────────────────────────────────
 
 	async fork(messageID?: string): Promise<string> {
 		if (!this.opencodeSessionId) {
-			throw new Error('OpenCode session not initialized');
+			throw new Error('TestAgent session not initialized');
 		}
 		// test-workbench_change start — host 的 fork turnId 是 VS Code turn id(live)或
 		// opencode message id(restore),先翻译为本轮最后一条后端消息;后端复制边界是
@@ -413,7 +413,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			);
 			const idx = records.findIndex(r => r.info.id === anchor);
 			if (idx === -1) {
-				this._logService.warn(`[OpenCode] fork: anchor ${anchor} not found in ${this.opencodeSessionId}; forking whole session`);
+				this._logService.warn(`[TestAgent] fork: anchor ${anchor} not found in ${this.opencodeSessionId}; forking whole session`);
 			} else if (idx < records.length - 1) {
 				boundary = records[idx + 1].info.id;
 			}
@@ -421,7 +421,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		const body = boundary ? { messageID: boundary } : {};
 		// test-workbench_change end
 		const resp = await this._request<{ id: string }>('POST', `/session/${this.opencodeSessionId}/fork`, body);
-		this._logService.info(`[OpenCode] session forked: ${this.opencodeSessionId} -> ${resp.id}${anchor ? ` (up to ${anchor})` : ''}`);
+		this._logService.info(`[TestAgent] session forked: ${this.opencodeSessionId} -> ${resp.id}${anchor ? ` (up to ${anchor})` : ''}`);
 		return resp.id;
 	}
 
@@ -429,14 +429,14 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 
 	setModel(model: ModelSelection | undefined): void {
 		this._modelOverride = model;
-		this._logService.info(`[OpenCode] session model set: ${model?.id ?? '(default)'}`);
+		this._logService.info(`[TestAgent] session model set: ${model?.id ?? '(default)'}`);
 	}
 
 	// ── Send message ──────────────────────────────────────────────────────
 
 	async sendMessage(prompt: string, workingDirectory?: URI, attachments?: readonly MessageAttachment[], turnId?: string, tools?: string[]): Promise<void> {
 		if (!this.opencodeSessionId) {
-			throw new Error('OpenCode session not initialized');
+			throw new Error('TestAgent session not initialized');
 		}
 
 		const effectiveTurnId = turnId ?? generateUuid();
@@ -458,7 +458,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			message,
 		});
 		// test-workbench_change start — 耗时埋点:轮次起点(t0),此后各 [耗时] 日志以此为基准
-		this._logService.info(`[耗时][轮次起点] TestAgent 本轮开始(turnId=${effectiveTurnId.slice(0, 8)},opencode会话=${this.opencodeSessionId});时间消耗类型 =「用户消息已进入 provider,以下均距此计时」`);
+		this._logService.info(`[耗时][轮次起点] TestAgent 本轮开始(turnId=${effectiveTurnId.slice(0, 8)},backend会话=${this.opencodeSessionId});时间消耗类型 =「用户消息已进入 provider,以下均距此计时」`);
 		// test-workbench_change end
 
 		this._abortController = new AbortController();
@@ -508,7 +508,13 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	// test-workbench_change end
 
 	// test-workbench_change start — Customizations 面板数据源:pull 模型,fork API 清单 60s TTL
-	setWorkingDirectory(dir: URI): void { this._workingDirectory ??= dir; } // 首条消息携带的真实目录优先
+	setWorkingDirectory(dir: URI): void {
+		const first = this._workingDirectory === undefined;
+		this._workingDirectory ??= dir; // 首条消息携带的真实目录优先
+		// test-workbench_change — 冷恢复时子 backing 可能先于父目录落地(registered via
+		// materializeSubagent),首次设目录时级联给已登记的子会话,保证其应答请求带路由头。
+		if (first) { for (const [, child] of this._subagentSessions) { child.setWorkingDirectory(dir); } }
+	}
 
 	/** 当前生效工作目录(fork 继承 / HTTP 路由头用) */
 	get currentWorkingDirectory(): URI | undefined { return this._workingDirectory; }
@@ -557,7 +563,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				this._logService.info(`[耗时][slash轮次] POST /session/:id/command 响应到达 = ${Date.now() - cmdStart}ms(距轮次起点 ${Date.now() - this._currentTurnStartMs}ms);时间消耗类型 =「testagent 内整轮执行:模型调用+工具循环+provider 网络,全部发生在宿主进程外」`);
 				// test-workbench_change end
 			}).catch(err => {
-				if (err instanceof Error && err.name !== 'AbortError') { this._logService.error(`[OpenCode] command /${slash.name} failed: ${err}`); }
+				if (err instanceof Error && err.name !== 'AbortError') { this._logService.error(`[TestAgent] command /${slash.name} failed: ${err}`); }
 			});
 			return;
 		}
@@ -612,7 +618,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 
 		} catch (err: unknown) {
 			if (err instanceof Error && err.name === 'AbortError') {
-				this._logService.info(`[OpenCode] turn cancelled: ${turnId}`);
+				this._logService.info(`[TestAgent] turn cancelled: ${turnId}`);
 				this._resetStreamingState();
 				this._fireAction(ActionType.ChatTurnCancelled, {
 					turnId: turnId ?? '',
@@ -620,7 +626,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				});
 				return;
 			}
-			this._logService.error(`[OpenCode] sendMessage error: ${err}${formatFetchError(err)} (距轮次起点 ${this._currentTurnStartMs ? Date.now() - this._currentTurnStartMs : 0}ms)`); // test-workbench_change — 耗时埋点
+			this._logService.error(`[TestAgent] sendMessage error: ${err}${formatFetchError(err)} (距轮次起点 ${this._currentTurnStartMs ? Date.now() - this._currentTurnStartMs : 0}ms)`); // test-workbench_change — 耗时埋点
 			this._resetStreamingState();
 			// test-workbench_change start: ChatError 协议字段是 part: ErrorResponsePart(此前误用顶层
 			// error,消息被 AgentSideEffects 吞掉)。网络/HTTP 错误可由用户 Try Again 恢复 → resumable=true。
@@ -724,7 +730,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			);
 			return records.map(forkMessageToTurn);
 		} catch (err) {
-			this._logService.warn(`[OpenCode] getMessages failed: ${err}`);
+			this._logService.warn(`[TestAgent] getMessages failed: ${err}`);
 			return [];
 		}
 	}
@@ -746,7 +752,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				'GET', `/session/${this.opencodeSessionId}/message`,
 			);
 		} catch (err) {
-			this._logService.warn(`[OpenCode] truncate: message list failed: ${err}`);
+			this._logService.warn(`[TestAgent] truncate: message list failed: ${err}`);
 			return;
 		}
 		const anchorId = turnId !== undefined
@@ -756,7 +762,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		if (anchorId !== undefined) {
 			records.forEach((r, i) => { if (r.info.id === anchorId) { anchorIdx = i; } });
 			if (anchorIdx === -1) {
-				this._logService.warn(`[OpenCode] truncateChat: turn ${turnId} not found in session ${this.opencodeSessionId}; skipping`);
+				this._logService.warn(`[TestAgent] truncateChat: turn ${turnId} not found in session ${this.opencodeSessionId}; skipping`);
 				return;
 			}
 		}
@@ -765,7 +771,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			try {
 				await this._request<boolean>('DELETE', `/session/${this.opencodeSessionId}/message/${rec.info.id}`);
 			} catch (err) {
-				this._logService.warn(`[OpenCode] truncate: delete ${rec.info.id} failed: ${err}`);
+				this._logService.warn(`[TestAgent] truncate: delete ${rec.info.id} failed: ${err}`);
 			}
 		}
 		// 被删消息的锚点映射失效,清掉;幸存 turn 的映射保留(还可能再次截断)
@@ -775,7 +781,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				if (doomedIds.has(anchor)) { this._hostTurnAnchors.delete(hostTurn); }
 			}
 		}
-		this._logService.info(`[OpenCode] truncated session ${this.opencodeSessionId}: removed ${doomed.length} message(s) after ${anchorId ?? '(start)'}`);
+		this._logService.info(`[TestAgent] truncated session ${this.opencodeSessionId}: removed ${doomed.length} message(s) after ${anchorId ?? '(start)'}`);
 	}
 
 	/** 下发会话级 permission ruleset;ruleset 为空数组时恢复后端自身配置 */
@@ -783,9 +789,9 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		if (!this.opencodeSessionId) { return; }
 		try {
 			await this._request<unknown>('PATCH', `/session/${this.opencodeSessionId}`, { permission: [...ruleset] });
-			this._logService.info(`[OpenCode] session ${this.opencodeSessionId} permission rules updated (${ruleset.length} rule(s))`);
+			this._logService.info(`[TestAgent] session ${this.opencodeSessionId} permission rules updated (${ruleset.length} rule(s))`);
 		} catch (err) {
-			this._logService.warn(`[OpenCode] setPermissionRules failed: ${err}`);
+			this._logService.warn(`[TestAgent] setPermissionRules failed: ${err}`);
 		}
 	}
 
@@ -814,13 +820,20 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		child._rootChatUri = rootChat;
 		child.setSubagentContext({ parentChat: rootChat, toolCallId });
 		child.opencodeSessionId = childOpencodeId;
+		// test-workbench_change start — 继承父 backing 的工作目录:子会话内 question/permission 的
+		// 应答 POST(/question/:id/reply 等)经 _request 必须带 x-opencode-directory 头;
+		// 子 backing 此前从未被 setWorkingDirectory(host 只对 default chat 调用),头缺失时
+		// fork 的 workspace-routing 落到 server cwd 实例,该实例的 Question pending map 未命中
+		// → 404 NotFoundError → 应答永远送不回提问实例 → 子会话「Running question」永久卡死。
+		if (this._workingDirectory) { child.setWorkingDirectory(this._workingDirectory); }
+		// test-workbench_change end
 		// 子 backing 不调 sendMessage,_currentTurnId 恒空会让 handleEvent 早退丢弃所有
 		// turn 级事件。给一个稳定占位 turnId:子 backing 的 action 经 parentToolCallId 走
 		// host remap 路径,占位值会被替换成子 chat 的真实 active turnId。
 		child.activateSubagentTurn();
 		// test-workbench_change end
 		this._subagentSessions.set(subChat, child);
-		this._logService.info(`[OpenCode] subagent backing registered: ${subChat} (opencode: ${childOpencodeId})`);
+		this._logService.info(`[TestAgent] subagent backing registered: ${subChat} (backend: ${childOpencodeId})`);
 		return child;
 	}
 
@@ -862,7 +875,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				'GET', `/session/${this.opencodeSessionId}/message`,
 			);
 		} catch (err) {
-			this._logService.warn(`[OpenCode] materializeSubagent: parent transcript read failed: ${err}`);
+			this._logService.warn(`[TestAgent] materializeSubagent: parent transcript read failed: ${err}`);
 			return undefined;
 		}
 		for (const rec of records) {
@@ -875,7 +888,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 				}
 			}
 		}
-		this._logService.warn(`[OpenCode] materializeSubagent: no task backing for ${toolCallId}`);
+		this._logService.warn(`[TestAgent] materializeSubagent: no task backing for ${toolCallId}`);
 		return undefined;
 	}
 
@@ -886,16 +899,19 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	// ── Permissions ────────────────────────────────────────────────────────
 
 	respondToPermissionRequest(requestId: string, approved: boolean): void {
-		// test-workbench_change start — agent 级是广播调用:只有登记过该 requestId 的 owner
-		// session 才真正回 POST,避免 N 个 session 各发一次(9 个假失败/竞争)。
-		if (!this._pendingAskIds.delete(requestId)) { return; }
-		// 调 fork POST /permission/:requestID/reply,approved → 'once',拒绝 → 'reject'
+		// test-workbench_change start — host 确认链(ChatToolCallConfirmed)传的是 toolCallId(call_),
+		// 而 owner 登记与 fork 路由键都是权限请求 id(per_):先翻译回 per_ id,否则
+		// _pendingAskIds.delete 永不命中 → POST 从不发出 → fork deferred 永挂
+		// (external_directory「Requesting permission」卡死且应答无效的根因)。
+		const permissionId = this._permissionIdsByCallId.get(requestId) ?? requestId;
+		this._permissionIdsByCallId.delete(requestId);
+		if (!this._pendingAskIds.delete(permissionId)) { return; }
 		if (!this.opencodeSessionId) { return; }
 		// test-workbench_change end
-		void this._request('POST', `/permission/${requestId}/reply`, {
+		void this._request('POST', `/permission/${permissionId}/reply`, {
 			reply: approved ? 'once' : 'reject',
 		}).catch(err => {
-			this._logService.warn(`[OpenCode] permission reply failed: ${err}`);
+			this._logService.warn(`[TestAgent] permission reply failed: ${err}`);
 		});
 	}
 
@@ -908,7 +924,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		// decline / cancel → fork question reject 端点
 		if (response !== ChatInputResponseKind.Accept) {
 			void this._request('POST', `/question/${requestId}/reject`).catch(err => {
-				this._logService.warn(`[OpenCode] question reject failed: ${err}`);
+				this._logService.warn(`[TestAgent] question reject failed: ${err}`);
 			});
 			return;
 		}
@@ -933,7 +949,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			})
 			: [];
 		void this._request('POST', `/question/${requestId}/reply`, { answers: forkAnswers }).catch(err => {
-			this._logService.warn(`[OpenCode] question reply failed: ${err}`);
+			this._logService.warn(`[TestAgent] question reply failed: ${err}`);
 		});
 	}
 
@@ -977,6 +993,9 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	private _hostTurnAnchors = new Map<string, string>();
 	// pending ask id → 类型:agent 级 respond 广播时,只有 owner session 真正发 reply
 	private _pendingAskIds = new Map<string, 'permission' | 'question'>();
+	// permission.asked 的 toolCallId(call_) → 权限请求 id(per_):host 应答只带 toolCallId,
+	// 需翻译回 per_ 才能命中 owner 登记并拼出正确的 POST 路径 // test-workbench_change
+	private _permissionIdsByCallId = new Map<string, string>();
 	// subagent(chat URI → 子会话 backing)与已发出 spawn 事件的 task callID
 	private readonly _subagentSessions = this._register(new DisposableMap<string, OpenCodeSession>());
 	private _spawnedSubagentCallIds = new Set<string>();
@@ -1316,7 +1335,11 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			case 'question.rejected': {
 				// 后端已确认答复:回收 owner 登记(重复 respond 成为 no-op) // test-workbench_change
 				const settled = props as { id?: string; requestID?: string };
-				if (settled.id) { this._pendingAskIds.delete(settled.id); }
+				if (settled.id) {
+					this._pendingAskIds.delete(settled.id);
+					// test-workbench_change — 同步清理 call_→per_ 翻译表
+					for (const [c, p] of this._permissionIdsByCallId) { if (p === settled.id) { this._permissionIdsByCallId.delete(c); } }
+				}
 				if (settled.requestID) { this._pendingAskIds.delete(settled.requestID); }
 				return;
 			}
@@ -1516,7 +1539,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 	// opencode 服务端会话上下文仍在,prompt_async 续接对话)。
 	async resumeTurn(turnId: string): Promise<void> {
 		if (this._resumableTurnId !== turnId || !this._lastSend) {
-			throw new Error(`OpenCode session has no resumable turn: ${turnId}`);
+			throw new Error(`TestAgent session has no resumable turn: ${turnId}`);
 		}
 		this._resumableTurnId = undefined;
 		await this.sendMessage(this._lastSend.prompt, this._lastSend.workingDirectory, this._lastSend.attachments, turnId, this._lastSend.tools);
@@ -1539,6 +1562,8 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 		if (!requestID || !callID || !permission) { return; }
 		// 登记 owner:agent 级广播 respond 时仅本 session 真正回包 // test-workbench_change
 		this._pendingAskIds.set(requestID, 'permission');
+		// test-workbench_change — 记录 call_→per_ 翻译表:用户确认时 host 只带 toolCallId
+		this._permissionIdsByCallId.set(callID, requestID);
 
 		const signal: IAgentToolPendingConfirmationSignal = {
 			kind: 'pending_confirmation',
@@ -1635,7 +1660,7 @@ export class OpenCodeSession extends Disposable implements IOpenCodeSession {
 			});
 			if (!resp.ok) {
 				const text = await resp.text().catch(() => '');
-				throw new Error(`OpenCode ${method} ${path} failed: HTTP ${resp.status} ${text}`);
+				throw new Error(`TestAgent ${method} ${path} failed: HTTP ${resp.status} ${text}`);
 			}
 			return await resp.json() as T;
 		} finally {

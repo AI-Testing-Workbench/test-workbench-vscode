@@ -33,7 +33,7 @@ async function fetchList<T>(baseUrl: string, path: string, authHeader: string, w
 		const data = await resp.json();
 		return Array.isArray(data) ? data as T[] : undefined;
 	} catch (err) {
-		logService.warn(`[OpenCode] customizations GET ${path} failed: ${err}`);
+		logService.warn(`[TestAgent] customizations GET ${path} failed: ${err}`);
 		return undefined;
 	}
 }
@@ -56,7 +56,7 @@ export function userTestagentConfigRoot(): string {
  */
 function userConfigSubDir(sub: string, logService: ILogService): URI {
 	const dir = path.join(userTestagentConfigRoot(), sub);
-	try { fs.mkdirSync(dir, { recursive: true }); } catch (err) { logService.warn(`[OpenCode] failed to ensure customization dir ${dir}: ${err}`); }
+	try { fs.mkdirSync(dir, { recursive: true }); } catch (err) { logService.warn(`[TestAgent] failed to ensure customization dir ${dir}: ${err}`); }
 	return URI.file(dir);
 }
 
@@ -148,7 +148,7 @@ export async function fetchOpenCodeCustomizations(baseUrl: string, authHeader: s
 			const resp = await fetch(`${baseUrl}${p}`, { method: 'POST', headers: reloadHeaders });
 			await resp.body?.cancel();
 		} catch (err) {
-			logService.warn(`[OpenCode] customization reload ${p} failed: ${err}`);
+			logService.warn(`[TestAgent] customization reload ${p} failed: ${err}`);
 		}
 	}));
 	// test-workbench_change end

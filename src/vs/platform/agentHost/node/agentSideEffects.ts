@@ -1762,7 +1762,7 @@ export class AgentSideEffects extends Disposable {
 			}));
 
 			await Promise.all(selectionUpdates);
-			seStage('应用 model/agent 选择', 'provider 内存态赋值(opencode≈0);其他 harness 可能含 SDK 调用'); // test-workbench_change — 耗时埋点
+			seStage('应用 model/agent 选择', 'provider 内存态赋值(TestAgent≈0);其他 harness 可能含 SDK 调用'); // test-workbench_change — 耗时埋点
 
 			failureStage = 'sendMessage';
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
@@ -1783,7 +1783,7 @@ export class AgentSideEffects extends Disposable {
 			this._turnTracker.setCurrentStage(turnChannel, turnId, 'provider');
 			const beforeProviderSend = Date.now(); // test-workbench_change — 耗时埋点
 			await agent.chats.sendMessage(chatUri, contribution.message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientContext.clientType, sendContext);
-			seStage('provider sendMessage 整次调用(opencode:含投递HTTP→SSE流式→finish)', 'TestAgent 后端的整轮模型时间+工具循环,对照 openCodeSession 的 [投递HTTP]/[LLM首输出]/[轮次总计] 分段'); // test-workbench_change — 耗时埋点
+			seStage('provider sendMessage 整次调用(TestAgent:含投递HTTP→SSE流式→finish)', 'TestAgent 后端的整轮模型时间+工具循环,对照 openCodeSession 的 [投递HTTP]/[LLM首输出]/[轮次总计] 分段'); // test-workbench_change — 耗时埋点
 			this._logService.info(`[耗时][发送前置合计] host 侧 provider 之外的发送前置总计 = ${beforeProviderSend - seT0}ms;时间消耗类型 =「工作目录解析+附件+contributions+checkpoint+选择应用之和,发生在用户发送之后、testagent 收到请求之前」`); // test-workbench_change — 耗时埋点
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);

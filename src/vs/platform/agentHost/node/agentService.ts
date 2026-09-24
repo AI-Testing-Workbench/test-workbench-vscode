@@ -827,6 +827,24 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _pruneStaleExternalSessions(): Promise<void> {
 		const now = Date.now();
 		const registered = await this._listRegisteredSessions();
+		// test-workbench_change start — 清理存量 untitled provisional 行:旧逻辑把空闲草稿
+		// 落进持久注册表,重启后 restore 无法 describe 未 materialize 的 untitled 会话 →
+		// subscribe 报「could not describe … yet」/「Session not found on backend」。
+		// createSession 已不再登记新草稿,这里一次性清掉历史遗留。
+		const legacyUntitledProvisionals: URI[] = [];
+		for (const entry of registered) {
+			if (AgentSession.id(entry.session).startsWith('untitled-')) {
+				legacyUntitledProvisionals.push(entry.session);
+			}
+		}
+		for (const session of legacyUntitledProvisionals) {
+			await this._sessionRegistry.unregister(session);
+		}
+		if (legacyUntitledProvisionals.length > 0) {
+			this._logService.info(`[AgentService] pruned ${legacyUntitledProvisionals.length} stale untitled provisional session row(s)`);
+			this._invalidateSessionList();
+		}
+		// test-workbench_change end
 		const staleExternalSessions: URI[] = [];
 		for (const entry of registered) {
 			if (!entry.external) {
@@ -2974,14 +2992,20 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		} else {
 			try {
-				const registeredAt = Date.now();
-				await this._retryRegistryMutation(
-					() => this._sessionRegistry.register(session, { provider: provider.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'explicit' }, { checkTombstone: false }),
-					`registration for ${session.toString()}`,
-				);
+				// test-workbench_change start — 空闲 provisional(untitled 草稿)不写持久注册表:
+				// 草稿 backing 仅存于内存,落库后重启会被 restore,而 opencode 无法 describe
+				// 未 materialize 的 untitled 会话 → subscribe 报「could not describe … yet」/
+				// 「Session not found on backend」。首次发送 materialize 时在
+				// _onDidMaterializeChat 补登记,正常会话路径不变。
 				if (!isIdleProvisional) {
+					const registeredAt = Date.now();
+					await this._retryRegistryMutation(
+						() => this._sessionRegistry.register(session, { provider: provider.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'explicit' }, { checkTombstone: false }),
+						`registration for ${session.toString()}`,
+					);
 					this._invalidateSessionList();
 				}
+				// test-workbench_change end
 			} catch (err) {
 				await this._rollbackProviderSession(provider, session);
 				throw err;
@@ -3905,6 +3929,20 @@ export class AgentService extends Disposable implements IAgentService {
 		const workingDirectoryReplacement = previousWorkingDirectory && materializedWorkingDirectory && previousWorkingDirectory !== materializedWorkingDirectory
 			? { directory: previousWorkingDirectory, replacement: materializedWorkingDirectory }
 			: undefined;
+		// test-workbench_change start — 空闲 provisional 在 createSession 不落持久注册表
+		// (见 createSession 的 isIdleProvisional 分支);首条消息 materialize 后它就是
+		// 真实会话,在此补登记,保证重启可 restore。
+		if (this._stateManager.isIdleProvisionalSession(sessionKey)) {
+			const provider = this._providerService.getProviderForSession(session);
+			if (provider) {
+				const registeredAt = Date.now();
+				void this._retryRegistryMutation(
+					() => this._sessionRegistry.register(session, { provider: provider.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'explicit' }, { checkTombstone: false }),
+					`provisional materialize registration for ${sessionKey}`,
+				).catch(err => this._logService.error(err, `[AgentService] Failed to register materialized provisional session ${sessionKey}`));
+			}
+		}
+		// test-workbench_change end
 		this._stateManager.markSessionPersisted(sessionKey, summary);
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 		if (workingDirectoryReplacement) {
