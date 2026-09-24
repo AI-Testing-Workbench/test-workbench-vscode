@@ -186,7 +186,8 @@ export interface ISSHRemoteAgentHostService {
 	/** List SSH config host aliases (excluding wildcards). */
 	listSSHConfigHosts(): Promise<string[]>;
 
-	// test-workbench_change start: SSH 配置源改为 TestAgent 沙箱配置
+	// test-workbench_change start
+	// SSH 配置源改为 TestAgent 沙箱配置
 	/**
 	 * Ensure the TestAgent sandbox SSH config
 	 * `~/.local/share/testagent/sandbox.config` exists (creating it with the
@@ -580,7 +581,8 @@ export interface ISSHRemoteAgentHostMainService {
 	/** List SSH config host aliases (excluding wildcards). */
 	listSSHConfigHosts(): Promise<string[]>;
 
-	// test-workbench_change start: SSH 配置源改为 TestAgent 沙箱配置
+	// test-workbench_change start
+	// SSH 配置源改为 TestAgent 沙箱配置
 	/**
 	 * Ensure the TestAgent sandbox SSH config
 	 * `~/.local/share/testagent/sandbox.config` exists (creating it with the

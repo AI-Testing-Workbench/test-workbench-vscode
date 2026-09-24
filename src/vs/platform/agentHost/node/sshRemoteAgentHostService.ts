@@ -1236,8 +1236,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	async listSSHConfigHosts(): Promise<string[]> {
-		// test-workbench_change: 主机来源改为 TestAgent 沙箱配置(不再读 ~/.ssh/config)
+		// test-workbench_change start
+		// 主机来源改为 TestAgent 沙箱配置(不再读 ~/.ssh/config)
 		const configPath = TESTAGENT_SANDBOX_CONFIG_PATH;
+		// test-workbench_change end
 		try {
 			const content = await fsp.readFile(configPath, 'utf-8');
 			return this._parseSSHConfigHosts(content, dirname(configPath));
@@ -1248,7 +1250,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	async ensureUserSSHConfig(): Promise<URI> {
-		// test-workbench_change: 确保 TestAgent 沙箱配置存在(不再创建 ~/.ssh/config)
+		// test-workbench_change start
+		// 确保 TestAgent 沙箱配置存在(不再创建 ~/.ssh/config)
 		const configDir = dirname(TESTAGENT_SANDBOX_CONFIG_PATH);
 		const configPath = TESTAGENT_SANDBOX_CONFIG_PATH;
 		const isPosix = process.platform !== 'win32';
@@ -1258,6 +1261,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			this._logService.warn(`${LOG_PREFIX} Failed to ensure sandbox config directory: ${err}`);
 			throw err;
 		}
+		// test-workbench_change end
 		try {
 			await fsp.access(configPath);
 		} catch {

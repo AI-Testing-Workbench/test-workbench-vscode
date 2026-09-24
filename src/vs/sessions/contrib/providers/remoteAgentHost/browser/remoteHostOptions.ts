@@ -532,8 +532,10 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 			await preferencesService.openSettings({ query: 'chat.remoteAgentHosts' });
 			break;
 		case 'sshConfig': {
-			// test-workbench_change: `ensureUserSSHConfig` 创建 TestAgent 沙箱配置
+			// test-workbench_change start
+			// `ensureUserSSHConfig` 创建 TestAgent 沙箱配置
 			// `~/.local/share/testagent/sandbox.config`(含正确权限),不存在时也会创建。
+			// test-workbench_change end
 			const configResource = await sshService.ensureUserSSHConfig();
 			await editorService.openEditor({ resource: configResource, options: { pinned: true } });
 			break;
