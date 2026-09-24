@@ -152,6 +152,7 @@ export const TITLE_BAR_SETTINGS = [
 
 const DEFAULT_EMPTY_WINDOW_DIMENSIONS = new Dimension(DEFAULT_EMPTY_WINDOW_SIZE.width, DEFAULT_EMPTY_WINDOW_SIZE.height);
 const DEFAULT_WORKSPACE_WINDOW_DIMENSIONS = new Dimension(DEFAULT_WORKSPACE_WINDOW_SIZE.width, DEFAULT_WORKSPACE_WINDOW_SIZE.height);
+const AUXILIARYBAR_DEFAULT_WIDTH = 500; // test-workbench_change
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
@@ -2877,7 +2878,7 @@ const LayoutStateKeys = {
 
 	// Part Sizing
 	SIDEBAR_SIZE: new InitializationStateKey<number>('sideBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
-	AUXILIARYBAR_SIZE: new InitializationStateKey<number>('auxiliaryBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
+	AUXILIARYBAR_SIZE: new InitializationStateKey<number>('auxiliaryBar.size', StorageScope.PROFILE, StorageTarget.MACHINE, AUXILIARYBAR_DEFAULT_WIDTH), // test-workbench_change
 	PANEL_SIZE: new InitializationStateKey<number>('panel.size', StorageScope.PROFILE, StorageTarget.MACHINE, 300),
 
 	// Part State
@@ -3025,7 +3026,7 @@ class LayoutStateModel extends Disposable {
 		const mainContainerDimension = configuration.mainContainerDimension;
 		LayoutStateKeys.SIDEBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
 		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY || auxiliaryBarForceMaximized === true;
-		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = auxiliaryBarForceMaximized ? Math.max(300, mainContainerDimension.width / 2) : Math.min(300, mainContainerDimension.width / 4);
+		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = auxiliaryBarForceMaximized ? Math.max(AUXILIARYBAR_DEFAULT_WIDTH, mainContainerDimension.width / 2) : Math.min(AUXILIARYBAR_DEFAULT_WIDTH, mainContainerDimension.width / 4); // test-workbench_change
 		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
 			if (isWeb && !this.environmentService.remoteAuthority) {
 				return true; // not required in web if unsupported
@@ -3123,7 +3124,7 @@ class LayoutStateModel extends Disposable {
 		// Restrict auxiliary bar size in case of small window dimensions
 		if (this.isNew[StorageScope.WORKSPACE] && configuration.mainContainerDimension.width <= DEFAULT_WORKSPACE_WINDOW_DIMENSIONS.width) {
 			this.setInitializationValue(LayoutStateKeys.SIDEBAR_SIZE, Math.min(300, configuration.mainContainerDimension.width / 4));
-			this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.min(300, configuration.mainContainerDimension.width / 4));
+			this.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, Math.min(AUXILIARYBAR_DEFAULT_WIDTH, configuration.mainContainerDimension.width / 4)); // test-workbench_change
 		}
 	}
 

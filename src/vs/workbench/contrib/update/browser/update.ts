@@ -326,16 +326,39 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		}
 
 		this.promptedUpdateVersion = updateVersion;
+		// allow-any-unicode-next-line
+		const title = nls.localize('updateAvailableTitle', "发现新版本");
+		// allow-any-unicode-next-line
+		const message = nls.localize('updateAvailableMessage', "提示：{0} 有新版本", this.productService.nameLong);
+		// allow-any-unicode-next-line
+		const detail = nls.localize('updateAvailableDetail', "重启安装新版本");
+		// allow-any-unicode-next-line
+		const primaryButton = nls.localize({ key: 'restartToUpdateButton', comment: ['&& denotes a mnemonic'] }, "&&重启并更新");
+
+		// test-workbench_change start
+		if (state.update.forceUpdate === true) {
+			const result = await this.dialogService.prompt({
+				type: 'info',
+				title,
+				message,
+				detail,
+				buttons: [{ label: primaryButton, run: () => true }],
+				custom: { disableCloseAction: true }
+			});
+
+			if (result.result === true && this.updateService.state.type === StateType.Ready) {
+				await this.updateService.quitAndInstall();
+			}
+			return;
+		}
+		// test-workbench_change end
+
 		const result = await this.dialogService.confirm({
 			type: 'info',
-			// allow-any-unicode-next-line
-			title: nls.localize('updateAvailableTitle', "发现新版本"),
-			// allow-any-unicode-next-line
-			message: nls.localize('updateAvailableMessage', "提示：{0} 有新版本", this.productService.nameLong),
-			// allow-any-unicode-next-line
-			detail: nls.localize('updateAvailableDetail', "重启安装新版本"),
-			// allow-any-unicode-next-line
-			primaryButton: nls.localize({ key: 'restartToUpdateButton', comment: ['&& denotes a mnemonic'] }, "&&重启并更新"),
+			title,
+			message,
+			detail,
+			primaryButton,
 			cancelButton: nls.localize('later', "Later")
 		});
 
