@@ -933,6 +933,24 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _pruneStaleExternalSessions(): Promise<void> {
 		const now = Date.now();
 		const registered = await this._listRegisteredSessions();
+		// test-workbench_change start — 清理存量 untitled provisional 行:旧逻辑把空闲草稿
+		// 落进持久注册表,重启后 restore 无法 describe 未 materialize 的 untitled 会话 →
+		// subscribe 报「could not describe … yet」/「Session not found on backend」。
+		// createSession 已不再登记新草稿,这里一次性清掉历史遗留。
+		const legacyUntitledProvisionals: URI[] = [];
+		for (const entry of registered) {
+			if (AgentSession.id(entry.session).startsWith('untitled-')) {
+				legacyUntitledProvisionals.push(entry.session);
+			}
+		}
+		for (const session of legacyUntitledProvisionals) {
+			await this._sessionRegistry.unregister(session);
+		}
+		if (legacyUntitledProvisionals.length > 0) {
+			this._logService.info(`[AgentService] pruned ${legacyUntitledProvisionals.length} stale untitled provisional session row(s)`);
+			this._invalidateSessionList();
+		}
+		// test-workbench_change end
 		const staleExternalSessions: URI[] = [];
 		for (const entry of registered) {
 			if (!entry.external) {
@@ -4059,23 +4077,21 @@ export class AgentService extends Disposable implements IAgentService {
 		} else {
 			try {
 				const registeredAt = Date.now();
-				// The provider deferred this session's backing, so nothing exists on
-				// its side until the first send. That fact is recorded durably in the
-				// same transaction as the registration: the in-memory
-				// `isIdleProvisionalSession` guard reports `false` for a session it no
-				// longer tracks, so after a crash it stops hiding this registration and
-				// the session surfaces as a row that can never be described (#321269).
-				// Writing the marker separately would leave a window where a crash
-				// produces exactly the unmarked orphan this marker exists to catch.
-				await this._retryRegistryMutation(
-					() => this._sessionRegistry.register(session, { provider: provider.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'explicit' }, { checkTombstone: false, provisional: isIdleProvisional }),
-					`registration for ${session.toString()}`,
-				);
+				// test-workbench_change — 空闲 provisional(untitled 草稿)不写持久注册表:
+				// 草稿 backing 仅存于内存,落库后重启会被 restore,而 opencode 无法 describe
+				// 未 materialize 的 untitled 会话 → subscribe 报「could not describe … yet」/
+				// 「Session not found on backend」。首次发送 materialize 时在
+				// _onDidMaterializeChat 补登记,正常会话路径不变。
 				if (isIdleProvisional) {
 					this._provisionalSessionKeys.add(session.toString());
 				} else {
+					await this._retryRegistryMutation(
+						() => this._sessionRegistry.register(session, { provider: provider.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'explicit' }, { checkTombstone: false }),
+						`registration for ${session.toString()}`,
+					);
 					this._invalidateSessionList();
 				}
+				// test-workbench_change end
 			} catch (err) {
 				await this._rollbackProviderSession(provider, session);
 				throw err;
@@ -5193,6 +5209,20 @@ export class AgentService extends Disposable implements IAgentService {
 		const workingDirectoryReplacement = previousWorkingDirectory && materializedWorkingDirectory && previousWorkingDirectory !== materializedWorkingDirectory
 			? { directory: previousWorkingDirectory, replacement: materializedWorkingDirectory }
 			: undefined;
+		// test-workbench_change start — 空闲 provisional 在 createSession 不落持久注册表
+		// (见 createSession 的 isIdleProvisional 分支);首条消息 materialize 后它就是
+		// 真实会话,在此补登记,保证重启可 restore。
+		if (this._stateManager.isIdleProvisionalSession(sessionKey)) {
+			const provider = this._providerService.getProviderForSession(session);
+			if (provider) {
+				const registeredAt = Date.now();
+				void this._retryRegistryMutation(
+					() => this._sessionRegistry.register(session, { provider: provider.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'explicit' }, { checkTombstone: false }),
+					`provisional materialize registration for ${sessionKey}`,
+				).catch(err => this._logService.error(err, `[AgentService] Failed to register materialized provisional session ${sessionKey}`));
+			}
+		}
+		// test-workbench_change end
 		this._stateManager.markSessionPersisted(sessionKey, summary);
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 		if (workingDirectoryReplacement) {
@@ -8237,6 +8267,19 @@ export class AgentService extends Disposable implements IAgentService {
 			return this._fetchGitBlobContent(blobFields);
 		}
 
+		// test-workbench_change start — opencode 合成 customization URI(运行时 API 清单,
+		// 无磁盘源文件):委托 provider 合成只读 markdown 详情,避免落入文件服务抛
+		// ENOPRO(no file system provider)500。
+		if (uri.scheme === 'opencode-customization') {
+			const describer = this._providerService.getProvider('opencode') as { describeCustomization?: (u: URI) => Promise<string | undefined> } | undefined;
+			const content = await describer?.describeCustomization?.(uri);
+			if (content === undefined) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri.toString()}`);
+			}
+			return { data: content, encoding: ContentEncoding.Utf8, contentType: 'text/markdown' };
+		}
+		// test-workbench_change end
+
 		try {
 			const content = await this._fileService.readFile(uri);
 			return {
@@ -8456,6 +8499,22 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult> {
 		const fileUri = URI.parse(params.uri);
+		// test-workbench_change start — 合成 customization 条目(opencode-customization: scheme,
+		// 无磁盘文件):委托 provider 反向映射到源文件删除;文件服务对该 scheme 无 provider,
+		// 直接落到下面会误报 NotFound。内置/config 声明条目删不掉时返回明确错误。
+		if (fileUri.scheme === 'opencode-customization') {
+			const deleter = this._providerService.getProvider('opencode') as { deleteCustomization?: (u: URI) => Promise<void> } | undefined;
+			if (!deleter?.deleteCustomization) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${fileUri.toString()}`);
+			}
+			try {
+				await deleter.deleteCustomization(fileUri);
+				return {};
+			} catch (e) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, `Cannot delete customization: ${toErrorMessage(e instanceof Error ? e : new Error(String(e)))}`);
+			}
+		}
+		// test-workbench_change end
 		try {
 			await this._fileService.del(fileUri, { recursive: params.recursive });
 			return {};
@@ -8487,6 +8546,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
 		const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		// test-workbench_change — opencode 合成 customization URI:按只读文件上报,
+		// 内容由 resourceRead 的 provider 分支合成(无 stat 可谈)
+		if (uri.scheme === 'opencode-customization') {
+			return { uri: uri.toString(), type: ResourceType.File };
+		}
+		// test-workbench_change end
 		try {
 			const stat = await this._fileService.stat(uri);
 			let type: ResourceType;
@@ -8543,6 +8608,28 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult> {
 		const root = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		// test-workbench_change start — 合成 customization 条目(opencode-customization: scheme,
+		// 文件服务无该 provider):有源文件的按源文件做存在性校验;无源文件的(内置/config 声明)
+		// 放行成"永不触发"的 watch(内容不变,无需事件),不再误报 NotFound。
+		if (root.scheme === 'opencode-customization') {
+			const resolver = this._providerService.getProvider('opencode') as { resolveCustomizationSourcePaths?: (u: URI) => string[] } | undefined;
+			const paths = resolver?.resolveCustomizationSourcePaths?.(root) ?? [];
+			if (paths.length) {
+				try {
+					await this._fileService.stat(URI.file(paths[0]));
+				} catch {
+					throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${root.toString()}`);
+				}
+			}
+			const channel = buildResourceWatchChannelUri({
+				root: root.toString(),
+				recursive: params.recursive === true,
+				excludes: params.excludes,
+				includes: params.includes,
+			});
+			return { channel };
+		}
+		// test-workbench_change end
 		// Verify the URI exists before we mint a channel; spec requires
 		// `NotFound` when the URI is missing rather than silently producing
 		// a watcher that will never fire. The watcher itself is not
@@ -8594,6 +8681,20 @@ export class AgentService extends Disposable implements IAgentService {
 		const disposables = new DisposableStore();
 		try {
 			const root = URI.parse(descriptor.root);
+			// test-workbench_change — 合成 customization URI:文件服务无该 scheme 的 watcher,
+			// 注册为永不触发的空 watch(仅保留 channel 生命周期/订阅计数)。
+			if (root.scheme === 'opencode-customization') {
+				this._resourceWatches.set(channel, {
+					channel,
+					descriptor,
+					subscribers: 1,
+					disposables,
+					pendingGc: disposables.add(new MutableDisposable()),
+					dispose: () => disposables.dispose(),
+				});
+				return descriptor;
+			}
+			// test-workbench_change end
 			const watchOptions = {
 				recursive: descriptor.recursive,
 				excludes: descriptor.excludes?.items ?? [],

@@ -779,9 +779,13 @@ class AbstractResponse implements IResponse {
 				? toolInvocation.pastTenseMessage
 				: toolInvocation.pastTenseMessage.value;
 		} else {
+			// test-workbench_change start — remote agents (e.g. agent-host-opencode / testagent) can
+			// publish tool call parts without an invocationMessage; without a guard every aria-label,
+			// copy, and telemetry path throws a TypeError during streaming render.
 			message = typeof toolInvocation.invocationMessage === 'string'
 				? toolInvocation.invocationMessage
-				: toolInvocation.invocationMessage.value;
+				: toolInvocation.invocationMessage?.value ?? '';
+			// test-workbench_change end
 		}
 
 		// Handle different types of tool invocations

@@ -28,7 +28,6 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatMarkdownContentPart } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
 import { ChatMarkdownDecorationsRenderer } from '../../../../browser/widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
-import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatPetService } from '../../../../browser/chatPetService.js';
 import { ChatContentMarkdownRenderer } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
@@ -39,6 +38,11 @@ import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.j
 import { IChatContentInlineReference } from '../../../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
+// test-workbench_change start
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
+import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
+// test-workbench_change end
 import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IViewDescriptorService } from '../../../../../../common/views.js';
@@ -154,7 +158,17 @@ suite('ChatMarkdownContentPart', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		chatSessionsService = new MockChatSessionsService();
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
-		instantiationService.stub(IChatMarkdownAnchorService, disposables.add(new ChatMarkdownAnchorService()));
+		// test-workbench_change: linkify 依赖的工作区/文件服务(测试无工作区,相对路径不链接)
+		instantiationService.stub(IWorkspaceContextService, {
+			getWorkspace: () => ({ id: 'test', folders: [] }),
+		} as unknown as IWorkspaceContextService);
+		instantiationService.stub(IFileService, {
+			stat: () => Promise.reject(new Error('no file service in test')),
+		} as unknown as IFileService);
+		instantiationService.stub(IChatMarkdownAnchorService, {
+			_serviceBrand: undefined,
+			register: () => toDisposable(() => { }),
+		} as unknown as IChatMarkdownAnchorService);
 		instantiationService.stub(IChatPetService, new class extends mock<IChatPetService>() {
 			override unlockAchievement(): boolean { return false; }
 		}());

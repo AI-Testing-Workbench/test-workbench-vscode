@@ -5,6 +5,10 @@
 
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter } from '../../../base/common/event.js';
+// test-workbench_change start - Windows 进程树兜底清理用
+import { execSync } from 'child_process';
+import { platform } from 'os';
+// test-workbench_change end
 import { IpcMainEvent, WebContents } from 'electron';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/electron-main/ipc.mp.js';
@@ -280,6 +284,26 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	}
 
 	private _disposeUtilityProcess(utilityProcess: UtilityProcess): void {
+		// test-workbench_change start
+		// kill() 在 win32 是 TerminateProcess、在 POSIX 也不保证 agentHost 内的信号兜底
+		// (OpenCodeAgent._guardBackendProcessLifecycle)来得及跑完,或后端 testagent 会响应
+		// SIGTERM;其 spawn 的孙进程会变孤儿常驻。先按平台树杀整个进程树(agentHost + 其
+		// spawn 的 testagent),再走常规 kill。
+		if (utilityProcess.pid) {
+			const pid = utilityProcess.pid;
+			try {
+				if (platform() === 'win32') {
+					execSync(`taskkill /pid ${pid} /T /F`, { stdio: 'ignore', windowsHide: true, timeout: 10000 });
+				} else {
+					// POSIX(darwin/linux): 从 agentHost pid 出发递归收集全部后代并 SIGKILL
+					// (不含 agentHost 自身,交给下方 utilityProcess.kill())。/bin/sh 函数递归 pgrep -P。
+					execSync(`f(){ for c in $(pgrep -P "$1"); do f "$c"; kill -9 "$c" 2>/dev/null; done; }; f ${pid}`, { stdio: 'ignore', timeout: 10000 });
+				}
+			} catch {
+				// 进程树已消失或清理失败,继续常规 kill
+			}
+		}
+		// test-workbench_change end
 		utilityProcess.kill();
 		utilityProcess.dispose();
 		if (this.utilityProcess === utilityProcess) {

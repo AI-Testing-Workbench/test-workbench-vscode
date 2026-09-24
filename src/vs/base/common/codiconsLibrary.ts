@@ -657,7 +657,7 @@ export const codiconsLibrary = {
 	openInWindow: register('open-in-window', 0xec83),
 	newSession: register('new-session', 0xec84),
 	terminalSecure: register('terminal-secure', 0xec85),
-	commentOpen: register('comment-open', 0xec86), // test-workbench_change - new icon: filled speech bubble for active state
+	commentOpen: register('comment-open', 0xf8ff), // test-workbench_change - new icon: filled speech bubble for active state. 0xEC86 已被上游 codicons 0.0.46-12+ 的 chat-import 占用,自定义字形迁至 PUA 0xF8FF(codicon.ttf 内注入)。
 	chatImport: register('chat-import', 0xec86),
 	chatExport: register('chat-export', 0xec87),
 	shareWindow: register('share-window', 0xec88),
