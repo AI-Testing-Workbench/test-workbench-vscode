@@ -380,7 +380,7 @@ class SSHConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 		if (configured) {
 			return configured;
 		}
-		return `bash -c 'D=$(ls -d "$HOME/.tscode-server/bin/"*/ 2>/dev/null | head -n 1); D=\${D%/}; exec "$D/node" "$D/out/vs/platform/agentHost/node/agentHostServerMain.js" --port 0 --host 127.0.0.1 --without-connection-token --user-data-dir "$HOME/.tscode-server/agent-host-data"'`;
+		return `bash -c 'D=$(ls -d "$HOME/.tscode-server/bin/"*/ 2>/dev/null | head -n 1); D=\${D%/}; exec "$D/node" --import "$D/out/nls.messages.js" "$D/out/vs/platform/agentHost/node/agentHostServerMain.js" --port 0 --host 127.0.0.1 --without-connection-token --user-data-dir "$HOME/.tscode-server/agent-host-data"'`;
 		// test-workbench_change end
 	}
 
