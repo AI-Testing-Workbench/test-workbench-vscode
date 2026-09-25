@@ -37,16 +37,23 @@ import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { BANG_COMMAND_PREFIX } from './agentHostBangCommand.js';
-import { CopilotAgent } from './copilot/copilotAgent.js';
-import { ClaudeAgent } from './claude/claudeAgent.js';
-import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
-import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
+// test-workbench_change start: Copilot/Claude/Codex provider 不接入(代码保留,恢复时去掉注释并还原原 import)
+// import { CopilotAgent } from './copilot/copilotAgent.js';
+// import { ClaudeAgent } from './claude/claudeAgent.js';
+// import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
+// import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
+// test-workbench_change end
 import { createCodexProviderConfiguration } from './codex/codexProviderConfiguration.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
-import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+// test-workbench_change: 两个成员仅供已注释的 Codex 注册段使用,恢复注册时取消注释
+// import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
-import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
+// test-workbench_change start: 移除 Claude/Codex enable 开关成员(仅供已注释的注册段使用,代码保留)
+// import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled, AgentHostOpenCodeAgentEnabledEnvVar } from '../common/agentService.js';
+// test-workbench_change end
+import { OpenCodeAgent } from './openCode/openCodeAgent.js'; // test-workbench_change
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
@@ -225,27 +232,19 @@ async function main(): Promise<void> {
 		completions,
 		customizationEnablementService,
 	} = runtimeServices;
+	// test-workbench_change: 以下两项仅供已注释的 Claude/Codex 注册段使用,恢复注册时删除本两行
+	void agentConfigurationService;
+	void agentSdkDownloader;
 	errorTelemetry.value = new ErrorTelemetry(runtimeServices.telemetryService);
 
 	// Register agents
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 	if (!options.quiet) {
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
+		// test-workbench_change start: 只保留 TestAgent(openCode);Copilot/Claude/Codex 不接入(代码注释保留,勿删)
+		/*原逻辑:
 		providerService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		log('CopilotAgent registered');
-		// Claude and Codex providers are gated on two things:
-		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
-		//     forwarded as an env var by the renderer-side starters; the remote
-		//     server reads the env directly). Claude defaults to on, Codex
-		//     defaults to off.
-		//  2. The SDK being reachable. Claude is a devDependency of this repo
-		//     so the bare-import path in `ClaudeAgentSdkService._loadSdk`
-		//     always succeeds in dev; in built/shipped server installs the
-		//     SDK comes from the CLI flag / env var dev override or a
-		//     `product.agentSdks.claude` entry. Codex is likewise a
-		//     devDependency, so `CodexAgent._resolveSdkRoot` resolves it from
-		//     `node_modules` in dev; built/shipped installs use the env-var
-		//     override or `product.agentSdks.codex`.
 		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
 			providerService.registerProvider(instantiationService.createInstance(ClaudeAgent));
 			log('ClaudeAgent registered');
@@ -267,6 +266,14 @@ async function main(): Promise<void> {
 			registerCodexIfEnabled();
 			disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
 		}
+		*/
+		// TestAgent provider: enabled by default (opt-out via env var)
+		if (isAgentEnabled(process.env[AgentHostOpenCodeAgentEnabledEnvVar], true)) {
+			const openCodeAgent = disposables.add(instantiationService.createInstance(OpenCodeAgent));
+			providerService.registerProvider(openCodeAgent);
+			log('TestAgent provider registered');
+		}
+		// test-workbench_change end
 	}
 
 	// Surface agent-SDK download progress to clients as generic `progress`

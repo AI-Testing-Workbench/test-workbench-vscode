@@ -11,7 +11,8 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { affectsAgentHostProviderPreference, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+// test-workbench_change: protectedResourcesRequireGitHubCopilotSignIn 仅供已注释的登录检查使用
+import { affectsAgentHostProviderPreference, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -29,7 +30,7 @@ import { AuthenticationSession, IAuthenticationService } from '../../../../../se
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
-import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, type ISectionOverride } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
@@ -307,8 +308,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			// agent host resolves. The paired `onDidChangeRequiresCopilotSignIn` lets
 			// the sessions service re-evaluate this when the set changes.
 			requiresCopilotSignIn: () => {
+				// test-workbench_change - allow use without GitHub login
+				return false;
+				/*原逻辑(勿删):
 				const resources = this._protectedResourcesService.getProtectedResources(agent.provider);
 				return resources !== undefined ? protectedResourcesRequireGitHubCopilotSignIn(resources) : true;
+				*/
 			},
 			onDidChangeRequiresCopilotSignIn: Event.signal(Event.filter(this._protectedResourcesService.onDidChange, provider => provider === agent.provider, store)),
 			agentHostProviderId: agent.provider,
@@ -336,8 +341,24 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			label: agent.displayName,
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			// The Tools section is surfaced for the Copilot CLI agent host only.
-			hiddenSections: agent.provider === 'copilotcli' ? [AICustomizationManagementSection.Prompts] : [AICustomizationManagementSection.Tools, AICustomizationManagementSection.Prompts],
+			// test-workbench_change start — opencode(TestAgent) 不消费 agent host 意义上的
+			// Hooks(其 "hooks" 是 @opencode-ai/plugin 的 TS 代码回调,与 PreToolUse/SessionStart
+			// 声明式钩子模型不符)与 Plugins(面板 Available 来自全局 open-plugins marketplace,
+			// opencode 后端不读该格式、Installed 恒 0,Install 是死路)。隐藏这两个 section,
+			// 避免误导性空面板/装了不生效的入口。
+			hiddenSections: agent.provider === 'copilotcli'
+				? [AICustomizationManagementSection.Prompts]
+				: [AICustomizationManagementSection.Tools, AICustomizationManagementSection.Prompts,
+					...(agent.provider === 'opencode' ? [AICustomizationManagementSection.Hooks, AICustomizationManagementSection.Plugins] : [])],
+			// test-workbench_change end
 			hideGenerateButton: true,
+			// test-workbench_change start — opencode 的 Instructions 为只读(后端只读固定名
+			// AGENTS.md,无法作为自由命名 .instructions.md 新建),隐藏 New Instruction 按钮,
+			// 避免点击后 "No instruction source folders found" 的死路。
+			sectionOverrides: agent.provider === 'opencode'
+				? new Map<string, ISectionOverride>([[AICustomizationManagementSection.Instructions, { disableCreate: true }]])
+				: undefined,
+			// test-workbench_change end
 			syncProvider,
 			itemProvider,
 			hiddenMcpServerCollectionIds: agentHostProviderHasBuiltInGitHubMcpServer(agent.provider) ? [COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID] : undefined,

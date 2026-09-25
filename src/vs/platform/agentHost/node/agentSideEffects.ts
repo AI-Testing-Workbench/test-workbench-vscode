@@ -1834,6 +1834,16 @@ export class AgentSideEffects extends Disposable {
 		const chatUri = URI.parse(chat);
 		const turnTelemetryContext = this._turnTracker.getProviderTelemetryContext(turnChannel, turnId);
 
+		// test-workbench_change start — 耗时埋点:host 侧发送前置链路分段计时(日志前缀 [耗时])
+		const seT0 = Date.now();
+		let seLast = seT0;
+		const seStage = (label: string, kind: string) => {
+			const now = Date.now();
+			this._logService.info(`[耗时][发送前置] ${label} = ${now - seLast}ms(距发送入口累计 ${now - seT0}ms);时间消耗类型 =「${kind}」`);
+			seLast = now;
+		};
+		// test-workbench_change end
+
 		let failureStage: AgentHostTurnFailureStage = 'workingDirectory';
 		// Declared outside the `try` so a turn that fails before the provider is
 		// handed the prompt can discard the checkpoint it already started.
@@ -1848,6 +1858,7 @@ export class AgentSideEffects extends Disposable {
 			// for worktree sessions (created here on the first send) or the picked
 			// folder for folder sessions; undefined for workspace-less sessions.
 			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text });
+			seStage('工作目录/worktree 解析', 'Git worktree 创建或目录校验;worktree 隔离的新会话首条消息可达秒级,普通 folder 会话≈0'); // test-workbench_change — 耗时埋点
 			// Start the turn-start checkpoint as soon as the working directory is
 			// known so its git snapshot runs alongside the provider round-trips
 			// below instead of after them. It is still awaited before the message
@@ -1882,13 +1893,16 @@ export class AgentSideEffects extends Disposable {
 			}));
 
 			await Promise.all(selectionUpdates);
+			seStage('应用 model/agent 选择', 'provider 内存态赋值(TestAgent≈0);其他 harness 可能含 SDK 调用'); // test-workbench_change — 耗时埋点
 
 			failureStage = 'sendMessage';
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
 			this._turnTracker.markSendStage(turnChannel, turnId, 'attachments');
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
+			seStage('解析附件', '读取/物化附件;chat 引用附件会触发跨会话 restore,可达秒级;无附件≈0'); // test-workbench_change — 耗时埋点
 			this._turnTracker.markSendStage(turnChannel, turnId, 'contributions');
 			const contribution = await this._chatContributions.outgoingTurn({ session: sessionChannel, chat, message, turnId });
+			seStage('chat contributions 前置(outgoingTurn)', '宿主指令注入/队列记账等贡献者链'); // test-workbench_change — 耗时埋点
 			const sendContext = { ...clientOperationContext, ...(turnTelemetryContext ? { turnTelemetryContext } : {}), ...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}) };
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
@@ -1899,6 +1913,7 @@ export class AgentSideEffects extends Disposable {
 				// after overlapping the work above, not the capture's total cost.
 				this._turnTracker.markSendStage(turnChannel, turnId, 'checkpoint');
 				await checkpointCapture;
+				seStage('轮次起点 checkpoint 捕获', 'changeset 基线文件快照(Git 状态采集),随仓库大小增长'); // test-workbench_change — 耗时埋点
 			}
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
@@ -1909,7 +1924,10 @@ export class AgentSideEffects extends Disposable {
 			// From here the provider owns the turn: a rejected `sendMessage` may
 			// still have started work, so the checkpoint must survive it.
 			dispatchedToProvider = true;
+			const beforeProviderSend = Date.now(); // test-workbench_change — 耗时埋点
 			await agent.chats.sendMessage(chatUri, contribution.message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientContext.clientType, sendContext);
+			seStage('provider sendMessage 整次调用(TestAgent:含投递HTTP→SSE流式→finish)', 'TestAgent 后端的整轮模型时间+工具循环,对照 openCodeSession 的 [投递HTTP]/[LLM首输出]/[轮次总计] 分段'); // test-workbench_change — 耗时埋点
+			this._logService.info(`[耗时][发送前置合计] host 侧 provider 之外的发送前置总计 = ${beforeProviderSend - seT0}ms;时间消耗类型 =「工作目录解析+附件+contributions+checkpoint+选择应用之和,发生在用户发送之后、testagent 收到请求之前」`); // test-workbench_change — 耗时埋点
 		} catch (err) {
 			// The provider never saw the prompt, so the turn-start checkpoint
 			// describes work that will never happen. Drop it — otherwise the

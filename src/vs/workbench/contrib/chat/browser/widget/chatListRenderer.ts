@@ -4783,8 +4783,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// Render the active carousel in the input part (above the input box, not while editing)
+		// test-workbench_change — 输入区被隐藏(只读子会话视图)时挂进输入区=卡片不可见 → 走下方内联渲染回退
 		const isEditing = !!this.viewModel?.editing;
-		const part = isEditing ? undefined : widget?.input.renderQuestionCarousel(carousel, context, {
+		const inputCarouselUsable = !!widget && widget.input.questionCarouselContainerVisible;
+		const part = (isEditing || !inputCarouselUsable) ? undefined : widget?.input.renderQuestionCarousel(carousel, context, {
 			shouldAutoFocus,
 			onSubmit: async (answers) => handleSubmit(answers, part!)
 		});

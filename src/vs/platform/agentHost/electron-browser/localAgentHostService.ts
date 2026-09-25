@@ -11,7 +11,7 @@ import { mark } from '../../../base/common/performance.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { getDelayedChannel, IChannelClient, IChannelServer, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { getDelayedChannel, IChannelClient, IChannelServer, IServerChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
 import { acquirePort, MessagePortAcquisitionError } from '../../../base/parts/ipc/electron-browser/ipc.mp.js';
 import { ipcRenderer } from '../../../base/parts/sandbox/electron-browser/globals.js';
@@ -172,9 +172,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _onMcpNotification = this._register(new Relay<IMcpNotification>());
 	readonly onMcpNotification = this._onMcpNotification.event;
 
-	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
+	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false); // test-workbench_change - skip auth so sessions work without login
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
-	private _authenticationSettled = false;
+	// test-workbench_change: setAuthenticationPending 已跳过(原 sticky 字段不再使用,恢复时取消注释)
+	// private _authenticationSettled = false;
 	private readonly _noopRootState: IAgentSubscription<RootState> = {
 		value: undefined,
 		verifiedValue: undefined,
@@ -344,6 +345,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	setAuthenticationPending(pending: boolean): void {
+		// test-workbench_change start - skip auth entirely, never surface pending
+		if (!pending) {
+			this._startupTelemetry?.authenticationSettled();
+		}
+		/*原逻辑(勿删):
 		if (this._authenticationSettled) {
 			return;
 		}
@@ -352,6 +358,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			this._startupTelemetry?.authenticationSettled();
 		}
 		this._authenticationPending.set(pending, undefined);
+		*/
+		// test-workbench_change end
 	}
 
 	get initializeResult(): IObservable<InitializeResult | undefined> {
@@ -608,7 +616,17 @@ export function registerAgentHostClientChannels(
 	instantiationService: IInstantiationService,
 	logService: ILogService,
 ): void {
-	client.registerChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL, instantiationService.createInstance(AgentHostClientProxyChannel));
+	// test-workbench_change start — upstream guarded only the BYOK channel: a throw while
+	// constructing the proxy channel would tear down the whole client acquisition, leaving
+	// BOTH reverse channels unregistered; the agent host then stalled every request in the
+	// MessagePort pending queue for the full timeout (bare `Unknown channel: …` errors and
+	// ~1s hangs per LM bridge call). Guard each channel independently with a fail-fast stub.
+	try {
+		client.registerChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL, instantiationService.createInstance(AgentHostClientProxyChannel));
+	} catch (error) {
+		logService.error(`${LOG_PREFIX} client proxy channel failed to construct; proxy requests will fail fast.`, error);
+		client.registerChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL, new UnavailableAgentHostClientProxyChannel(`Proxy channel unavailable: ${error instanceof Error ? error.message : String(error)}`));
+	}
 
 	try {
 		client.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, instantiationService.createInstance(AgentHostClientByokLmChannel));
@@ -616,4 +634,24 @@ export function registerAgentHostClientChannels(
 		logService.warn(`${LOG_PREFIX} BYOK language-model bridge not registered for this window. ${error instanceof Error ? error.message : String(error)}`);
 		client.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, new NullAgentHostClientByokLmChannel());
 	}
+	// test-workbench_change end
 }
+
+// test-workbench_change start
+/**
+ * Fail-fast stub for the rare case where the real proxy channel cannot be
+ * constructed: a rejected `call` surfaces the reason immediately instead of
+ * letting the request hang in the channel-server pending queue.
+ */
+export class UnavailableAgentHostClientProxyChannel implements IServerChannel {
+	constructor(private readonly message: string) { }
+
+	listen<T>(): Event<T> {
+		return Event.None;
+	}
+
+	call(): Promise<never> {
+		return Promise.reject(new Error(this.message));
+	}
+}
+// test-workbench_change end

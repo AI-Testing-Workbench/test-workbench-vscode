@@ -186,19 +186,24 @@ export interface ISSHRemoteAgentHostService {
 	/** List SSH config host aliases (excluding wildcards). */
 	listSSHConfigHosts(): Promise<string[]>;
 
+	// test-workbench_change start
+	// SSH 配置源改为 TestAgent 沙箱配置
 	/**
-	 * Ensure `~/.ssh/config` exists (creating it with the right permissions if
-	 * missing) and return its URI. The parent `~/.ssh` directory is created
-	 * with mode 0700 and the config file with mode 0600 on POSIX systems.
+	 * Ensure the TestAgent sandbox SSH config
+	 * `~/.local/share/testagent/sandbox.config` exists (creating it with the
+	 * right permissions if missing) and return its URI. The parent directory is
+	 * created with mode 0700 and the config file with mode 0600 on POSIX systems.
 	 */
 	ensureUserSSHConfig(): Promise<URI>;
 
 	/**
-	 * List the known SSH configuration file URIs in priority order — typically the
-	 * per-user `~/.ssh/config` (always returned, even if it does not yet exist) and
-	 * the system-wide `/etc/ssh/ssh_config` (only when present on disk).
+	 * List the known SSH configuration file URIs in priority order — the
+	 * TestAgent sandbox config `~/.local/share/testagent/sandbox.config` (always
+	 * returned, even if it does not yet exist) and the system-wide
+	 * `/etc/ssh/ssh_config` (only when present on disk).
 	 */
 	listSSHConfigFiles(): Promise<URI[]>;
+	// test-workbench_change end
 
 	/** Resolve full SSH config for a host via `ssh -G`. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
@@ -576,14 +581,18 @@ export interface ISSHRemoteAgentHostMainService {
 	/** List SSH config host aliases (excluding wildcards). */
 	listSSHConfigHosts(): Promise<string[]>;
 
+	// test-workbench_change start
+	// SSH 配置源改为 TestAgent 沙箱配置
 	/**
-	 * Ensure `~/.ssh/config` exists (creating it with the right permissions if
-	 * missing) and return its URI.
+	 * Ensure the TestAgent sandbox SSH config
+	 * `~/.local/share/testagent/sandbox.config` exists (creating it with the
+	 * right permissions if missing) and return its URI.
 	 */
 	ensureUserSSHConfig(): Promise<URI>;
 
-	/** List the known SSH configuration file URIs (user config always included). */
+	/** List the known SSH configuration file URIs (TestAgent sandbox config always included). */
 	listSSHConfigFiles(): Promise<URI[]>;
+	// test-workbench_change end
 
 	/** Resolve full SSH config for a host via `ssh -G`. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;

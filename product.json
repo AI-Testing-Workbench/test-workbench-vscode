@@ -264,6 +264,12 @@
 			"type": "light"
 		}
 	],
+	"extensionEnabledApiProposals": {
+		"test-tech.tscode-remote-ssh": [
+			"resolvers",
+			"contribViewsRemote"
+		]
+	},
 	"builtInExtensionsEnabledWithAutoUpdates": [
 		"test-tech.skillhub",
 		"test-tech.testagent",

@@ -17,6 +17,16 @@ export const AGENT_HOST_ENABLED_CONTEXT_KEY = new RawContextKey<boolean>('agentH
 /** Hidden setting that gates the current-harness indicator for existing Agent Host sessions in the main VS Code window. */
 export const AgentHostExistingSessionHarnessPickerEnabledSettingId = 'chat.editor.agentHost.existingSessionHarnessPicker.enabled';
 
+// test-workbench_change start
+/**
+ * 主编辑器窗口是否接入 Agent Host。**schema 默认 false**:编辑器窗口不再自动连接 Agent Host
+ * (从而不拉起 testagent 后端、隐藏内置 Chat 视图);`agentsWindow.default: true` 保证 Agents
+ * 窗口不受影响(其配置服务会采用 agentsWindow 默认值)。
+ * 注意:不要复用 `chat.disableAIFeatures`——它还会连带隐藏 Agents 窗口入口。
+ */
+export const AgentHostEditorEnabledSettingId = 'chat.editor.agentHost.enabled';
+// test-workbench_change end
+
 /** Effective setting or experiment value for the existing-session harness indicator in the main VS Code window. */
 export const AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY = new RawContextKey<boolean>('agentHostExistingSessionHarnessPickerEnabled', false, { type: 'boolean', description: nls.localize('agentHostExistingSessionHarnessPickerEnabled', "Whether existing Agent Host sessions in the main VS Code window show the current harness as a disabled picker.") });
 
@@ -87,5 +97,17 @@ configurationRegistry.registerConfiguration({
 			included: false,
 			tags: ['experimental'],
 		},
+		// test-workbench_change start
+		// 编辑器窗口 Agent Host 开关(Agents 窗口恒为 true)
+		[AgentHostEditorEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.editor.agentHost.enabled', "When enabled, the main editor window connects to the Agent Host (and starts its backend). Disable to keep the editor window from starting the Agent Host backend. The Agents window is unaffected."),
+			default: false,
+			// 注意:不能加 `included: false`——被排除的设置不会进入默认配置模型,导致 getValue() 返回 undefined、
+			// 编辑器窗口解析不到默认 false(以及 Agents 窗口解析不到 agentsWindow 默认 true)。故此处保持可见注册。
+			tags: ['experimental'],
+			agentsWindow: { default: true, readOnly: true },
+		},
+		// test-workbench_change end
 	}
 });

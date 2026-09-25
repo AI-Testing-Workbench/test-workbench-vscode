@@ -18,6 +18,7 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../platform/agentHost/common/agentHostEnablementService.js'; // test-workbench_change
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
@@ -71,6 +72,10 @@ const chatViewDescriptor: IViewDescriptor = {
 	},
 	ctorDescriptor: new SyncDescriptor(ChatViewPane),
 	when: ContextKeyExpr.and(
+		// test-workbench_change start
+		// 编辑器窗口关闭 Agent Host 时隐藏内置 Chat 视图(Agents 窗口不注册此视图,不受影响)
+		AGENT_HOST_ENABLED_CONTEXT_KEY,
+		// test-workbench_change end
 		ChatContextKeys.accountPolicyGateActive.negate(),
 		ContextKeyExpr.or(
 			ContextKeyExpr.and(

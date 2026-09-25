@@ -135,6 +135,7 @@ const serverEntryPoints = [
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/terminal/node/ptyHostMain',
 	'vs/platform/agentHost/node/agentHostMain',
+	'vs/platform/agentHost/node/agentHostServerMain', // test-workbench_change - 随 server 包分发 standalone AHP server(SSH 远端直接以 node 启动)
 	'vs/platform/agentHost/node/diffWorkerMain',
 ];
 
