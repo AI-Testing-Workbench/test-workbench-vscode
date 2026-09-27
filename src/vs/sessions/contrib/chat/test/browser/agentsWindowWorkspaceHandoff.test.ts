@@ -23,7 +23,7 @@ import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsSetUpService } from '../../../../browser/sessionsSetUpService.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionNavigationRequest, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
@@ -38,6 +38,7 @@ import { writeNewChatDraftState } from '../../common/newChatDraftState.js';
 suite('Agents Window workspace handoff', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const folderUri = URI.file('/private/from-editor');
+	const otherFolderUri = URI.file('/private/restored'); // test-workbench_change
 
 	function createHarness() {
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -63,6 +64,7 @@ suite('Agents Window workspace handoff', () => {
 		let input: IChatDraft = { inputText: '', attachments: [] };
 		let inputReady = true;
 		let draftReady = Promise.resolve();
+		let restoredSessions = 0; // test-workbench_change
 		const sessionsService = upcastPartial<ISessionsService>({
 			activeSession,
 			initialRestoreComplete,
@@ -72,7 +74,18 @@ suite('Agents Window workspace handoff', () => {
 					navigationRequest.set({ token }, undefined);
 				}
 				openingOptions.push(!!options?.cancelRestore);
-				activeSession.set(undefined, undefined);
+				// test-workbench_change start
+				if (restoredSessions > 0) {
+					restoredSessions--;
+					activeSession.set(upcastPartial<IActiveSession>({
+						sessionId: 'restored',
+						isCreated: observableValue('created', true),
+						workspace: observableValue<ISessionWorkspace | undefined>('restoredWorkspace', upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionFolder>({ root: otherFolderUri })] })),
+					}), undefined);
+				} else {
+					activeSession.set(undefined, undefined);
+				}
+				// test-workbench_change end
 				return { session: undefined, trustDeclined: false };
 			},
 		});
@@ -146,6 +159,7 @@ suite('Agents Window workspace handoff', () => {
 			set resolutionError(value: Error) { resolutionError = value; },
 			set inputReady(value: boolean) { inputReady = value; },
 			set draftReady(value: Promise<void>) { draftReady = value; },
+			set restoredSessions(value: number) { restoredSessions = value; }, // test-workbench_change
 			get input() { return input; },
 			edit: (value: IChatDraft) => { input = value; inputChanged.fire(); },
 			openDraft: (draft: IChatDraft, folder: URI | undefined = folderUri) => handoff.selectWorkspace({ folderUri: folder, preferDevContainer: true, isDefault: false, draft: serializeChatDraft(draft) }, state => states.push(state)),
@@ -180,8 +194,48 @@ suite('Agents Window workspace handoff', () => {
 				notifications: 0,
 			});
 		});
-
 	});
+
+	// test-workbench_change start
+	test('a forced switch supersedes a restored session for a different workspace', async () => {
+		const harness = createHarness();
+		harness.restoredSessions = 1;
+		await harness.handoff.selectWorkspace(
+			{ folderUri, preferDevContainer: true, isDefault: false, force: true },
+			state => harness.states.push(state),
+		);
+		assert.deepStrictEqual({
+			stages: harness.states,
+			openingOptions: harness.openingOptions,
+			selections: harness.selections.map(entry => ({ folder: entry.folder.toString(), options: entry.options })),
+		}, {
+			stages: ['waitingForSetup', 'waitingForSessionView', 'applied'],
+			openingOptions: [true, true],
+			selections: [{ folder: folderUri.toString(), options: { providerId: 'local', preferDevContainer: true, selectionOrigin: WorkspaceSelectionOrigin.WindowOpen, isDefault: false } }],
+		});
+	});
+	test('a forced switch overrides an inferred default folder on a restored session', async () => {
+		const harness = createHarness();
+		harness.activeSession.set(upcastPartial<IActiveSession>({
+			sessionId: 'restored-default',
+			isCreated: observableValue('created', true),
+			workspace: observableValue<ISessionWorkspace | undefined>('restoredDefaultWorkspace', upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionFolder>({ root: otherFolderUri })] })),
+		}), undefined);
+		await harness.handoff.selectWorkspace(
+			{ folderUri, preferDevContainer: true, isDefault: true, force: true },
+			state => harness.states.push(state),
+		);
+		assert.deepStrictEqual({
+			stages: harness.states,
+			openingOptions: harness.openingOptions,
+			selections: harness.selections.map(entry => ({ folder: entry.folder.toString(), options: entry.options })),
+		}, {
+			stages: ['waitingForSetup', 'waitingForSessionView', 'applied'],
+			openingOptions: [true],
+			selections: [{ folder: folderUri.toString(), options: { providerId: 'local', preferDevContainer: true, selectionOrigin: WorkspaceSelectionOrigin.WindowOpen, isDefault: false } }],
+		});
+	});
+	// test-workbench_change end
 
 	for (const content of [
 		{ inputText: 'Keep this draft', attachments: [] },

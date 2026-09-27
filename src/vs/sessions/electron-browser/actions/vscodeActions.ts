@@ -31,6 +31,8 @@ import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IOpenedMainWindow } from '../../../platform/window/common/window.js';
 import { OPEN_VSCODE_WINDOW_COMMAND_ID, RETURN_TO_VSCODE_EDITOR_COMMAND_ID, SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { REUSE_CURRENT_WINDOW_SETTING } from '../../common/sessionConfig.js'; // test-workbench_change
 
 export class OpenSessionInVSCodeAction extends Action2 {
 	static readonly ID = 'agents.openSessionInVSCode';
@@ -59,25 +61,40 @@ export class OpenSessionInVSCodeAction extends Action2 {
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const nativeHostService = accessor.get(INativeHostService);
 
-		return openSessionInVSCode(nativeHostService, sessionsService.activeSession.get(), sessionsProvidersService, remoteAgentHostService);
+		return openSessionInVSCode(nativeHostService, sessionsService.activeSession.get(), sessionsProvidersService, remoteAgentHostService, getReuseCurrentWindow(accessor)); // test-workbench_change
 	}
 }
+
+// test-workbench_change start
+function getReuseCurrentWindow(accessor: ServicesAccessor): boolean {
+	return accessor.get(IConfigurationService).getValue<boolean>(REUSE_CURRENT_WINDOW_SETTING) === true;
+}
+// test-workbench_change end
 
 export async function openSessionInVSCode(
 	nativeHostService: INativeHostService,
 	session: IActiveSession | undefined,
 	sessionsProvidersService: ISessionsProvidersService,
 	remoteAgentHostService: IRemoteAgentHostService,
+	reuseWindow = false, // test-workbench_change
 ): Promise<void> {
 	const folderUris = session?.activeChat.get().workspace.get()?.folders.map(folder =>
 		resolveRemoteFolderUri(folder.workingDirectory, session.providerId, sessionsProvidersService, remoteAgentHostService)
 	);
 	if (!folderUris?.length) {
-		return nativeHostService.openWindow();
+		// test-workbench_change start
+		return reuseWindow
+			? nativeHostService.openWindow({ forceReuseWindow: true })
+			: nativeHostService.openWindow();
 	}
+	// test-workbench_change end
 
 	const chatSessionToOpen = getChatSessionToOpenInEditor(session);
-	return nativeHostService.openWindow(folderUris.map(folderUri => ({ folderUri })), { forceNewWindow: true, chatSessionToOpen });
+	// test-workbench_change start
+	return reuseWindow
+		? nativeHostService.openWindow(folderUris.map(folderUri => ({ folderUri })), { forceReuseWindow: true, chatSessionToOpen })
+		: nativeHostService.openWindow(folderUris.map(folderUri => ({ folderUri })), { forceNewWindow: true, chatSessionToOpen });
+	// test-workbench_change end
 }
 
 /**
@@ -128,7 +145,7 @@ export class ReturnToVSCodeEditorAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
-		await returnToVSCodeEditor(nativeHostService, getWindowId(mainWindow));
+		await returnToVSCodeEditor(nativeHostService, getWindowId(mainWindow), getReuseCurrentWindow(accessor)); // test-workbench_change
 	}
 }
 
@@ -152,7 +169,14 @@ export function shouldShowReturnToVSCodeEditor(windows: readonly IOpenedMainWind
 	return !windows.some(window => window.id !== currentWindowId);
 }
 
-export async function returnToVSCodeEditor(nativeHostService: INativeHostService, currentWindowId: number): Promise<void> {
+export async function returnToVSCodeEditor(nativeHostService: INativeHostService, currentWindowId: number, reuseWindow = false): Promise<void> {
+	// test-workbench_change start
+	if (reuseWindow) {
+		// Reload the current Agents window into an empty editor window.
+		await nativeHostService.openWindow({ forceReuseWindow: true });
+		return;
+	}
+	// test-workbench_change end
 	await nativeHostService.openWindow();
 	await nativeHostService.closeWindow({ targetWindowId: currentWindowId });
 }

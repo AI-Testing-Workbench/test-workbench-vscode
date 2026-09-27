@@ -2414,6 +2414,15 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
+		// test-workbench_change start
+		[ChatConfiguration.OpenInAgentsWindowReuseCurrentWindow]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.openInAgentsWindow.reuseCurrentWindow', "Controls whether switching between the editor and the Agents window reuses the current window instead of opening a new one (both 'Open in Agents Window' and 'Open in Editor'). The switch reloads the current window, so unsaved editors prompt before it happens."),
+			default: true,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		// test-workbench_change end
 		...agentsWindowHandoffConfigurationProperties,
 		'chat.approvedAccountOrganizations': {
 			type: 'array',

@@ -58,6 +58,23 @@ suite('Agents Window workspace handoff telemetry', () => {
 		});
 	});
 
+	// test-workbench_change start
+	test('forwards a forced workspace switch into the handoff intent', async () => {
+		const calls: IAgentsWindowWorkspaceHandoff[] = [];
+		const harness = {
+			configurationService: new TestConfigurationService(),
+			_workspaceHandoff: { selectWorkspace: async (intent: IAgentsWindowWorkspaceHandoff) => { calls.push(intent); } },
+			openExistingSession: async () => assert.fail('A folder-only switch must not open an existing session'),
+		};
+		const handleOpenIntent = Reflect.get(SelectAgentsFolderContribution.prototype, 'handleOpenIntent') as (
+			this: typeof harness, workspace: URI | undefined, session: URI | undefined, isDefault: boolean,
+			token: CancellationToken, telemetry: undefined, draft?: IAgentsWindowDraft, force?: boolean
+		) => Promise<void>;
+		await handleOpenIntent.call(harness, URI.file('/workspace'), undefined, false, CancellationToken.None, undefined, undefined, true);
+		assert.deepStrictEqual(calls.map(intent => ({ folder: intent.folderUri?.toString(), force: intent.force })), [{ folder: URI.file('/workspace').toString(), force: true }]);
+	});
+	// test-workbench_change end
+
 	test('preserves unresolved draft workspace intent instead of treating remote workspaces as absent', async () => {
 		const configurationService = new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true });
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);

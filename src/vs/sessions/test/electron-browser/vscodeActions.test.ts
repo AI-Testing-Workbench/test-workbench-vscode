@@ -112,6 +112,70 @@ suite('VS Code Actions', () => {
 
 		assert.deepStrictEqual(calls, [{ empty: true }]);
 	});
+
+	// test-workbench_change start
+	test('reuses the current window when opening the editor for a workspace', async () => {
+		const calls: { forceReuseWindow?: boolean; forceNewWindow?: boolean; chatSessionToOpen?: string }[] = [];
+		const nativeHostService = new class extends mock<INativeHostService>() {
+			override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
+				calls.push({
+					forceReuseWindow: options?.forceReuseWindow,
+					forceNewWindow: options?.forceNewWindow,
+					chatSessionToOpen: options?.chatSessionToOpen?.toString(),
+				});
+			}
+		}();
+
+		await openSessionInVSCode(
+			nativeHostService,
+			createSession('reuse', true, [URI.file('/repo')]),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<IRemoteAgentHostService>() { }(),
+			true,
+		);
+
+		assert.deepStrictEqual(calls, [{
+			forceReuseWindow: true,
+			forceNewWindow: undefined,
+			chatSessionToOpen: 'test:/reuse',
+		}]);
+	});
+
+	test('reuses the current window when the active chat has no workspace', async () => {
+		const calls: { empty: boolean; options?: IOpenEmptyWindowOptions }[] = [];
+		const nativeHostService = new class extends mock<INativeHostService>() {
+			override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[]): Promise<void> {
+				calls.push({ empty: !Array.isArray(toOpen), options: Array.isArray(toOpen) ? undefined : toOpen });
+			}
+		}();
+
+		await openSessionInVSCode(
+			nativeHostService,
+			createSession('no-workspace', true),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<IRemoteAgentHostService>() { }(),
+			true,
+		);
+
+		assert.deepStrictEqual(calls, [{ empty: true, options: { forceReuseWindow: true } }]);
+	});
+
+	test('reloads the Agents window in place when returning to the editor', async () => {
+		const calls: string[] = [];
+		const nativeHostService = new class extends mock<INativeHostService>() {
+			override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[]): Promise<void> {
+				calls.push(`open:${!Array.isArray(toOpen) && toOpen?.forceReuseWindow === true}`);
+			}
+			override async closeWindow(options?: { targetWindowId?: number }): Promise<void> {
+				calls.push(`close:${options?.targetWindowId}`);
+			}
+		}();
+
+		await returnToVSCodeEditor(nativeHostService, 7, true);
+
+		assert.deepStrictEqual(calls, ['open:true']);
+	});
+	// test-workbench_change end
 });
 
 function createWindow(id: number): IOpenedMainWindow {
