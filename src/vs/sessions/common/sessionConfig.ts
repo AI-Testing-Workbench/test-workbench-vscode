@@ -25,7 +25,7 @@ export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
  * window reuses the current window instead of opening a new one. Registered as
  * `ChatConfiguration.OpenInAgentsWindowReuseCurrentWindow` in the shared chat
  * contribution; duplicated here so the sessions layer can read it without
- * importing `vs/workbench/contrib`.
+ * importing `vs/workbench/contrib` (which the top-level sessions layer must not).
  */
 export const REUSE_CURRENT_WINDOW_SETTING = 'chat.experimental.openInAgentsWindow.reuseCurrentWindow';
 // test-workbench_change end

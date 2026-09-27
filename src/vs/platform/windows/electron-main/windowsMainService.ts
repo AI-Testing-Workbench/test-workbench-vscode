@@ -8,7 +8,6 @@ import { app, BrowserWindow, WebContents, shell } from 'electron';
 import { addUNCHostToAllowlist } from '../../../base/node/unc.js';
 import { hostname, release, arch } from 'os';
 import { coalesce, distinct } from '../../../base/common/arrays.js';
-import { timeout } from '../../../base/common/async.js'; // test-workbench_change
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CharCode } from '../../../base/common/charCode.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -40,7 +39,7 @@ import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
 import { IStateService } from '../../state/node/state.js';
 import { AgentsWindowOpenSource, IAgentsWindowDraft, IAddRemoveFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
 import { CodeWindow } from './windowImpl.js';
-import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
+import { createWindowReloadWaiter, IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js'; // test-workbench_change
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
 import { IWindowState, WindowsStateHandler } from './windowsStateHandler.js';
 import { IRecent } from '../../workspaces/common/workspaces.js';
@@ -302,32 +301,22 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// old renderer and lose it. Wait for the reloaded window to signal ready again.
 		const contextWindow = typeof openConfig.contextWindowId === 'number' ? this.getWindowById(openConfig.contextWindowId) : undefined;
 		const reloadsContextWindow = openConfig.forceReuseWindow === true && !!contextWindow && contextWindow.config?.isSessionsWindow !== true;
-		const reloadDisposables = new DisposableStore();
-		const contextWindowReloaded = reloadsContextWindow && contextWindow ? new Promise<void>(resolve => {
-			const done = () => { reloadDisposables.dispose(); resolve(); };
-			reloadDisposables.add(contextWindow.onDidSignalReady(done));
-			reloadDisposables.add(contextWindow.onDidClose(done));
-		}) : undefined;
+		const reloadWaiter = reloadsContextWindow && contextWindow ? createWindowReloadWaiter(contextWindow) : undefined;
 		// test-workbench_change end
 
 		// Open in a browser window with the agent sessions workspace. By default this
 		// is a new window; `forceReuseWindow` (test-workbench_change) reloads the
 		// invoking editor window instead.
 		const windows = await this.open(await this.ensureAgentsWindow(openConfig));
-
-		// Existing-session intent takes precedence over explicit or inferred workspace selection.
-		if (windows.length > 0) {
-			// test-workbench_change start
-			try {
-				if (contextWindowReloaded && contextWindow && windows[0] === contextWindow) {
-					await Promise.race([contextWindowReloaded, timeout(20000)]);
-				}
-			} finally {
-				reloadDisposables.dispose();
+		try {
+			// Existing-session intent takes precedence over explicit or inferred workspace selection.
+			if (windows.length > 0) {
+				await reloadWaiter?.waitFor(windows[0]); // test-workbench_change
+				const openSource = source ?? (openConfig.cli.agents ? AgentsWindowOpenSource.CommandLine : AgentsWindowOpenSource.Unknown);
+				windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, folderUri?.toJSON(), sessionResource?.toJSON(), openSource, folderUriIsDefault, draft, openConfig.forceReuseWindow === true /* test-workbench_change */);
 			}
-			// test-workbench_change end
-			const openSource = source ?? (openConfig.cli.agents ? AgentsWindowOpenSource.CommandLine : AgentsWindowOpenSource.Unknown);
-			windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, folderUri?.toJSON(), sessionResource?.toJSON(), openSource, folderUriIsDefault, draft, openConfig.forceReuseWindow === true /* test-workbench_change */);
+		} finally {
+			reloadWaiter?.dispose(); // test-workbench_change
 		}
 
 		return windows;

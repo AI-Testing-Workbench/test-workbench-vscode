@@ -34,7 +34,7 @@ import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { defaultWindowState, ICodeWindow } from '../../window/electron-main/window.js';
 import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
-import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { createWindowReloadWaiter, defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js'; // test-workbench_change
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -277,33 +277,47 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private async doOpenWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options: IOpenWindowOptions = Object.create(null)): Promise<void> {
 		if (toOpen.length > 0) {
-			const windows = await this.windowsMainService.open({
-				context: OpenContext.API,
-				contextWindowId: windowId,
-				urisToOpen: toOpen,
-				cli: this.environmentMainService.args,
-				forceNewWindow: options.forceNewWindow,
-				forceReuseWindow: options.forceReuseWindow,
-				preferNewWindow: options.preferNewWindow,
-				diffMode: options.diffMode,
-				mergeMode: options.mergeMode,
-				addMode: options.addMode,
-				removeMode: options.removeMode,
-				gotoLineMode: options.gotoLineMode,
-				noRecentEntry: options.noRecentEntry,
-				waitMarkerFileURI: options.waitMarkerFileURI,
-				remoteAuthority: options.remoteAuthority || undefined,
-				forceProfile: options.forceProfile,
-				forceTempProfile: options.forceTempProfile,
-			});
-
-			// Hand off a chat session to the opened window so it restores both the
-			// folder and the session (e.g. the Agents window "Open in VS Code" flow).
-			// Only meaningful when exactly one window is opened so the session is
-			// not sent to an ambiguous target.
+			// test-workbench_change start
+			// Reusing a ready window reloads it asynchronously, so `sendWhenReady` below
+			// would deliver the chat session handoff to the old renderer and lose it.
+			// Only the chat session handoff needs to wait, so scope the waiter to it.
 			const chatSessionToOpen = options.chatSessionToOpen;
-			if (chatSessionToOpen && windows.length === 1) {
-				windows[0].sendWhenReady('vscode:openChatSession', CancellationToken.None, URI.revive(chatSessionToOpen).toString());
+			const reusedWindow = options.forceReuseWindow && chatSessionToOpen && typeof windowId === 'number'
+				? this.windowsMainService.getWindowById(windowId)
+				: undefined;
+			const reloadWaiter = reusedWindow ? createWindowReloadWaiter(reusedWindow) : undefined;
+			// test-workbench_change end
+			try {
+				const windows = await this.windowsMainService.open({
+					context: OpenContext.API,
+					contextWindowId: windowId,
+					urisToOpen: toOpen,
+					cli: this.environmentMainService.args,
+					forceNewWindow: options.forceNewWindow,
+					forceReuseWindow: options.forceReuseWindow,
+					preferNewWindow: options.preferNewWindow,
+					diffMode: options.diffMode,
+					mergeMode: options.mergeMode,
+					addMode: options.addMode,
+					removeMode: options.removeMode,
+					gotoLineMode: options.gotoLineMode,
+					noRecentEntry: options.noRecentEntry,
+					waitMarkerFileURI: options.waitMarkerFileURI,
+					remoteAuthority: options.remoteAuthority || undefined,
+					forceProfile: options.forceProfile,
+					forceTempProfile: options.forceTempProfile,
+				});
+
+				// Hand off a chat session to the opened window so it restores both the
+				// folder and the session (e.g. the Agents window "Open in VS Code" flow).
+				// Only meaningful when exactly one window is opened so the session is
+				// not sent to an ambiguous target.
+				if (chatSessionToOpen && windows.length === 1) {
+					await reloadWaiter?.waitFor(windows[0]); // test-workbench_change
+					windows[0].sendWhenReady('vscode:openChatSession', CancellationToken.None, URI.revive(chatSessionToOpen).toString());
+				}
+			} finally {
+				reloadWaiter?.dispose(); // test-workbench_change
 			}
 		}
 	}

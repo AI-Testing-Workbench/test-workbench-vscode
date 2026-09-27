@@ -117,6 +117,16 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 		// on the editor's current workspace.
 		const forceSwitch = intent.force === true && !intent.draft && !!intent.folderUri;
 		let forceSwitchRetried = false;
+		// A forced switch supersedes a restored session for a different workspace.
+		// Reopens a new session once; the loop re-evaluates from there.
+		const trySupersedeRestoredSession = async (): Promise<boolean> => {
+			if (!forceSwitch || forceSwitchRetried || this._sessionMatchesFolder(this.sessionsService.activeSession.get(), intent.folderUri)) {
+				return false;
+			}
+			forceSwitchRetried = true;
+			await this.sessionsService.openNewSession({ cancelRestore: true }, source.token);
+			return true;
+		};
 		// test-workbench_change end
 		let restoreComplete = this.sessionsService.initialRestoreComplete.get();
 		let previousSession = this.sessionsService.activeSession.get();
@@ -164,13 +174,9 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			while (!source.token.isCancellationRequested) {
 				const currentSession = this.sessionsService.activeSession.get();
 				if ((!intent.draft && (currentSession?.isCreated.get() || currentSession?.isQuickChat?.get())) || (intent.draft && this._hasDraftInput())) {
-					// test-workbench_change start
-					if (forceSwitch && !forceSwitchRetried && !this._sessionMatchesFolder(currentSession, intent.folderUri)) {
-						forceSwitchRetried = true;
-						await this.sessionsService.openNewSession({ cancelRestore: true }, source.token);
+					if (await trySupersedeRestoredSession()) { // test-workbench_change
 						continue;
 					}
-					// test-workbench_change end
 					onState('preservedSession');
 					return;
 				}
@@ -186,13 +192,9 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				}
 				const session = this.sessionsService.activeSession.get();
 				if (!draftNeedsNavigation && session?.isCreated.get()) {
-					// test-workbench_change start
-					if (forceSwitch && !forceSwitchRetried && !this._sessionMatchesFolder(session, intent.folderUri)) {
-						forceSwitchRetried = true;
-						await this.sessionsService.openNewSession({ cancelRestore: true }, source.token);
+					if (await trySupersedeRestoredSession()) { // test-workbench_change
 						continue;
 					}
-					// test-workbench_change end
 					onState('preservedSession');
 					return;
 				}
