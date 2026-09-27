@@ -188,6 +188,16 @@ interface ConnectionReady {
 	readonly authHeader: string;
 }
 
+// test-workbench_change start — 后端 spawn 描述（command + 参数 + 注入 env + 是否走 shell）
+interface IBackendSpawn {
+	readonly command: string;
+	readonly args: string[];
+	readonly env: NodeJS.ProcessEnv;
+	readonly shell: boolean;
+	readonly label: string;
+}
+// test-workbench_change end
+
 // ── Agent ─────────────────────────────────────────────────────────────────────
 
 export class OpenCodeAgent extends Disposable implements IAgent {
@@ -306,7 +316,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			const ready = await this._ensureConnection();
 			// test-workbench_change start — 耗时埋点:连接等待(冷启动在此计入,>50ms 才提示,避免噪声)
 			if (Date.now() - connT0 > 50) {
-				this._logService.info(`[耗时][连接等待] createChat→_ensureConnection 等待后端就绪 = ${Date.now() - connT0}ms;时间消耗类型 =「冷启动等待,若伴随后端冷启动日志则为同一段」`);
+				this._logService.info(`[elapsed][connection wait] createChat→_ensureConnection waiting for backend ready = ${Date.now() - connT0}ms; time-cost type = "cold-start wait, same segment if accompanied by backend cold-start logs"`);
 			}
 			// test-workbench_change end
 			// 新上游:session URI 由 orchestrator mint,provider 不得自造(signal 会寻址失败)
@@ -343,11 +353,11 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			if (options?.model) { session.setModel(options.model); }
 			if (options?.agent) { session.setAgent(OpenCodeAgent._agentNameFromUri(options.agent.uri)); } // test-workbench_change
 			if (provisional) {
-				this._logService.info(`[TestAgent] chat created (provisional): ${chat.toString()};时间消耗类型 =「草稿占位,无后端会话,首条消息发送时才建立」`); // test-workbench_change — 耗时埋点
+				this._logService.info(`[TestAgent] chat created (provisional): ${chat.toString()}; time-cost type = "draft placeholder, no backend session, established when the first message is sent"`); // test-workbench_change — 耗时埋点
 				return { provisional: true };
 			}
 			this._logService.info(`[TestAgent] chat created: ${chat.toString()} (opencode: ${session.opencodeSessionId})`);
-			this._logService.info(`[耗时][会话创建] createChat 全链路(含冷启动等待+会话建立) = ${Date.now() - createT0}ms;时间消耗类型 =「新建 chat 后、首条消息发出前的一次性固定开销」`); // test-workbench_change — 耗时埋点
+			this._logService.info(`[elapsed][session create] createChat full chain (incl. cold-start wait + session setup) = ${Date.now() - createT0}ms; time-cost type = "one-time fixed overhead after creating a chat and before the first message is sent"`); // test-workbench_change — 耗时埋点
 			// providerData 统一为 fork opencode 会话 ID:materializeChat 按它重挂
 			// (fork 的 POST /session 不允许指定 ID,只能用返回值登记)。 // test-workbench_change
 			// test-workbench_change start — 返回 backingSession(I7):本 opencode 会话
@@ -410,7 +420,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			if (session.isProvisional) {
 				const materializeT0 = Date.now();
 				await session.materialize();
-				this._logService.info(`[耗时][会话建立] provisional materialize(首条消息触发 POST /session/)= ${Date.now() - materializeT0}ms;时间消耗类型 =「草稿升级为真实 TestAgent 会话,计入首条消息延迟,后续消息不再发生」`);
+				this._logService.info(`[elapsed][session setup] provisional materialize (triggered by first message POST /session/) = ${Date.now() - materializeT0}ms; time-cost type = "draft upgraded to a real TestAgent session, counted into first-message latency, not repeated for later messages"`);
 				this._onDidMaterializeChat.fire({
 					chat: session.chatChannelUri,
 					result: {
@@ -480,7 +490,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		const ready = await this._ensureConnection();
 		// test-workbench_change start — 耗时埋点:冷启动等待
 		if (Date.now() - connT0 > 50) {
-			this._logService.info(`[耗时][连接等待] createSession→_ensureConnection 等待后端就绪 = ${Date.now() - connT0}ms;时间消耗类型 =「冷启动等待,用户视角的新会话首屏空白段」`);
+			this._logService.info(`[elapsed][connection wait] createSession→_ensureConnection waiting for backend ready = ${Date.now() - connT0}ms; time-cost type = "cold-start wait, the blank first-screen period of a new session from the user's perspective"`);
 		}
 		// test-workbench_change end
 		const sessionId = config.session ? AgentSession.id(config.session) : generateUuid();
@@ -525,7 +535,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		this._bindSessionCustomizations(session, workingDirectory); // test-workbench_change — turn 结束广播+目录监听
 		if (config.agent) { session.setAgent(OpenCodeAgent._agentNameFromUri(config.agent.uri)); } // test-workbench_change — 新会话首条消息的 agent 选择走 createSession,不经 changeAgent
 		await session.initialize();
-		this._logService.info(`[耗时][会话创建] createSession 全链路(含冷启动等待+会话建立) = ${Date.now() - createT0}ms;时间消耗类型 =「新 session 首条消息前的固定开销(与 [后端冷启动]/[会话建立] 分段对应)」`); // test-workbench_change — 耗时埋点
+		this._logService.info(`[elapsed][session create] createSession full chain (incl. cold-start wait + session setup) = ${Date.now() - createT0}ms; time-cost type = "fixed overhead before the first message of a new session (matches the [backend cold start]/[session setup] segments)"`); // test-workbench_change — 耗时埋点
 
 		return { session: sessionUri, resolvedWorkingDirectory: workingDirectory }; // test-workbench_change - 新上游字段名为 resolvedWorkingDirectory
 	}
@@ -1094,12 +1104,19 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 	}
 
 	// test-workbench_change start
-	// 后端二进制解析顺序：OPENCODE_BIN 显式覆盖 > node 运行时 wrapper（testagent-node[.cmd]，
-	// 优先查 kilo-vscode 扩展 env-path.ts 写入的 TestAgent 环境变量目录，再按 PATH 查找）> testagent（bun 版，PATH）。
-	private _resolveBackendBin(): string {
+	// 后端 spawn 解析顺序：OPENCODE_BIN 显式覆盖 > node 运行时（扩展自带的 nodejs-server/cli.mjs，
+	// 用 process.execPath + ELECTRON_RUN_AS_NODE 直接跑，不依赖 wrapper 的可执行位）> wrapper
+	// （testagent-node[.cmd]，旧安装）> testagent（bun 版，PATH）。
+	private _resolveBackendSpawn(): IBackendSpawn {
 		const override = process.env['OPENCODE_BIN'];
 		if (override) {
-			return override;
+			return {
+				command: override,
+				args: ['serve', '--port=0'],
+				env: {},
+				shell: process.platform === 'win32' && !/\.exe$/i.test(override),
+				label: override,
+			};
 		}
 		const names = process.platform === 'win32'
 			? ['testagent-node.cmd', 'testagent-node.exe', 'testagent-node']
@@ -1109,14 +1126,47 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			...(process.env['PATH'] ?? '').split(process.platform === 'win32' ? ';' : ':'),
 		].filter(Boolean) as string[];
 		for (const dir of dirs) {
+			// 首选 node 运行时：与 wrapper 同级的 nodejs-server/cli.mjs。cli.mjs 只认
+			// --hostname/--port（不认 `serve --port=0`），且需要 --experimental-sqlite（node:sqlite）。
+			const cli = join(dir, '..', 'nodejs-server', 'cli.mjs');
+			if (fs.existsSync(cli)) {
+				return {
+					command: process.execPath,
+					args: ['--experimental-sqlite', cli, '--hostname', '127.0.0.1', '--port', '0'],
+					env: {
+						ELECTRON_RUN_AS_NODE: '1',
+						OPENCODE_SERVER_PASSWORD: process.env['OPENCODE_SERVER_PASSWORD'] || 'dev',
+					},
+					shell: false,
+					label: `${process.execPath} ${cli}`,
+				};
+			}
+			// 回退：wrapper（可能无执行位，仅在 cli.mjs 缺失的旧安装上走）。
 			for (const name of names) {
 				const candidate = join(dir, name);
 				if (fs.existsSync(candidate)) {
-					return candidate;
+					return {
+						command: candidate,
+						args: ['serve', '--port=0'],
+						env: {},
+						shell: process.platform === 'win32' && !/\.exe$/i.test(candidate),
+						label: candidate,
+					};
 				}
 			}
+			// 回退：bun 单文件 testagent。
+			const bun = join(dir, 'testagent');
+			if (fs.existsSync(bun)) {
+				return { command: bun, args: ['serve', '--port=0'], env: {}, shell: false, label: bun };
+			}
 		}
-		return 'testagent';
+		return {
+			command: 'testagent',
+			args: ['serve', '--port=0'],
+			env: {},
+			shell: process.platform === 'win32',
+			label: 'testagent',
+		};
 	}
 	// test-workbench_change end
 
@@ -1173,21 +1223,17 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		}
 		// test-workbench_change end
 		return new Promise<ConnectionReady>((resolve, reject) => {
-			const args = ['serve', '--port=0'];
-			const env: NodeJS.ProcessEnv = { ...process.env };
+			// test-workbench_change start — 后端 spawn 解析：node 运行时直跑 cli.mjs，避免依赖 wrapper 执行位
+			const spawnPlan = this._resolveBackendSpawn();
+			const env: NodeJS.ProcessEnv = { ...process.env, ...spawnPlan.env };
 
-			// 后端二进制解析：优先 node 运行时 wrapper，回退 bun 版 // test-workbench_change
-			const bin = this._resolveBackendBin();
+			this._logService.info(`[TestAgent] spawning ${spawnPlan.label} ${spawnPlan.args.join(' ')}`);
 
-			this._logService.info(`[TestAgent] spawning ${bin} serve --port=0`);
-
-			// test-workbench_change start: node 运行时 wrapper 是 .cmd，win32 下 spawn 需 shell:true；exe 走原路径。
 			// shell:true 时 cmd.exe 按空格切分命令行，含空格路径必须自行加引号，否则报"不是内部或外部命令"退出码 1。
-			const useCmdShell = process.platform === 'win32' && !/\.exe$/i.test(bin);
-			const child = cp.spawn(useCmdShell ? `"${bin}"` : bin, args, {
+			const child = cp.spawn(spawnPlan.shell ? `"${spawnPlan.command}"` : spawnPlan.command, spawnPlan.args, {
 				env,
 				stdio: ['pipe', 'pipe', 'pipe'],
-				...(useCmdShell ? { shell: true } : {}),
+				...(spawnPlan.shell ? { shell: true } : {}),
 			});
 			// test-workbench_change end
 			this._guardBackendProcessLifecycle(child); // test-workbench_change
@@ -1213,7 +1259,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 					resolved = true;
 					clearTimeout(timer);
 					// test-workbench_change start — 耗时埋点:testagent 冷启动一次性开销
-					this._logService.info(`[耗时][后端冷启动] spawn(${bin})→stdout 报告监听地址 = ${Date.now() - spawnStart}ms;时间消耗类型 =「testagent 进程+Bun/Node 运行时+server 初始化,整链路最重的一次性开销(超时上限 30s),仅首次操作支付,首个发送若撞上 starting 状态会被它阻塞」`);
+					this._logService.info(`[elapsed][backend cold start] spawn(${spawnPlan.command})→stdout reports listening address = ${Date.now() - spawnStart}ms; time-cost type = "testagent process + Bun/Node runtime + server initialization, the heaviest one-time overhead in the whole chain (30s timeout cap), paid only on the first operation, blocks the first send if it hits the starting state"`);
 					// test-workbench_change end
 					resolve({ baseUrl: match[1], child, authHeader });
 					// test-workbench_change start — 发布本次 spawn 的 server,供后续消费者 adopt
@@ -1367,7 +1413,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 		const target = uri.toString(true);
-		const header = '# opencode 运行时清单条目(只读,无源文件)';
+		const header = '# opencode runtime inventory entry (read-only, no source file)';
 		for (const entry of entries) {
 			const container = entry as DirectoryCustomization;
 			const children = (container.children ?? []) as Array<{ uri: string; name?: string; description?: string; model?: string }>;
@@ -1385,7 +1431,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 				const lines: string[] = [`# ${child.name ?? child.uri}`, ''];
 				if (child.description) { lines.push(child.description, ''); }
 				if (child.model) { lines.push(`- model: \`${child.model}\``, ''); }
-				lines.push(`- type: ${container.name ?? ''}`, `- source: ${'opencode 运行时清单(GET /' + (container.name ?? '') + ',只读,无源文件)'}`);
+				lines.push(`- type: ${container.name ?? ''}`, `- source: ${'opencode runtime inventory (GET /' + (container.name ?? '') + ', read-only, no source file)'}`);
 				return lines.join('\n');
 			}
 		}
@@ -1406,8 +1452,8 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		}
 	}
 
-	/** 监听用户级 + 项目级 customization 源目录(不存在的目录静默跳过;canonical 三目录由
-	 *  openCodeCustomizations.userConfigSubDir 在拉清单时 ensure)。 */
+	/** Watch user-level + project-level customization source directories (nonexistent directories are silently skipped; the
+	 *  canonical three directories are ensured by openCodeCustomizations.userConfigSubDir when fetching the inventory). */
 	private _watchCustomizationRoots(workingDirectory: URI | undefined): void {
 		const dirs: string[] = [];
 		const subs = ['agent', 'agents', 'command', 'commands', 'skill', 'skills'];
