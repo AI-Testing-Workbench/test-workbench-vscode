@@ -73,6 +73,108 @@ import { fetchOpenCodeCustomizations, userTestagentConfigRoot } from './openCode
 const OPENCODE_STARTUP_TIMEOUT = 90_000; // test-workbench_change — 30s→90s：163MB bun 单文件二进制在 macOS 首次 exec 需冷签名验证+页载入(企业 EDR 还会首扫),实测首轮 30s 内未打出 listening 被误杀,第二次 spawn 才 12s 就绪
 const OPENCODE_REQUEST_TIMEOUT = 120_000;
 
+// test-workbench_change start
+// ── Shared backend discovery ────────────────────────────────────────────────
+// test-tech.testagent 扩展会把运行中的 server 发布为
+// `${XDG_DATA_HOME:-~/.local/share}/testagent/server.json` = { port, password }。
+// 先 adopt 已发布的 server(而不是再 spawn 一个),可以让编辑器模式与 Agents 窗口
+// 在切换时共用同一个 TestAgent 后端进程,避免重复拉起与多余内存占用。
+// 可用 TESTAGENT_DISABLE_SHARED_BACKEND=1 关闭共享(回退到每次自起)。
+
+const SHARED_SERVER_STATE_FILE = 'server.json';
+const SHARED_SERVER_HEALTH_PATH = '/global/health';
+
+interface ISharedServerState {
+	readonly port: number;
+	readonly password: string;
+	readonly pid?: number;
+	readonly version?: string;
+	readonly owner?: { readonly pid?: number; readonly userDataDir?: string };
+}
+
+function sharedServerStateDir(): string {
+	const override = process.env['TESTAGENT_SERVER_DIR'];
+	if (override) {
+		return override;
+	}
+	const base = process.env['XDG_DATA_HOME'] || join(os.homedir(), '.local', 'share');
+	return join(base, 'testagent');
+}
+
+function sharedServerStatePath(): string {
+	return join(sharedServerStateDir(), SHARED_SERVER_STATE_FILE);
+}
+
+function readSharedServerState(logService: ILogService): ISharedServerState | undefined {
+	try {
+		const file = sharedServerStatePath();
+		if (!fs.existsSync(file)) {
+			return undefined;
+		}
+		const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<ISharedServerState> | undefined;
+		if (!parsed || typeof parsed.port !== 'number' || typeof parsed.password !== 'string') {
+			return undefined;
+		}
+		return { port: parsed.port, password: parsed.password, pid: parsed.pid, version: parsed.version, owner: parsed.owner };
+	} catch (err) {
+		logService.trace(`[TestAgent] failed to read shared server state: ${err}`);
+		return undefined;
+	}
+}
+
+function writeSharedServerState(state: ISharedServerState, logService: ILogService): void {
+	try {
+		const dir = sharedServerStateDir();
+		fs.mkdirSync(dir, { recursive: true });
+		const file = sharedServerStatePath();
+		fs.writeFileSync(file, JSON.stringify(state, null, 2), { mode: 0o600 });
+		fs.chmodSync(file, 0o600);
+	} catch (err) {
+		logService.trace(`[TestAgent] failed to write shared server state: ${err}`);
+	}
+}
+
+function clearSharedServerState(): void {
+	try {
+		fs.unlinkSync(sharedServerStatePath());
+	} catch { /* already gone */ }
+}
+
+async function isSharedServerAlive(state: ISharedServerState, timeoutMs = 3000): Promise<boolean> {
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	try {
+		const response = await globalThis.fetch(`http://127.0.0.1:${state.port}${SHARED_SERVER_HEALTH_PATH}`, {
+			headers: { Authorization: `Basic ${Buffer.from(`opencode:${state.password}`).toString('base64')}` },
+			signal: controller.signal,
+		});
+		return response.ok;
+	} catch {
+		return false;
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
+function sharedServerPassword(): string {
+	const password = process.env['OPENCODE_SERVER_PASSWORD'];
+	return password && password.length > 0 ? password : 'dev';
+}
+
+function portFromBaseUrl(baseUrl: string): number | undefined {
+	try {
+		const port = Number(new URL(baseUrl).port);
+		return Number.isFinite(port) && port > 0 ? port : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function sharedBackendDisabled(): boolean {
+	return process.env['TESTAGENT_DISABLE_SHARED_BACKEND'] === '1';
+}
+// test-workbench_change end
+
 // ── Connection state ──────────────────────────────────────────────────────────
 
 type ConnectionState =
@@ -82,7 +184,7 @@ type ConnectionState =
 
 interface ConnectionReady {
 	readonly baseUrl: string;
-	readonly child: cp.ChildProcessWithoutNullStreams;
+	readonly child?: cp.ChildProcessWithoutNullStreams; // test-workbench_change — undefined when adopting a shared backend
 	readonly authHeader: string;
 }
 
@@ -141,6 +243,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 	private _eventStream: OpenCodeEventStream | undefined;
 	private _connection: ConnectionState = { kind: 'idle' };
 	private _authHeader: string | undefined;
+	private _ownsSharedServer = false; // test-workbench_change — true when we spawned & published the shared backend
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -164,6 +267,10 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 			try { w.close(); } catch { /* ignore */ }
 		}
 		this._customizationWatchers.clear();
+		if (this._ownsSharedServer) { // test-workbench_change — 清理自起的共享后端状态
+			clearSharedServerState();
+			this._ownsSharedServer = false;
+		}
 		super.dispose();
 	}
 	// test-workbench_change end
@@ -853,6 +960,12 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		if (this._connection.kind === 'ready') {
 			OpenCodeAgent._killBackend(this._connection.child); // test-workbench_change
 		}
+		// test-workbench_change start — 只清理自己 spawn 并发布的状态,adopt 来的不动
+		if (this._ownsSharedServer) {
+			clearSharedServerState();
+			this._ownsSharedServer = false;
+		}
+		// test-workbench_change end
 		this._connection = { kind: 'idle' };
 	}
 
@@ -1007,7 +1120,58 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 	}
 	// test-workbench_change end
 
-	private _startConnection(): Promise<ConnectionReady> {
+	// test-workbench_change start
+	/** 尝试 adopt 一个已发布且健康的共享 TestAgent 后端。 */
+	private async _tryAdoptSharedServer(): Promise<ConnectionReady | undefined> {
+		if (sharedBackendDisabled()) {
+			return undefined;
+		}
+		const state = readSharedServerState(this._logService);
+		if (!state) {
+			return undefined;
+		}
+		if (await isSharedServerAlive(state)) {
+			return {
+				baseUrl: `http://127.0.0.1:${state.port}`,
+				authHeader: 'Basic ' + Buffer.from(`opencode:${state.password}`).toString('base64'),
+			};
+		}
+		// 状态文件存在但 server 已死(上次异常退出残留),清掉后自起。
+		this._logService.info('[TestAgent] shared backend state found but not reachable; starting a new one');
+		clearSharedServerState();
+		return undefined;
+	}
+
+	/** 把本次 spawn 的 server 发布到共享状态文件,供后续消费者 adopt。 */
+	private _publishSharedServer(baseUrl: string, pid: number | undefined): void {
+		if (sharedBackendDisabled()) {
+			return;
+		}
+		const port = portFromBaseUrl(baseUrl);
+		if (port === undefined) {
+			return;
+		}
+		writeSharedServerState({
+			port,
+			password: sharedServerPassword(),
+			pid,
+			version: process.env['TESTAGENT_VERSION'],
+			owner: { pid: process.pid, userDataDir: process.env['VSCODE_AGENT_HOST_USER_DATA_DIR'] },
+		}, this._logService);
+		this._ownsSharedServer = true;
+	}
+	// test-workbench_change end
+
+	private async _startConnection(): Promise<ConnectionReady> {
+		// test-workbench_change start
+		// 先尝试 adopt 已发布的共享后端(例如 testagent 扩展拉起的 server),命中则
+		// 不 spawn —— 编辑器模式与 Agents 窗口因此共用同一个 TestAgent 进程。
+		const adopted = await this._tryAdoptSharedServer();
+		if (adopted) {
+			this._logService.info(`[TestAgent] adopted shared backend at ${adopted.baseUrl}`);
+			return adopted;
+		}
+		// test-workbench_change end
 		return new Promise<ConnectionReady>((resolve, reject) => {
 			const args = ['serve', '--port=0'];
 			const env: NodeJS.ProcessEnv = { ...process.env };
@@ -1052,6 +1216,9 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 					this._logService.info(`[耗时][后端冷启动] spawn(${bin})→stdout 报告监听地址 = ${Date.now() - spawnStart}ms;时间消耗类型 =「testagent 进程+Bun/Node 运行时+server 初始化,整链路最重的一次性开销(超时上限 30s),仅首次操作支付,首个发送若撞上 starting 状态会被它阻塞」`);
 					// test-workbench_change end
 					resolve({ baseUrl: match[1], child, authHeader });
+					// test-workbench_change start — 发布本次 spawn 的 server,供后续消费者 adopt
+					this._publishSharedServer(match[1], child.pid);
+					// test-workbench_change end
 				}
 			});
 
@@ -1123,6 +1290,11 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 		this._eventStream?.stop();
 		for (const [, session] of this._sessions) {
 			session.onConnectionLost();
+		}
+		// test-workbench_change — 自起的后端没了,发布的状态文件随之失效
+		if (this._ownsSharedServer) {
+			clearSharedServerState();
+			this._ownsSharedServer = false;
 		}
 		this._connection = { kind: 'idle' };
 	}
@@ -1461,7 +1633,7 @@ export class OpenCodeAgent extends Disposable implements IAgent {
 	private async _request<T>(ready: ConnectionReady, method: string, path: string, body?: unknown): Promise<T> {
 		const url = `${ready.baseUrl}${path}`;
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-		if (ready.authHeader) { headers['Authorization'] = ready.authHeader; }
+		if (ready.authHeader) { headers.Authorization = ready.authHeader; }
 
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), OPENCODE_REQUEST_TIMEOUT);

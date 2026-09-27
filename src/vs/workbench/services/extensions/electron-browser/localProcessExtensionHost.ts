@@ -229,7 +229,12 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 
 		const env = objects.mixin(processEnv, {
 			VSCODE_ESM_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
-			VSCODE_HANDLES_UNCAUGHT_ERRORS: true
+			VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
+			// test-workbench_change start — let the testagent extension run its backend as a
+			// shared detached daemon (server.json), so the editor and the Agents window reuse
+			// the same TestAgent process instead of each spawning one.
+			TESTAGENT_SHARED_SERVER: '1'
+			// test-workbench_change end
 		});
 
 		if (this._environmentService.debugExtensionHost.env) {
