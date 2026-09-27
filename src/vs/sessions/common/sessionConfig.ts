@@ -19,6 +19,17 @@ export const USE_WORKTREE_SETTING_TREATMENT = 'agentSessionsUseWorktree';
 
 export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 
+// test-workbench_change start
+/**
+ * Setting id that controls whether switching between the editor and the Agents
+ * window reuses the current window instead of opening a new one. Registered as
+ * `ChatConfiguration.OpenInAgentsWindowReuseCurrentWindow` in the shared chat
+ * contribution; duplicated here so the sessions layer can read it without
+ * importing `vs/workbench/contrib` (which the top-level sessions layer must not).
+ */
+export const REUSE_CURRENT_WINDOW_SETTING = 'chat.experimental.openInAgentsWindow.reuseCurrentWindow';
+// test-workbench_change end
+
 export const enum SessionsChatTabsMode {
 	Multiple = 'multiple',
 	Single = 'single',

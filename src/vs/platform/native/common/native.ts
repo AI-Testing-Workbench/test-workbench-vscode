@@ -87,6 +87,14 @@ export interface IOpenAgentsWindowOptions {
 	readonly sessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
 	readonly draft?: IAgentsWindowDraft;
+	/** test-workbench_change start */
+	/**
+	 * When `true`, reload the invoking editor window into the Agents window
+	 * instead of opening a new window. No-op when the invoking window is
+	 * already an Agents window or when no invoking window is available.
+	 */
+	readonly reuseWindow?: boolean;
+	/** test-workbench_change end */
 }
 
 export interface ICPUProperties {

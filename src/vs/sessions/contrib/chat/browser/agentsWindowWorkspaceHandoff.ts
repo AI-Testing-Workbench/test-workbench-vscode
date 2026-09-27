@@ -9,6 +9,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, waitForState } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js'; // test-workbench_change
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -20,7 +21,7 @@ import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js'
 import { WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js'; // test-workbench_change
 import { WorkspaceHandoffState } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
 import { INewSessionComposerService } from './newSessionComposerService.js';
@@ -35,6 +36,14 @@ export interface IAgentsWindowWorkspaceHandoff {
 	readonly preferDevContainer: boolean;
 	readonly isDefault: boolean;
 	readonly draft?: IAgentsWindowDraft;
+	/** test-workbench_change start */
+	/**
+	 * When `true`, an explicit folder request supersedes a restored session whose
+	 * workspace differs, so switching windows lands on the requested workspace.
+	 * A restored session already on the requested folder is still preserved.
+	 */
+	readonly force?: boolean;
+	/** test-workbench_change end */
 }
 
 /** Keeps one opening intent alive until the target composer applies it or a newer user intent wins. */
@@ -101,6 +110,24 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 		}));
 		store.add(Event.once(this.sessionsManagementService.onWillSendRequest)(() => cancel('sessionAlreadyCreated')));
 		store.add(Event.once(this.composerService.onWillSendRequest)(() => cancel('sessionAlreadyCreated')));
+		// test-workbench_change start
+		// A forced workspace switch must not be cancelled by a session restored in the
+		// meantime; the loop below supersedes it with a session for the folder instead.
+		// Applies to inferred (default) folders too, so every editor entry point lands
+		// on the editor's current workspace.
+		const forceSwitch = intent.force === true && !intent.draft && !!intent.folderUri;
+		let forceSwitchRetried = false;
+		// A forced switch supersedes a restored session for a different workspace.
+		// Reopens a new session once; the loop re-evaluates from there.
+		const trySupersedeRestoredSession = async (): Promise<boolean> => {
+			if (!forceSwitch || forceSwitchRetried || this._sessionMatchesFolder(this.sessionsService.activeSession.get(), intent.folderUri)) {
+				return false;
+			}
+			forceSwitchRetried = true;
+			await this.sessionsService.openNewSession({ cancelRestore: true }, source.token);
+			return true;
+		};
+		// test-workbench_change end
 		let restoreComplete = this.sessionsService.initialRestoreComplete.get();
 		let previousSession = this.sessionsService.activeSession.get();
 		let previousCreated = previousSession?.isCreated.get() ?? false;
@@ -108,7 +135,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			const restored = this.sessionsService.initialRestoreComplete.read(reader);
 			const session = this.sessionsService.activeSession.read(reader);
 			const created = session?.isCreated.read(reader) ?? false;
-			if (restoreComplete && created && (session !== previousSession || !previousCreated)) {
+			if (!forceSwitch && restoreComplete && created && (session !== previousSession || !previousCreated)) { // test-workbench_change
 				cancel('sessionAlreadyCreated');
 			}
 			restoreComplete = restored;
@@ -147,6 +174,9 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			while (!source.token.isCancellationRequested) {
 				const currentSession = this.sessionsService.activeSession.get();
 				if ((!intent.draft && (currentSession?.isCreated.get() || currentSession?.isQuickChat?.get())) || (intent.draft && this._hasDraftInput())) {
+					if (await trySupersedeRestoredSession()) { // test-workbench_change
+						continue;
+					}
 					onState('preservedSession');
 					return;
 				}
@@ -162,15 +192,21 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				}
 				const session = this.sessionsService.activeSession.get();
 				if (!draftNeedsNavigation && session?.isCreated.get()) {
+					if (await trySupersedeRestoredSession()) { // test-workbench_change
+						continue;
+					}
 					onState('preservedSession');
 					return;
 				}
 				const view = draftNeedsNavigation ? undefined : this.sessionsPartService.getSessionView(session?.sessionId);
+				// A forced switch is an explicit workspace selection, so it must not be
+				// treated as an inferred default that the composer may preserve.
+				const inferDefault = intent.isDefault && !intent.draft && !forceSwitch; // test-workbench_change
 				const options = {
 					providerId: resolved?.providerId,
 					preferDevContainer: intent.preferDevContainer,
-					selectionOrigin: intent.isDefault && !intent.draft ? WorkspaceSelectionOrigin.WindowContext : WorkspaceSelectionOrigin.WindowOpen,
-					isDefault: intent.isDefault && !intent.draft,
+					selectionOrigin: inferDefault ? WorkspaceSelectionOrigin.WindowContext : WorkspaceSelectionOrigin.WindowOpen,
+					isDefault: inferDefault,
 				};
 				const result = intent.draft
 					? providerReady ? await view?.applyDraft(intent.draft, intent.folderUri, options, source.token) : undefined
@@ -222,6 +258,16 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			}
 		}
 	}
+
+	// test-workbench_change start
+	private _sessionMatchesFolder(session: IActiveSession | undefined, folderUri: URI | undefined): boolean {
+		if (!folderUri) {
+			return true;
+		}
+		const folders = session?.workspace.get()?.folders ?? [];
+		return folders.some(folder => isEqual(folder.root, folderUri));
+	}
+	// test-workbench_change end
 
 	private _hasDraftInput(): boolean {
 		const mountedInput = this.composerService.hasDraftInput;

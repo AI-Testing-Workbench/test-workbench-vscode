@@ -123,6 +123,12 @@ function captureDraftHandoffOptions(accessor: ServicesAccessor, widget: IChatWid
 	}
 }
 
+// test-workbench_change start
+function getReuseWindowOption(accessor: ServicesAccessor): Pick<IOpenAgentsWindowOptions, 'reuseWindow'> {
+	return accessor.get(IConfigurationService).getValue<boolean>(ChatConfiguration.OpenInAgentsWindowReuseCurrentWindow) === true ? { reuseWindow: true } : {};
+}
+// test-workbench_change end
+
 async function openCurrentWorkspaceInAgentsWindow(accessor: ServicesAccessor, source: AgentsWindowOpenSource, sessionResource?: URI, draftOptions?: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'>): Promise<void> {
 	ensureAgentModeEnabled(accessor.get(IConfigurationService));
 	const nativeHostService = accessor.get(INativeHostService);
@@ -132,6 +138,7 @@ async function openCurrentWorkspaceInAgentsWindow(accessor: ServicesAccessor, so
 		folderUri: getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri,
 		source,
 		...handoff,
+		...getReuseWindowOption(accessor), // test-workbench_change
 	});
 }
 
@@ -269,6 +276,7 @@ export class OpenAgentsWindowAction extends Action2 {
 			...(folderUri ? { folderUri, folderUriIsDefault: !draftOptions.draft } : undefined),
 			...draftOptions,
 			source: args?.source ?? AgentsWindowOpenSource.CommandPalette,
+			...getReuseWindowOption(accessor), // test-workbench_change
 		});
 	}
 }
@@ -345,6 +353,7 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 			sessionResource: hasRealSession ? sessionResource?.toJSON() : undefined,
 			source,
 			...draftOptions,
+			...getReuseWindowOption(accessor), // test-workbench_change
 		});
 	}
 }

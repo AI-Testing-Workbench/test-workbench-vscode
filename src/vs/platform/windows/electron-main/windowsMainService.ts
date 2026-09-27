@@ -39,7 +39,7 @@ import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
 import { IStateService } from '../../state/node/state.js';
 import { AgentsWindowOpenSource, IAgentsWindowDraft, IAddRemoveFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
 import { CodeWindow } from './windowImpl.js';
-import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
+import { createWindowReloadWaiter, IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js'; // test-workbench_change
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
 import { IWindowState, WindowsStateHandler } from './windowsStateHandler.js';
 import { IRecent } from '../../workspaces/common/workspaces.js';
@@ -295,13 +295,28 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, sessionResource?: URI, source?: AgentsWindowOpenSource, folderUriIsDefault = false, draft?: IAgentsWindowDraft): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
 
-		// Open in a new browser window with the agent sessions workspace
-		const windows = await this.open(await this.ensureAgentsWindow(openConfig));
+		// test-workbench_change start
+		// When reusing the invoking editor window, it is still marked ready while it is
+		// being unloaded and reloaded, so `sendWhenReady` would deliver the handoff to the
+		// old renderer and lose it. Wait for the reloaded window to signal ready again.
+		const contextWindow = typeof openConfig.contextWindowId === 'number' ? this.getWindowById(openConfig.contextWindowId) : undefined;
+		const reloadsContextWindow = openConfig.forceReuseWindow === true && !!contextWindow && contextWindow.config?.isSessionsWindow !== true;
+		const reloadWaiter = reloadsContextWindow && contextWindow ? createWindowReloadWaiter(contextWindow) : undefined;
+		// test-workbench_change end
 
-		// Existing-session intent takes precedence over explicit or inferred workspace selection.
-		if (windows.length > 0) {
-			const openSource = source ?? (openConfig.cli.agents ? AgentsWindowOpenSource.CommandLine : AgentsWindowOpenSource.Unknown);
-			windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, folderUri?.toJSON(), sessionResource?.toJSON(), openSource, folderUriIsDefault, draft);
+		// Open in a browser window with the agent sessions workspace. By default this
+		// is a new window; `forceReuseWindow` (test-workbench_change) reloads the
+		// invoking editor window instead.
+		const windows = await this.open(await this.ensureAgentsWindow(openConfig));
+		try {
+			// Existing-session intent takes precedence over explicit or inferred workspace selection.
+			if (windows.length > 0) {
+				await reloadWaiter?.waitFor(windows[0]); // test-workbench_change
+				const openSource = source ?? (openConfig.cli.agents ? AgentsWindowOpenSource.CommandLine : AgentsWindowOpenSource.Unknown);
+				windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, folderUri?.toJSON(), sessionResource?.toJSON(), openSource, folderUriIsDefault, draft, openConfig.forceReuseWindow === true /* test-workbench_change */);
+			}
+		} finally {
+			reloadWaiter?.dispose(); // test-workbench_change
 		}
 
 		return windows;
@@ -328,7 +343,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			context: openConfig.context,
 			contextWindowId: openConfig.contextWindowId,
 			initialStartup: openConfig.initialStartup,
-			forceNewWindow: true,
+			// test-workbench_change start
+			// Honor an explicit request to reuse the invoking window so that entering
+			// the Agents window reloads that window instead of opening a new one.
+			forceReuseWindow: openConfig.forceReuseWindow,
+			forceNewWindow: !openConfig.forceReuseWindow,
+			// test-workbench_change end
 		};
 	}
 
@@ -769,7 +789,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private resolveContextWindow(openConfig: IOpenConfiguration, forceNewWindow: boolean): { windowToUse: ICodeWindow | undefined; forceNewWindow: boolean } {
 		if (!forceNewWindow && typeof openConfig.contextWindowId === 'number') {
 			const contextWindow = this.getWindowById(openConfig.contextWindowId);
-			if (contextWindow?.config?.isSessionsWindow) {
+			// test-workbench_change start
+			// Allow an explicit reuse request to replace the Agents window with an editor
+			// window (the reverse of entering the Agents window). Without it, never
+			// replace a running Agents window.
+			if (contextWindow?.config?.isSessionsWindow && openConfig.forceReuseWindow !== true) {
+				// test-workbench_change end
 				return { windowToUse: undefined, forceNewWindow: true }; // do not replace the agents window
 			}
 			return { windowToUse: contextWindow, forceNewWindow };

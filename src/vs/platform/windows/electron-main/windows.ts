@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron, { Display, Rectangle } from 'electron';
+import { timeout } from '../../../base/common/async.js'; // test-workbench_change
 import { Color } from '../../../base/common/color.js';
 import { Event } from '../../../base/common/event.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js'; // test-workbench_change
 import { join } from '../../../base/common/path.js';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
@@ -61,6 +63,43 @@ export interface IWindowsCountChangedEvent {
 	readonly oldCount: number;
 	readonly newCount: number;
 }
+
+// test-workbench_change start
+export const WINDOW_RELOAD_TIMEOUT_MS = 20000;
+
+/**
+ * While a window is reopened in place (`forceReuseWindow`), it is still marked
+ * ready while it unloads and reloads, so a follow-up `sendWhenReady` handoff
+ * would be delivered to the old renderer and lost. Create this waiter *before*
+ * triggering the reuse, then `waitFor` the window that was actually reused to
+ * give the reloaded renderer a chance to signal ready first.
+ */
+export interface IWindowReloadWaiter {
+	/** Resolves once the reused window reloaded, closed or the timeout elapsed. */
+	waitFor(reusedWindow: ICodeWindow | undefined): Promise<void>;
+	dispose(): void;
+}
+
+export function createWindowReloadWaiter(window: ICodeWindow): IWindowReloadWaiter {
+	const disposables = new DisposableStore();
+	const reloaded = new Promise<void>(resolve => {
+		const done = () => {
+			disposables.dispose();
+			resolve();
+		};
+		disposables.add(window.onDidSignalReady(done));
+		disposables.add(window.onDidClose(done));
+	});
+	return {
+		waitFor: async (reusedWindow: ICodeWindow | undefined) => {
+			if (reusedWindow === window) {
+				await Promise.race([reloaded, timeout(WINDOW_RELOAD_TIMEOUT_MS)]);
+			}
+		},
+		dispose: () => disposables.dispose(),
+	};
+}
+// test-workbench_change end
 
 export const enum OpenContext {
 

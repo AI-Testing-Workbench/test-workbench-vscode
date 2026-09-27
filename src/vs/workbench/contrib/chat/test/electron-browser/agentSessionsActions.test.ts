@@ -282,3 +282,52 @@ suite('OpenWorkspaceInAgentsWindowTitleBarAction', () => {
 		});
 	});
 });
+
+// test-workbench_change start
+suite('Agents window reuse current window', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function run(action: Action2, options?: { reuseCurrentWindow?: boolean }) {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.OpenInAgentsWindowReuseCurrentWindow]: options?.reuseCurrentWindow ?? false,
+		}));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			getWorkspace: () => ({ id: 'empty', folders: [] }),
+		}));
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
+		const calls: IOpenAgentsWindowOptions[] = [];
+		instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({
+			openAgentsWindow: async value => { calls.push(value ?? {}); },
+		}));
+		await instantiationService.invokeFunction(accessor => action.run(accessor));
+		return calls;
+	}
+
+	test('opts into reusing the invoking window only when enabled', async () => {
+		const reused = await run(new OpenAgentsWindowAction(), { reuseCurrentWindow: true });
+		const fresh = await run(new OpenAgentsWindowAction(), { reuseCurrentWindow: false });
+
+		assert.deepStrictEqual({
+			reused: reused.map(call => call.reuseWindow),
+			fresh: fresh.map(call => call.reuseWindow),
+		}, {
+			reused: [true],
+			fresh: [undefined],
+		});
+	});
+
+	test('forwards the reuse preference for workspace and session handoff', async () => {
+		const workspace = await run(new OpenWorkspaceInAgentsWindowAction(), { reuseCurrentWindow: true });
+		const session = await run(new OpenChatSessionInAgentsWindowAction(), { reuseCurrentWindow: true });
+
+		assert.deepStrictEqual({
+			workspace: workspace.map(call => call.reuseWindow),
+			session: session.map(call => call.reuseWindow),
+		}, {
+			workspace: [true],
+			session: [true],
+		});
+	});
+});
+// test-workbench_change end
