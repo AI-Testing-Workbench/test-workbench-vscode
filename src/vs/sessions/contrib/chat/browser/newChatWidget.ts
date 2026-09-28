@@ -66,6 +66,7 @@ import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
 import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
+import { createTscodeFaceSvg, pickRandomTscodeFaceType, TSCODE_FACE_TYPES } from '../../../../workbench/contrib/welcomeGettingStarted/browser/tscodeFaceIcon.js'; // test-workbench_change
 
 // #region --- New Chat Widget ---
 
@@ -465,10 +466,34 @@ export class NewChatWidget extends Disposable {
 
 	// --- Rendering ---
 
+	// test-workbench_change start - TestAgent mascot in the top-left corner of the
+	// composer stack. Reuses the TSCode welcome page faces: a random one is picked
+	// on load and clicking cycles through them. Kept at a fixed size so switching
+	// does not shift the layout.
+	private _renderTestAgentBrandIcon(container: HTMLElement): void {
+		const iconWrapper = dom.append(container, dom.$('.new-chat-brand-icon'));
+		let faceType = pickRandomTscodeFaceType();
+		const renderFace = () => {
+			dom.clearNode(iconWrapper);
+			const svg = createTscodeFaceSvg(faceType, 80);
+			svg.style.pointerEvents = 'none';
+			iconWrapper.appendChild(svg);
+		};
+		renderFace();
+		this._register(dom.addDisposableListener(iconWrapper, dom.EventType.CLICK, (e: MouseEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			faceType = TSCODE_FACE_TYPES[(TSCODE_FACE_TYPES.indexOf(faceType) + 1) % TSCODE_FACE_TYPES.length];
+			renderFace();
+		}));
+	}
+	// test-workbench_change end
+
 	render(parent: HTMLElement): void {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
+		this._renderTestAgentBrandIcon(chatWidgetContent); // test-workbench_change
 
 		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 		const aquariumAction = this._register(new Action(
