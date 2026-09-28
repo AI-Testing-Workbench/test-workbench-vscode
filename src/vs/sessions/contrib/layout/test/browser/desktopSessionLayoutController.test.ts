@@ -2714,7 +2714,7 @@ suite('LayoutController (desktop)', () => {
 			gatedOnDockedDetails: when.includes(HasDockedDetailsContext.key),
 		}, {
 			group: 'navigation',
-			icon: Codicon.listSelection.id,
+			icon: Codicon.folder.id,
 			order: 10,
 			afterMaximize: true,
 			hasToggled: true,
