@@ -13,7 +13,9 @@ import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js'
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js'; // test-workbench_change
 import { ILogService } from '../../../log/common/log.js';
+import { testagentScratchDir } from '../../common/testagentScratchDir.js'; // test-workbench_change
 import {
 	AgentProvider, AgentSession, AgentSignal,
 	IActiveClient, IAgent, IAgentChats, IAgentCreateChatOptions,
@@ -257,8 +259,14 @@ export class TestAgent extends Disposable implements IAgent {
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService, // test-workbench_change — quick chat scratch dir under userHome
 	) {
 		super();
+	}
+
+	/** test-workbench_change — workspace-less chat scratch dir: `~/.testagent/chats/<sessionId>`. */
+	private _scratchDir(sessionId: string): URI {
+		return testagentScratchDir(this._environmentService.userHome, sessionId);
 	}
 
 	// ── Server tool host ───────────────────────────────────────────────────
@@ -317,7 +325,7 @@ export class TestAgent extends Disposable implements IAgent {
 			const sessionId = AgentSession.id(sessionUri);
 
 			const workingDirectory = (Array.isArray(options?.workingDirectories) ? options?.workingDirectories[0] : options?.workingDirectories) // test-workbench_change - 新上游字段为复数
-				?? URI.file('/tmp/testagent-' + sessionId);
+				?? this._scratchDir(sessionId); // test-workbench_change — quick chat 固定落到 ~/.testagent/chats/<id>
 			try { fs.mkdirSync(workingDirectory.fsPath, { recursive: true }); } catch { /* ignore */ }
 
 			this._sessions.deleteAndDispose(sessionId);
@@ -422,10 +430,13 @@ export class TestAgent extends Disposable implements IAgent {
 				});
 			}
 			// test-workbench_change end
-			// test-workbench_change - 新上游传完整工作目录快照(index 0 = 主根),testagent 后端只支持单根
-			const workingDirectory = Array.isArray(workingDirectoriesOrDirectory)
+			// test-workbench_change - 新上游传完整工作目录快照(index 0 = 主根),testagent 后端只支持单根。
+			// quick chat 首条 send 时 host 可能尚未解析出目录(undefined);回退到创建时解析的合成目录
+			// (~/.testagent/chats/<id>),否则 _postMessage 不带 x-opencode-directory,后端会落到自身 cwd。
+			const workingDirectory = (Array.isArray(workingDirectoriesOrDirectory)
 				? workingDirectoriesOrDirectory[0]
-				: workingDirectoriesOrDirectory;
+				: workingDirectoriesOrDirectory)
+				?? session.currentWorkingDirectory;
 			const toolNames = this._getEnabledToolNames(chat);
 			await session.sendMessage(prompt, workingDirectory, attachments, turnId, toolNames);
 		},
@@ -483,9 +494,9 @@ export class TestAgent extends Disposable implements IAgent {
 
 		// test-workbench_change - 新上游字段改为复数 workingDirectories(testagent 单根取 index 0)
 		const workingDirectory = config.workingDirectories?.[0]
-			?? URI.file('/tmp/testagent-' + sessionId);
+			?? this._scratchDir(sessionId);
 
-		// 默认工作目录是合成的(/tmp/testagent-<sessionId>),并不真实存在;
+		// 默认工作目录是合成的(~/.testagent/chats/<sessionId>),并不真实存在;
 		// 必须创建它,否则持久化会话在恢复时会被
 		// WorktreeIsolation.resolveWorkingDirectoryForResume 判定为缺失,
 		// 抛出 SessionWorkingDirectoryMissingError。 // test-workbench_change
@@ -550,6 +561,13 @@ export class TestAgent extends Disposable implements IAgent {
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (!session) { return; }
+		// test-workbench_change start — workspace-less 会话删除时清理合成 scratch 目录。
+		// 恢复的会话 currentWorkingDirectory 可能未回填(undefined),同样按 scratch 处理;
+		// 普通 workspace 会话的目录不是 scratch,rm(force) 对不存在的路径为空操作。
+		const scratchDir = this._scratchDir(sessionId);
+		const usesScratchDir = session.currentWorkingDirectory === undefined
+			|| session.currentWorkingDirectory.fsPath === scratchDir.fsPath;
+		// test-workbench_change end
 		// test-workbench_change start — 级联销毁:同属该 AH session 的 peer/fork backing
 		// 一并 DELETE + dispose,不留悬挂路由(subagent 子 backing 随父 session dispose)。
 		const ready = await this._ensureConnection();
@@ -567,6 +585,14 @@ export class TestAgent extends Disposable implements IAgent {
 		}
 		// test-workbench_change end
 		this._forgetTestAgentId(sessionId); // 同步清掉持久化映射,避免恢复时重挂已删会话
+		if (usesScratchDir) { // test-workbench_change — 清理 ~/.testagent/chats/<id>
+			try {
+				fs.rmSync(scratchDir.fsPath, { recursive: true, force: true });
+				this._logService.info(`[TestAgent] removed scratch directory: ${scratchDir.fsPath}`);
+			} catch (err) {
+				this._logService.warn(`[TestAgent] failed to remove scratch directory ${scratchDir.fsPath}: ${err}`);
+			}
+		}
 	}
 
 	/**
@@ -1020,7 +1046,7 @@ export class TestAgent extends Disposable implements IAgent {
 		// test-workbench_change start — 对齐 Codex fork 语义:新 chat 继承源会话的工作目录、
 		// 模型与 agent 选择(此前落到合成 /tmp 目录,首条消息会写进错误 workspace)。
 		const workingDirectory = sourceSession.currentWorkingDirectory
-			?? URI.file('/tmp/testagent-' + sessionId);
+			?? this._scratchDir(sessionId);
 		try { fs.mkdirSync(workingDirectory.fsPath, { recursive: true }); } catch { /* ignore */ }
 		session.setWorkingDirectory(workingDirectory);
 		this._bindSessionCustomizations(session, workingDirectory); // test-workbench_change — turn 结束广播+目录监听

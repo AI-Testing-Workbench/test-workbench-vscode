@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isEqualOrParent } from '../../../../base/common/resources.js'; // test-workbench_change
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ensureSessionWorktreesTrusted } from '../../../services/sessions/browser/worktreeTrust.js';
+import { testagentChatsRoot } from '../../../../platform/agentHost/common/testagentScratchDir.js'; // test-workbench_change
+import { IPathService } from '../../../../workbench/services/path/common/pathService.js'; // test-workbench_change
 import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -30,6 +33,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceFolderLabelService private readonly workspaceFolderLabelService: IWorkspaceFolderLabelService,
+		@IPathService private readonly pathService: IPathService, // test-workbench_change — trust testagent scratch dirs
 	) {
 		super();
 		this._register(autorun(reader => {
@@ -44,6 +48,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		// Auto-trust an isolated worktree VS Code created off a trusted repo, so a
 		// worktree session mounts without tripping the untrusted-folder backstop.
 		await ensureSessionWorktreesTrusted(workspace, this.workspaceTrustManagementService);
+		await this.ensureTestagentScratchDirsTrusted(workspace); // test-workbench_change
 		const activeSessionFolders = this.getWorkspaceFolderData(workspace);
 		const currentFolders = this.workspaceContextService.getWorkspace().folders;
 
@@ -95,6 +100,33 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 				) ?? name
 			};
 		});
+	}
+
+	/**
+	 * test-workbench_change — Auto-trust testagent's own workspace-less scratch
+	 * directories (`~/.testagent/chats/<id>`) so a quick chat's editor mounts them.
+	 * VS Code/the agent host created these directories, and they live outside any
+	 * user project, so granting trust cannot escalate to user content. Without
+	 * this the folder fails the trust gate and the editor has no root.
+	 */
+	private async ensureTestagentScratchDirsTrusted(workspace: ISessionWorkspace | undefined): Promise<void> {
+		if (!workspace) {
+			return;
+		}
+		const scratchRoot = testagentChatsRoot(this.pathService.userHome({ preferLocal: true }));
+		const untrusted: URI[] = [];
+		for (const folder of workspace.folders) {
+			const uri = folder.workingDirectory;
+			if (!uri || !isEqualOrParent(uri, scratchRoot)) {
+				continue;
+			}
+			if (!(await this.workspaceTrustManagementService.getUriTrustInfo(uri)).trusted) {
+				untrusted.push(uri);
+			}
+		}
+		if (untrusted.length > 0) {
+			await this.workspaceTrustManagementService.setUrisTrust(untrusted, true);
+		}
 	}
 
 	/**

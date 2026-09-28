@@ -16,6 +16,7 @@ import { localize } from '../../../../../nls.js';
 import { type AgentHostUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
+import { testagentScratchDir } from '../../../../../platform/agentHost/common/testagentScratchDir.js'; // test-workbench_change
 import { workspacelessScratchDir } from '../../../../../platform/agentHost/common/workspacelessScratchDir.js';
 import { type ISessionGitState, readSessionEhcliAdoptable } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -182,6 +183,11 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 				if (session.isQuickChat?.get() && (session.sessionType === 'copilotcli' || session.sessionType === 'claude')) {
 					homes.push({ uri: workspacelessScratchDir(userHome, rawId), label });
 				}
+				// test-workbench_change start — testagent quick chat 的 scratch home: ~/.testagent/chats/<id>
+				if (session.isQuickChat?.get() && session.sessionType === 'testagent') {
+					homes.push({ uri: testagentScratchDir(userHome, rawId), label });
+				}
+				// test-workbench_change end
 				if (session.sessionType === 'copilotcli') {
 					homes.push({ uri: joinPath(sessionStateRoot, rawId), label });
 					for (const artifact of session.artifacts?.get() ?? []) {

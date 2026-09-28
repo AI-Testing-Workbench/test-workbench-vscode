@@ -16,6 +16,7 @@ import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces
 import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkspaceEditingService } from '../../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceFolderLabelService } from '../../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
+import { IPathService } from '../../../../../workbench/services/path/common/pathService.js'; // test-workbench_change
 import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -179,6 +180,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 		const folderLabel = new class extends mock<IWorkspaceFolderLabelService>() {
 			override getWorkspaceFolderLabel(): string { return 'label'; }
 		};
+		const pathService = { userHome: () => URI.file('/home/user') } as unknown as IPathService; // test-workbench_change
 
 		const contribution = disposables.add(new WorkspaceFolderManagementContribution(
 			sessionsService,
@@ -187,6 +189,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 			workspaceEditing,
 			workspaceTrust,
 			folderLabel,
+			pathService,
 		));
 
 		return { contribution, activeSession, workspaceEditing, workspaceTrust };
@@ -480,4 +483,38 @@ suite('WorkspaceFolderManagementContribution', () => {
 			removed: [[trustedFolder.workingDirectory.toString()]],
 		});
 	});
+
+	// test-workbench_change start — testagent quick-chat scratch dir auto-trust
+	test('auto-trusts and mounts a testagent quick-chat scratch dir', async () => {
+		const { activeSession, workspaceEditing, workspaceTrust } = createContribution();
+		const folder = localFolder('/home/user/.testagent/chats/sess-1');
+
+		activeSession.set(makeActiveSession('a', makeWorkspace(folder, true)), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			granted: workspaceTrust.setUrisTrustCalls,
+			added: workspaceEditing.addFoldersCalls.map(call => call.map(entry => entry.uri.toString())),
+		}, {
+			granted: [[folder.workingDirectory.toString()]],
+			added: [[folder.workingDirectory.toString()]],
+		});
+	});
+
+	test('does not auto-trust a testagent-looking folder outside the scratch root', async () => {
+		const { activeSession, workspaceEditing, workspaceTrust } = createContribution();
+		const folder = localFolder('/elsewhere/.testagent/chats/sess-1');
+
+		activeSession.set(makeActiveSession('a', makeWorkspace(folder, true)), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			granted: workspaceTrust.setUrisTrustCalls,
+			added: workspaceEditing.addFoldersCalls.length,
+		}, {
+			granted: [],
+			added: 0,
+		});
+	});
+	// test-workbench_change end
 });

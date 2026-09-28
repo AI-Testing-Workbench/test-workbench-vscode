@@ -804,7 +804,7 @@ export class TestAgentSession extends Disposable implements ITestAgentSession {
 		if (this._workingDirectory) { child.setWorkingDirectory(this._workingDirectory); }
 		// test-workbench_change end
 		// test-workbench_change start — 子会话的 backend instance 目录可能与父不同:父会话在无工作区
-		// 窗口下用合成目录(/tmp/testagent-<id>),而 task 子会话落在项目目录。应答 POST 的
+		// 窗口下用合成目录(~/.testagent/chats/<id>),而 task 子会话落在项目目录。应答 POST 的
 		// x-opencode-directory 必须匹配子会话实际所属实例,否则 question/permission 的 pending
 		// map 查不到(后端「reply for unknown request」)→ 用户作答石沉大海。异步取子会话自身
 		// directory 覆盖继承值;失败则保留继承值(与旧行为一致)。

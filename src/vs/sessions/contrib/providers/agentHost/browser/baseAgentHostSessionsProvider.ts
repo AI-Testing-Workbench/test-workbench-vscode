@@ -18,7 +18,7 @@ import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themable
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn, TESTAGENT_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js'; // test-workbench_change — TESTAGENT_AGENT_PROVIDER_ID
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
@@ -2133,6 +2133,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * assigned; workspace sessions build from project/git metadata.
 	 */
 	private _computeWorkspace(): ISessionWorkspace | undefined {
+		// test-workbench_change start — testagent quick chat:把 host 分配的 scratch cwd
+		// (~/.testagent/chats/<id>)投影成客户端 workspace,让编辑器 Files/新建文件/diff
+		// 指向同一个目录。非 testagent 的 quick chat 仍保持 workspace-less。
+		if (this._kind.isQuickChat && this.sessionType === TESTAGENT_AGENT_PROVIDER_ID && this._workingDirectories?.length) {
+			return this._options.buildWorkspace(this._project, this._workingDirectories, this.gitHubInfo, readSessionGitState(this._meta));
+		}
+		// test-workbench_change end
 		return this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, this._workingDirectories, this.gitHubInfo, readSessionGitState(this._meta)));
 	}
 
