@@ -2148,7 +2148,18 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return;
 		}
 
-		const changesets = createChangesets(this.backendUri, this._options, this.isActiveSessionObs, changesetsMetadata.map(changeset => ({
+		// test-workbench_change start — default a folder-isolated session to its
+		// session changeset (what the agent edited) instead of the branch changeset.
+		// Folder sessions check out the selected base branch directly, so the branch
+		// changeset would otherwise diff against the repository default and surface
+		// the whole cross-branch divergence. Worktree sessions keep Branch as default.
+		const options: IAgentHostAdapterOptions = {
+			...this._options,
+			defaultChangesetKind: this._worktreeIsolation.get() ? ChangesetKind.Branch : ChangesetKind.Session,
+		};
+		// test-workbench_change end
+
+		const changesets = createChangesets(this.backendUri, options, this.isActiveSessionObs, changesetsMetadata.map(changeset => ({
 			...changeset,
 			changes: changeset.changeKind === TURN_CHANGES_CHANGESET_ID
 				? this._currentTurnChanges
@@ -2950,7 +2961,14 @@ class NewSession extends Disposable {
 			return;
 		}
 
-		const changesets = createChangesets(this.backendUri, this._options, this._isActiveSessionObs, changesetsMetadata);
+		// test-workbench_change start — see AgentHostSessionAdapter.updateChangesets.
+		const options: IAgentHostAdapterOptions = {
+			...this._options,
+			defaultChangesetKind: isWorktreeIsolation(this._config?.values) ? ChangesetKind.Branch : ChangesetKind.Session,
+		};
+		// test-workbench_change end
+
+		const changesets = createChangesets(this.backendUri, options, this._isActiveSessionObs, changesetsMetadata);
 
 		this._changesets.set(changesets, undefined);
 	}

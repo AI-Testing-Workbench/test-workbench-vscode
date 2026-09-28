@@ -1461,8 +1461,23 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * and the review-status lookup so both are keyed on the same baseline.
 	 */
 	private async _resolveBranchBaseBranch(session: ProtocolURI, db: ISessionDatabase): Promise<string | undefined> {
+		// test-workbench_change start — In folder isolation the user checks out the
+		// selected base branch directly, so that branch IS the working branch. Anchoring
+		// Branch Changes to the repository default (origin/HEAD) would surface the whole
+		// divergence between the two branches as "changes" and run an expensive
+		// whole-repo diff on every switch. Anchor to the working branch so only its
+		// uncommitted work is reported. Worktree sessions are unaffected.
+		const sessionState = this._stateManager.getSessionState(session);
+		if (sessionState?.config?.values[SessionConfigKey.Isolation] === 'folder') {
+			const workingBranch = readSessionGitState(sessionState._meta)?.branchName;
+			if (workingBranch) {
+				return workingBranch;
+			}
+		}
+		// test-workbench_change end
+
 		const persistedBaseBranch = await db.getMetadata(META_DIFF_BASE_BRANCH);
-		const gitStateBaseBranch = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName;
+		const gitStateBaseBranch = readSessionGitState(sessionState?._meta)?.baseBranchName;
 		if (!persistedBaseBranch && gitStateBaseBranch) {
 			this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${session}: ${gitStateBaseBranch}`);
 		}
