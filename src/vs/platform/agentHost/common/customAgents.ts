@@ -110,7 +110,7 @@ export function resolveAgentHostAgent(
 /**
  * Chat mode 的 id 是 customization URI 经 `toAgentHostUri` 包装后的形式
  * （`vscode-agent-host://[auth]/path?_ah=[meta]`），而会话 customizations 里
- * 记录的是原始 URI（如 `opencode-customization:/agents/plan`）。直接字符串比较
+ * 记录的是原始 URI（如 `testagent-customization:/agents/plan`）。直接字符串比较
  * 永远不相等，picker 会误判“所选 agent 已不在列表”而把选择重置回 default。
  * 比较前两侧都尝试解包回原始 URI；本地 `file://` 的包装本来就是恒等变换，
  * 行为与上游一致。

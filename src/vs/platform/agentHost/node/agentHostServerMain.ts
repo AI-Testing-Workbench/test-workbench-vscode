@@ -51,9 +51,9 @@ import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 // test-workbench_change start: 移除 Claude/Codex enable 开关成员(仅供已注释的注册段使用,代码保留)
 // import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
-import { AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled, AgentHostOpenCodeAgentEnabledEnvVar } from '../common/agentService.js';
+import { AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled, AgentHostTestAgentEnabledEnvVar } from '../common/agentService.js';
 // test-workbench_change end
-import { OpenCodeAgent } from './openCode/openCodeAgent.js'; // test-workbench_change
+import { TestAgent } from './testagent/testagentAgent.js'; // test-workbench_change
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
@@ -241,8 +241,8 @@ async function main(): Promise<void> {
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 	if (!options.quiet) {
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
-		// test-workbench_change start: 只保留 TestAgent(openCode);Copilot/Claude/Codex 不接入(代码注释保留,勿删)
-		/*原逻辑:
+		// test-workbench_change start: 只保留 TestAgent(testagent);Copilot/Claude/Codex 不接入(代码注释保留,勿删)
+		/*
 		providerService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		log('CopilotAgent registered');
 		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
@@ -268,9 +268,9 @@ async function main(): Promise<void> {
 		}
 		*/
 		// TestAgent provider: enabled by default (opt-out via env var)
-		if (isAgentEnabled(process.env[AgentHostOpenCodeAgentEnabledEnvVar], true)) {
-			const openCodeAgent = disposables.add(instantiationService.createInstance(OpenCodeAgent));
-			providerService.registerProvider(openCodeAgent);
+		if (isAgentEnabled(process.env[AgentHostTestAgentEnabledEnvVar], true)) {
+			const testagentAgent = disposables.add(instantiationService.createInstance(TestAgent));
+			providerService.registerProvider(testagentAgent);
 			log('TestAgent provider registered');
 		}
 		// test-workbench_change end

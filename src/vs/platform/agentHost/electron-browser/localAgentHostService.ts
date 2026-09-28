@@ -349,7 +349,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		if (!pending) {
 			this._startupTelemetry?.authenticationSettled();
 		}
-		/*原逻辑(勿删):
+		/*
 		if (this._authenticationSettled) {
 			return;
 		}

@@ -44,7 +44,7 @@ export type {
 	IAgentHostNetworkEndpoint, IAgentHostManagedSettingsSnapshot,
 } from './agent.js';
 export {
-	AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, OPENCODE_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE,
+	AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, TESTAGENT_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE,
 	GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn, resolveAgentChatContext,
 	resolveAgentChatOrigin, resolveSubagentChatParent, resolveAgentHostCustomizations, subagentChatTitle,
 	SubagentChatSignal,
@@ -230,7 +230,7 @@ export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT
  */
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
 
-export const AgentHostOpenCodeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_OPENCODE_AGENT_ENABLED'; // test-workbench_change
+export const AgentHostTestAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_TESTAGENT_AGENT_ENABLED'; // test-workbench_change
 
 /** Overrides the soft cap on resident session roots. Primarily used by integration tests. */
 export const AgentHostSessionResidencyLimitEnvVar = 'VSCODE_AGENT_HOST_SESSION_RESIDENCY_LIMIT';
@@ -290,7 +290,7 @@ export function affectsAgentHostProviderPreference(event: IConfigurationChangeEv
 export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
 	// test-workbench_change start - always surface all agent host providers without login
 	return true;
-	/*原逻辑(勿删):
+	/*
 	switch (provider) {
 		case CLAUDE_AGENT_PROVIDER_ID:
 			return configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId) !== false;

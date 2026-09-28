@@ -4,7 +4,7 @@
 
 ## Overview
 
-当前 OpenCodeAgent（`openCodeAgent.ts` 587行, `openCodeSession.ts` 514行, `openCodeEventStream.ts` 182行）仅实现了基础聊天、流式输出和工具调用展示。V1 补齐四个功能后，总代码量预计增长至 ~1,600 行，不新增文件。
+当前 TestAgent（`testagentAgent.ts` 587行, `testagentSession.ts` 514行, `testagentEventStream.ts` 182行）仅实现了基础聊天、流式输出和工具调用展示。V1 补齐四个功能后，总代码量预计增长至 ~1,600 行，不新增文件。
 
 | Phase | 功能 | 当前状态 | 目标 | 估量 |
 |-------|------|---------|------|------|
@@ -59,8 +59,8 @@ interface Turn {
 
 | Action | File | Purpose |
 |--------|------|---------|
-| **Modify** | `openCodeSession.ts` | 实现 `getMessages()` → `GET /session/{opencodeId}/message`，映射 OpenCode `Message[]` + `Part[]` → VS Code `Turn[]` |
-| **Modify** | `openCodeAgent.ts` | `chats.getMessages` 和 `getSessionMessages` 代理给 session |
+| **Modify** | `testagentSession.ts` | 实现 `getMessages()` → `GET /session/{opencodeId}/message`，映射 OpenCode `Message[]` + `Part[]` → VS Code `Turn[]` |
+| **Modify** | `testagentAgent.ts` | `chats.getMessages` 和 `getSessionMessages` 代理给 session |
 
 ### 1.5 映射逻辑
 
@@ -114,7 +114,7 @@ type MessageAttachment =
 
 | Action | File | Purpose |
 |--------|------|---------|
-| **Modify** | `openCodeSession.ts` | `sendMessage` 新增 `_attachments?` 参数，转换为 opencode file parts 合并到 body |
+| **Modify** | `testagentSession.ts` | `sendMessage` 新增 `_attachments?` 参数，转换为 opencode file parts 合并到 body |
 
 ### 2.5 转换映射
 
@@ -162,16 +162,16 @@ opencode SSE → permission.asked → handleEvent
 
 | 任务 | 说明 | 文件 |
 |------|------|------|
-| 扩展 `handleEvent` | 新增 `permission.asked`、`session.idle` 事件类型分发 | `openCodeSession.ts` |
-| `OpenCodeEventStream` 事件通过 sessionID | 当前通过 `properties.sessionID` 路由，`permission.asked` 的 properties 已包含 `sessionID` | 已兼容 |
+| 扩展 `handleEvent` | 新增 `permission.asked`、`session.idle` 事件类型分发 | `testagentSession.ts` |
+| `TestAgentEventStream` 事件通过 sessionID | 当前通过 `properties.sessionID` 路由，`permission.asked` 的 properties 已包含 `sessionID` | 已兼容 |
 
 ### 3.5 文件改动
 
 | Action | File | Purpose |
 |--------|------|---------|
-| **Modify** | `openCodeSession.ts` | `handleEvent` 捕获 `permission.asked` → 存 `_pendingPermissions: Map<requestId, DeferredPromise>` → 发射 `pending_confirmation` signal；新增 `_buildPendingConfirmationSignal()` |
-| **Modify** | `openCodeSession.ts` | `respondToPermissionRequest()` → `POST /permission/{id}/reply` |
-| **Modify** | `openCodeAgent.ts` | `respondToPermissionRequest` 遍历 sessions 分发 |
+| **Modify** | `testagentSession.ts` | `handleEvent` 捕获 `permission.asked` → 存 `_pendingPermissions: Map<requestId, DeferredPromise>` → 发射 `pending_confirmation` signal；新增 `_buildPendingConfirmationSignal()` |
+| **Modify** | `testagentSession.ts` | `respondToPermissionRequest()` → `POST /permission/{id}/reply` |
+| **Modify** | `testagentAgent.ts` | `respondToPermissionRequest` 遍历 sessions 分发 |
 
 ### 3.6 PermissionRequest → SessionToolCallReady 映射
 
@@ -241,10 +241,10 @@ sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<
 
 | Action | File | Purpose |
 |--------|------|---------|
-| **Modify** | `openCodeAgent.ts` | `resolveSessionConfig` 构建实际 schema（mode, model selection, autoApprove level） |
-| **Modify** | `openCodeAgent.ts` | `sessionConfigCompletions` 返回 `{items: []}`（暂无动态枚举） |
-| **Modify** | `openCodeAgent.ts` | `createSession` 时将 model + permission 写入 `POST /session/` body |
-| **Modify** | `openCodeSession.ts` | `initialize()` body 新增 model、permission 字段 |
+| **Modify** | `testagentAgent.ts` | `resolveSessionConfig` 构建实际 schema（mode, model selection, autoApprove level） |
+| **Modify** | `testagentAgent.ts` | `sessionConfigCompletions` 返回 `{items: []}`（暂无动态枚举） |
+| **Modify** | `testagentAgent.ts` | `createSession` 时将 model + permission 写入 `POST /session/` body |
+| **Modify** | `testagentSession.ts` | `initialize()` body 新增 model、permission 字段 |
 
 ### 4.5 Schema 定义
 
@@ -306,7 +306,7 @@ AutoApprove → opencode permission 映射：
 2. `sendMessage` 支持附件传递
 3. 工具调用前弹出确认框，approve/deny 生效
 4. 会话创建时可选 model 和 auto-approve 级别
-5. 所有改动限定在 `openCodeAgent.ts` 和 `openCodeSession.ts` 两个文件
+5. 所有改动限定在 `testagentAgent.ts` 和 `testagentSession.ts` 两个文件
 6. `test-workbench_change` 标记清晰
 
 ## 不改的东西

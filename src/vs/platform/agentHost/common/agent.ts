@@ -284,8 +284,8 @@ export const CLAUDE_AGENT_PROVIDER_ID = 'claude' as const;
 /** Well-known agent provider id for the Codex agent-host backend. */
 export const CODEX_AGENT_PROVIDER_ID = 'codex' as const;
 
-/** Well-known agent provider id for the OpenCode agent-host backend. */
-export const OPENCODE_AGENT_PROVIDER_ID = 'opencode' as const; // test-workbench_change
+/** Well-known agent provider id for the TestAgent agent-host backend. */
+export const TESTAGENT_AGENT_PROVIDER_ID = 'testagent' as const; // test-workbench_change
 
 /**
  * Static capability facts an agent backend advertises about itself. Each flag

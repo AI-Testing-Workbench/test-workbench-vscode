@@ -17,7 +17,7 @@ import * as os from 'os';
 import * as inspector from 'inspector';
 // test-workbench_change start: 移除 Claude/Codex enable 开关成员(仅供已注释的注册段使用)
 // import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
-import { AgentHostCodexAgentCodexHomeEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled, AgentHostOpenCodeAgentEnabledEnvVar } from '../common/agentService.js';
+import { AgentHostCodexAgentCodexHomeEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled, AgentHostTestAgentEnabledEnvVar } from '../common/agentService.js';
 // import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 // test-workbench_change end
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
@@ -32,7 +32,7 @@ import { IAgentHostCompletions } from './agentHostCompletions.js';
 // import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
 // test-workbench_change end
 import { createCodexProviderConfiguration } from './codex/codexProviderConfiguration.js';
-import { OpenCodeAgent } from './openCode/openCodeAgent.js'; // test-workbench_change
+import { TestAgent } from './testagent/testagentAgent.js'; // test-workbench_change
 import { ByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
@@ -159,8 +159,8 @@ async function startAgentHost(): Promise<void> {
 		// const agentSdkDownloader = runtimeServices.agentSdkDownloader;
 		const providerService = runtimeServices.providerService;
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
-		// test-workbench_change start: 只接入 TestAgent(openCode)，Copilot/Claude/Codex provider 不注册(代码注释保留，勿删)
-		/*原逻辑:
+		// test-workbench_change start: 只接入 TestAgent(testagent)，Copilot/Claude/Codex provider 不注册(代码注释保留，勿删)
+		/*
 		providerService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		*/
 		/*
@@ -188,8 +188,8 @@ async function startAgentHost(): Promise<void> {
 		*/
 
 		// TestAgent provider: enabled by default (opt-out via env var) // test-workbench_change
-		if (isAgentEnabled(process.env[AgentHostOpenCodeAgentEnabledEnvVar], true)) {
-			providerService.registerProvider(instantiationService.createInstance(OpenCodeAgent));
+		if (isAgentEnabled(process.env[AgentHostTestAgentEnabledEnvVar], true)) {
+			providerService.registerProvider(instantiationService.createInstance(TestAgent));
 		}
 		// test-workbench_change end
 	} catch (err) {

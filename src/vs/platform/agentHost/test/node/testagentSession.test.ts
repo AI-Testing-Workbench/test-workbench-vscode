@@ -12,20 +12,20 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { IOpenCodePermissionRule, OpenCodeSession } from '../../node/openCode/openCodeSession.js';
+import { ITestAgentPermissionRule, TestAgentSession } from '../../node/testagent/testagentSession.js';
 import { buildSubagentChatUri } from '../../common/state/sessionState.js';
 
 interface AnySession {
-	opencodeSessionId: string;
+	testagentSessionId: string;
 	_currentTurnId: string;
 	_currentPrompt?: string;
 	handleEvent(event: { type: string; properties: Record<string, unknown> }): void;
 	sendMessage(prompt: string): Promise<void>;
 	fork(messageID?: string): Promise<string>;
 	truncate(turnId: string | undefined): Promise<void>;
-	setPermissionRules(ruleset: readonly IOpenCodePermissionRule[]): Promise<void>;
-	getSubagentSession(chat: URI): { opencodeSessionId: string } | undefined;
-	materializeSubagent(chat: URI, toolCallId: string): Promise<{ opencodeSessionId: string } | undefined>;
+	setPermissionRules(ruleset: readonly ITestAgentPermissionRule[]): Promise<void>;
+	getSubagentSession(chat: URI): { testagentSessionId: string } | undefined;
+	materializeSubagent(chat: URI, toolCallId: string): Promise<{ testagentSessionId: string } | undefined>;
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
 	respondToUserInputRequest(requestId: string, response: never, answers?: never): void;
 }
@@ -59,13 +59,13 @@ function createSession(store: DisposableStore): { session: AnySession; actions: 
 			signals.push(s as unknown as CapturedSignal);
 		}
 	}));
-	const raw = new OpenCodeSession(
+	const raw = new TestAgentSession(
 		'sid', URI.parse('agent://session/sid'), 'http://base', 'auth',
 		emitter, new NullLogService(),
 	);
 	store.add(raw);
 	const session = raw as unknown as AnySession;
-	session.opencodeSessionId = 'oc-1';
+	session.testagentSessionId = 'oc-1';
 	session._currentTurnId = 'turn-1';
 	return { session, actions, signals };
 }
@@ -95,7 +95,7 @@ function stubFetch(store: DisposableStore, respond?: (call: FetchCall) => { stat
 	return calls;
 }
 
-suite('OpenCodeSession', () => {
+suite('TestAgentSession', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('tool part updates drive Start → Ready → Complete state machine', () => {
@@ -215,7 +215,7 @@ suite('OpenCodeSession', () => {
 	// ── truncate / fork 锚点 / 权限 owner / 会话 ruleset ─────────────────────
 
 	// host turn id 是 orchestrator mint 的 uuid;truncate/fork 必须先经
-	// message.updated 登记的锚点翻译成 opencode 消息 id
+	// message.updated 登记的锚点翻译成 testagent 消息 id
 	test('truncate deletes backend messages after the anchored turn', async () => {
 		const store = new DisposableStore();
 		try {
@@ -339,7 +339,7 @@ suite('OpenCodeSession', () => {
 			assert.strictEqual(started[0].taskDescription, 'Inspect routes');
 
 			const subChat = URI.parse(buildSubagentChatUri(URI.parse('agent://session/sid'), 'call-1'));
-			assert.strictEqual(session.getSubagentSession(subChat)?.opencodeSessionId, 'oc-child');
+			assert.strictEqual(session.getSubagentSession(subChat)?.testagentSessionId, 'oc-child');
 		} finally {
 			store.dispose();
 		}
@@ -359,8 +359,8 @@ suite('OpenCodeSession', () => {
 			const subChat = URI.parse(buildSubagentChatUri(URI.parse('agent://session/sid'), 'call-9'));
 			const child = await session.materializeSubagent(subChat, 'call-9');
 
-			assert.strictEqual(child?.opencodeSessionId, 'oc-child-9');
-			assert.strictEqual(session.getSubagentSession(subChat)?.opencodeSessionId, 'oc-child-9');
+			assert.strictEqual(child?.testagentSessionId, 'oc-child-9');
+			assert.strictEqual(session.getSubagentSession(subChat)?.testagentSessionId, 'oc-child-9');
 		} finally {
 			store.dispose();
 		}
@@ -395,7 +395,7 @@ suite('OpenCodeSession', () => {
 		try {
 			const { session } = createSession(store);
 			const calls = stubFetch(store, () => ({ json: { id: 'oc-1' } }));
-			const ruleset: IOpenCodePermissionRule[] = [{ permission: '*', pattern: '*', action: 'allow' }];
+			const ruleset: ITestAgentPermissionRule[] = [{ permission: '*', pattern: '*', action: 'allow' }];
 
 			await session.setPermissionRules(ruleset);
 

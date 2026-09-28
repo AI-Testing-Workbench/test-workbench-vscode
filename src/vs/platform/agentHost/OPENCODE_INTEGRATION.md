@@ -1,6 +1,6 @@
 <!--
   OPENCODE_INTEGRATION.md — OpenCode Agent 集成方案总结
-  对应代码: src/vs/platform/agentHost/node/openCode/
+  对应代码: src/vs/platform/agentHost/node/testagent/
 -->
 
 # OpenCode Agent 集成方案
@@ -34,18 +34,18 @@
 │    │ ChatTurnStarted → _sendTurnMessage                   │
 │    │   │ agent.chats.sendMessage(chatUri, ...)            │
 │    ▼   ▼                                                  │
-│  OpenCodeAgent (openCodeAgent.ts)                        │
+│  TestAgent (testagentAgent.ts)                        │
 │    │ 实现 IAgent 接口                                     │
 │    │                                                      │
 │    │ createSession → spawn opencode → _sessions           │
 │    │ sendMessage  → _resolveSession → session.sendMessage │
 │    ▼                                                      │
-│  OpenCodeSession (openCodeSession.ts)                    │
+│  TestAgentSession (testagentSession.ts)                    │
 │    │ _fireAction → AgentSignal → _onDidSessionProgress    │
 │    │   → AgentSideEffects._handleAgentSignal              │
 │    │   → AgentHostStateManager.dispatchServerAction       │
 │    ▼                                                      │
-│  OpenCodeEventStream (openCodeEventStream.ts)            │
+│  TestAgentEventStream (testagentEventStream.ts)            │
 │    │ GET /event (SSE) → _handlePartDelta/Updated          │
 │    ▼                                                      │
 │  ┌─────────────────────────────┐                         │
@@ -59,9 +59,9 @@
 
 数据流:
 
-1. **下行**: VS Code UI → IPC → AgentService → AgentSideEffects → OpenCodeAgent.chats.sendMessage → HTTP POST opencode
-2. **上行 (SSE)**: opencode SSE stream → OpenCodeEventStream → OpenCodeSession.handleEvent → _fireAction(AgentSignal) → AgentSideEffects._handleAgentSignal → StateManager → IPC → UI 渲染
-3. **上行 (HTTP fallback)**: opencode HTTP response → OpenCodeSession._processStreamingJSON / _processFinalResponse → 同 SSE 流程
+1. **下行**: VS Code UI → IPC → AgentService → AgentSideEffects → TestAgent.chats.sendMessage → HTTP POST opencode
+2. **上行 (SSE)**: opencode SSE stream → TestAgentEventStream → TestAgentSession.handleEvent → _fireAction(AgentSignal) → AgentSideEffects._handleAgentSignal → StateManager → IPC → UI 渲染
+3. **上行 (HTTP fallback)**: opencode HTTP response → TestAgentSession._processStreamingJSON / _processFinalResponse → 同 SSE 流程
 
 ---
 
@@ -168,24 +168,24 @@ Agent Host Protocol (AHP) 定义了 client（UI 前端）与 agent host 之间�
 VS Code 在 orchestrator 层（`AgentService` + `AgentHostStateManager`）和具体 agent 之间插入了 `IAgent` 这个内部接口：
 
 ```
-UI ← AHP → AgentService(编排层) ← IAgent → ClaudeAgent/CopilotAgent/CodexAgent/OpenCodeAgent ← 各自 SDK/HTTP → Claude/Copilot/Codex/OpenCode
+UI ← AHP → AgentService(编排层) ← IAgent → ClaudeAgent/CopilotAgent/CodexAgent/TestAgent ← 各自 SDK/HTTP → Claude/Copilot/Codex/OpenCode
 ```
 
 - `AgentService` + `AgentHostStateManager` 是 AHP 状态机，负责 reducer、状态管理、action 编排
 - 每个 agent 都实现 `IAgent` 接口（定义在 `agentService.ts`），而非 AHP 协议
-- agent 只需关注如何将 `IAgent` 翻译成自己的后端调用——OpenCodeAgent 就是通过 `IAgent` → HTTP REST/SSE 适配来连接 opencode
+- agent 只需关注如何将 `IAgent` 翻译成自己的后端调用——TestAgent 就是通过 `IAgent` → HTTP REST/SSE 适配来连接 opencode
 
 两层翻译的链路：
 
 ```
-AHP ←→ AgentService ←→ IAgent ←→ OpenCodeAgent(实现 IAgent) ←→ HTTP/SSE ←→ opencode
-       ↑ 编排层在 AHP↔IAgent 之间翻译      ↑ OpenCodeAgent 在 IAgent↔HTTP 之间翻译
+AHP ←→ AgentService ←→ IAgent ←→ TestAgent(实现 IAgent) ←→ HTTP/SSE ←→ opencode
+       ↑ 编排层在 AHP↔IAgent 之间翻译      ↑ TestAgent 在 IAgent↔HTTP 之间翻译
 ```
 
-OpenCodeAgent 在 VS Code 侧做了完整的 `IAgent` → HTTP 适配：
+TestAgent 在 VS Code 侧做了完整的 `IAgent` → HTTP 适配：
 
-- `openCodeAgent.ts` — 实现 `IAgent` 接口（session 生命周期、agent 路由）
-- `openCodeSession.ts` — 将 `sendMessage` 等 `IAgent` 操作翻译为 `POST /session/:id/message`
-- `openCodeEventStream.ts` — 将 SSE 事件流翻译为 `AgentSignal` 回传给编排层
+- `testagentAgent.ts` — 实现 `IAgent` 接口（session 生命周期、agent 路由）
+- `testagentSession.ts` — 将 `sendMessage` 等 `IAgent` 操作翻译为 `POST /session/:id/message`
+- `testagentEventStream.ts` — 将 SSE 事件流翻译为 `AgentSignal` 回传给编排层
 
 这样做的代价：每个新 agent 接入都需要实现 `IAgent` 适配层，且 agent 方无法直接复用自己的 AHP 能力。

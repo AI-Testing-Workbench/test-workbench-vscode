@@ -6,7 +6,7 @@
 
 import * as fs from 'fs';
 import * as os from 'os';
-import * as path from 'path';
+import * as path from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
 import { CustomizationType } from '../../common/state/protocol/channels-session/state.js';
@@ -19,12 +19,12 @@ interface ICommandInfo { name: string; description?: string; source?: 'command' 
 /** GET /agent → Agent.Info[] */
 interface IAgentInfo { name: string; description?: string; hidden?: boolean; model?: { modelID?: string; providerID?: string } }
 
-/** 合成 scheme：opencode 的清单来自运行时 API 而非固定磁盘目录，条目不可点开/不可写 */
-const OPENCODE_SCHEME = 'opencode-customization';
+/** 合成 scheme：testagent 的清单来自运行时 API 而非固定磁盘目录，条目不可点开/不可写 */
+const TESTAGENT_SCHEME = 'testagent-customization';
 
 async function fetchList<T>(baseUrl: string, path: string, authHeader: string, workingDirectory: URI | undefined, logService: ILogService): Promise<T[] | undefined> {
 	const headers: Record<string, string> = {};
-	if (authHeader) { headers['Authorization'] = authHeader; }
+	if (authHeader) { headers.Authorization = authHeader; }
 	// header 值只允许 Latin-1，中文路径 percent-encode（服务端 workspace-routing 解码）
 	if (workingDirectory) { headers['x-opencode-directory'] = encodeURIComponent(workingDirectory.fsPath); }
 	try {
@@ -63,7 +63,7 @@ function userConfigSubDir(sub: string, logService: ILogService): URI {
 function container(name: string, contents: SkillCustomization['type'] | AgentCustomization['type'] | RuleCustomization['type'], children: readonly ChildCustomization[], writableDir: URI | undefined, logService: ILogService): DirectoryCustomization {
 	// test-workbench_change start — 容器 uri 优先指向真实可写的用户级目录(供 New Agent/Skill/Prompt
 	// 落盘，provideSourceFolders 只收 writable:true 的目录容器)；无落点时退回合成只读 uri。
-	const uri = writableDir ? writableDir.toString(true) : `${OPENCODE_SCHEME}:/` + name;
+	const uri = writableDir ? writableDir.toString(true) : `${TESTAGENT_SCHEME}:/` + name;
 	return {
 		type: CustomizationType.Directory,
 		id: customizationId(uri),
@@ -79,7 +79,7 @@ function container(name: string, contents: SkillCustomization['type'] | AgentCus
 }
 
 /**
- * opencode 后端 `session/instruction.ts` 实际加载为 system instructions 的 rules 文件
+ * testagent 后端 `session/instruction.ts` 实际加载为 system instructions 的 rules 文件
  * （AGENTS.md 系列）候选路径。provider 侧磁盘扫描这些路径映射成 `CustomizationType.Rule`，
  * 对齐 Claude 的 `claudeRuleScan`：真实 `file:` uri、`alwaysApply`、可点开编辑。
  * 后端总是加载这些文件，故不提供 enablement 开关、不支持删除（AGENTS.md 是核心文件）；
@@ -109,7 +109,7 @@ function ruleCandidatePaths(workingDirectory: URI | undefined): string[] {
 }
 
 /** 扫描存在的 rules 文件为 RuleCustomization（按解析路径去重）。 */
-function scanOpenCodeRules(workingDirectory: URI | undefined): RuleCustomization[] {
+function scanTestAgentRules(workingDirectory: URI | undefined): RuleCustomization[] {
 	const seen = new Set<string>();
 	const rules: RuleCustomization[] = [];
 	for (const candidate of ruleCandidatePaths(workingDirectory)) {
@@ -136,12 +136,12 @@ function scanOpenCodeRules(workingDirectory: URI | undefined): RuleCustomization
  * 参考 Claude provider 的 discovery 输出形状；数据源换成 HTTP API，不做文件扫描。
  * 单个端点失败只省略对应容器；全失败返回空数组（调用方 TTL 缓存不存空结果以外的错误）。
  */
-export async function fetchOpenCodeCustomizations(baseUrl: string, authHeader: string, workingDirectory: URI | undefined, logService: ILogService): Promise<readonly Customization[]> {
+export async function fetchTestAgentCustomizations(baseUrl: string, authHeader: string, workingDirectory: URI | undefined, logService: ILogService): Promise<readonly Customization[]> {
 	// test-workbench_change start — 拉清单前先 POST /{agent,command,skill}/reload 让后端失效实例级
 	// 缓存:管理面板 "New Agent/Skill/Prompt" 落盘新文件后,下一次 GET 清单即可见(配套后端
 	// kilo_change_v2 的 reload 端点;失败忽略,退化为旧缓存)。
 	const reloadHeaders: Record<string, string> = {};
-	if (authHeader) { reloadHeaders['Authorization'] = authHeader; }
+	if (authHeader) { reloadHeaders.Authorization = authHeader; }
 	if (workingDirectory) { reloadHeaders['x-opencode-directory'] = encodeURIComponent(workingDirectory.fsPath); }
 	await Promise.allSettled(['/agent/reload', '/command/reload', '/skill/reload'].map(async p => {
 		try {
@@ -164,7 +164,7 @@ export async function fetchOpenCodeCustomizations(baseUrl: string, authHeader: s
 	// 让 "New Skill/Agent/Prompt" 始终有落点;单个端点失败才省略对应容器。
 	if (skills) {
 		const children: SkillCustomization[] = skills.map(s => {
-			const uri = s.location ? URI.file(s.location).toString(true) : `${OPENCODE_SCHEME}:/skills/${s.name}`;
+			const uri = s.location ? URI.file(s.location).toString(true) : `${TESTAGENT_SCHEME}:/skills/${s.name}`;
 			return { type: CustomizationType.Skill, id: customizationId(uri), uri, name: s.name, description: s.description };
 		});
 		result.push(container('skills', CustomizationType.Skill, children, userConfigSubDir('skills', logService), logService));
@@ -173,7 +173,7 @@ export async function fetchOpenCodeCustomizations(baseUrl: string, authHeader: s
 	if (commands) {
 		// source==='skill' 的条目已由 /skill 容器呈现，去重；mcp prompt 命令保留
 		const children: SkillCustomization[] = commands.filter(c => c.source !== 'skill').map(c => {
-			const uri = `${OPENCODE_SCHEME}:/commands/${c.name}`;
+			const uri = `${TESTAGENT_SCHEME}:/commands/${c.name}`;
 			// test-workbench_change start — command 的 name 用裸名(不带前导 "/"):slash command 的
 			// name 约定为裸名,补全层(chatInputCompletions colonLabel `/${c.name}`)与执行
 			// resolvePromptSlashCommand 都按裸名加前缀/匹配。此前 `/${c.name}` 会让补全显示成
@@ -186,10 +186,10 @@ export async function fetchOpenCodeCustomizations(baseUrl: string, authHeader: s
 
 	if (agents) {
 		// test-workbench_change start — 过滤后端 hidden 内部 agent(compaction/summary/title 等,
-		// agent.ts 标 hidden:true):它们是 opencode 生命周期内部 agent,非用户可配置项,不应出现在
+		// agent.ts 标 hidden:true):它们是 testagent 生命周期内部 agent,非用户可配置项,不应出现在
 		// Agents 面板。此前仅设 disableUserInvocation 仍会展示(只是不可手动调用),不符"隐藏"语义。
 		const children: AgentCustomization[] = agents.filter(a => !a.hidden).map(a => {
-			const uri = `${OPENCODE_SCHEME}:/agents/${a.name}`;
+			const uri = `${TESTAGENT_SCHEME}:/agents/${a.name}`;
 			return {
 				type: CustomizationType.Agent,
 				id: customizationId(uri),
@@ -204,12 +204,12 @@ export async function fetchOpenCodeCustomizations(baseUrl: string, authHeader: s
 		result.push(container('agents', CustomizationType.Agent, children, userConfigSubDir('agent', logService), logService));
 	}
 
-	// test-workbench_change start — Instructions(Rule):opencode 后端无 rules HTTP 端点,
-	// provider 侧磁盘扫描后端实际加载的 AGENTS.md 系列(对齐 Claude claudeRuleScan)。opencode 的
+	// test-workbench_change start — Instructions(Rule):testagent 后端无 rules HTTP 端点,
+	// provider 侧磁盘扫描后端实际加载的 AGENTS.md 系列(对齐 Claude claudeRuleScan)。testagent 的
 	// "instruction" 概念就是固定名 AGENTS.md(后端只读 AGENTS.md/CLAUDE.md + config.instructions,
 	// 无 rules 目录自动加载),故不提供 "New Instruction"(新建自由命名文件后端不读,入口会误导):
 	// 容器只读(writableDir=undefined),仅展示+点开编辑现有文件。不提供 enablement/删除。
-	result.push(container('rules', CustomizationType.Rule, scanOpenCodeRules(workingDirectory), undefined, logService));
+	result.push(container('rules', CustomizationType.Rule, scanTestAgentRules(workingDirectory), undefined, logService));
 	// test-workbench_change end
 
 	return result;

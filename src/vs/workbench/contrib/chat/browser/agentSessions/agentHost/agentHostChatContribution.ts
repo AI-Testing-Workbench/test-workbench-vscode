@@ -310,7 +310,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			requiresCopilotSignIn: () => {
 				// test-workbench_change - allow use without GitHub login
 				return false;
-				/*原逻辑(勿删):
+				/*
 				const resources = this._protectedResourcesService.getProtectedResources(agent.provider);
 				return resources !== undefined ? protectedResourcesRequireGitHubCopilotSignIn(resources) : true;
 				*/
@@ -349,13 +349,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			hiddenSections: agent.provider === 'copilotcli'
 				? [AICustomizationManagementSection.Prompts]
 				: [AICustomizationManagementSection.Tools, AICustomizationManagementSection.Prompts,
-					...(agent.provider === 'opencode' ? [AICustomizationManagementSection.Hooks, AICustomizationManagementSection.Plugins] : [])],
+				...(agent.provider === 'testagent' ? [AICustomizationManagementSection.Hooks, AICustomizationManagementSection.Plugins] : [])],
 			// test-workbench_change end
 			hideGenerateButton: true,
 			// test-workbench_change start — opencode 的 Instructions 为只读(后端只读固定名
 			// AGENTS.md,无法作为自由命名 .instructions.md 新建),隐藏 New Instruction 按钮,
 			// 避免点击后 "No instruction source folders found" 的死路。
-			sectionOverrides: agent.provider === 'opencode'
+			sectionOverrides: agent.provider === 'testagent'
 				? new Map<string, ISectionOverride>([[AICustomizationManagementSection.Instructions, { disableCreate: true }]])
 				: undefined,
 			// test-workbench_change end

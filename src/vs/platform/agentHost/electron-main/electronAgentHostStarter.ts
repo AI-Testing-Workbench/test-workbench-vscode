@@ -286,7 +286,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	private _disposeUtilityProcess(utilityProcess: UtilityProcess): void {
 		// test-workbench_change start
 		// kill() 在 win32 是 TerminateProcess、在 POSIX 也不保证 agentHost 内的信号兜底
-		// (OpenCodeAgent._guardBackendProcessLifecycle)来得及跑完,或后端 testagent 会响应
+		// (TestAgent._guardBackendProcessLifecycle)来得及跑完,或后端 testagent 会响应
 		// SIGTERM;其 spawn 的孙进程会变孤儿常驻。先按平台树杀整个进程树(agentHost + 其
 		// spawn 的 testagent),再走常规 kill。
 		if (utilityProcess.pid) {
