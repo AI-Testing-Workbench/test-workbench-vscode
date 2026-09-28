@@ -126,7 +126,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[USE_WORKTREE_SETTING]: {
 			type: 'boolean',
-			default: true,
+			default: false, // test-workbench_change
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.useWorktree', "Controls whether New Worktree is checked for a workspace that has not started a session before. Each workspace otherwise uses the choice from its last started session."),
 			experiment: {
