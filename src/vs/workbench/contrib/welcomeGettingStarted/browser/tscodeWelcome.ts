@@ -41,6 +41,8 @@ import { IMarkdownRendererService } from '../../../../platform/markdown/browser/
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js'; // test-workbench_change
 import { ITsCodeTokenStore } from '../../tsCodeAuth/common/tsCodeAuth.js'; // test-workbench_change
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js'; // test-workbench_change
+import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js'; // test-workbench_change
 
 interface TscodeWelcomeMemento {
 	hasShownAnimation?: boolean;
@@ -56,6 +58,7 @@ export class TscodeWelcomePage extends GettingStartedPage {
 	private tscodeMementoData!: Partial<TscodeWelcomeMemento>; // test-workbench_change
 	private readonly tscodeStorageService: IStorageService; // test-workbench_change
 	private readonly tscodeTokenStore: ITsCodeTokenStore; // test-workbench_change
+	private readonly tscodeEnvironmentService: IWorkbenchEnvironmentService; // test-workbench_change
 
 	// test-workbench_change start - Constructor to inject storage service
 	constructor(
@@ -87,6 +90,7 @@ export class TscodeWelcomePage extends GettingStartedPage {
 		@IChatEntitlementService chatEntitlementService: any,
 		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 		@ITsCodeTokenStore tokenStore: ITsCodeTokenStore,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super(
 			group, commandService, productService, keybindingService, gettingStartedService,
@@ -98,6 +102,7 @@ export class TscodeWelcomePage extends GettingStartedPage {
 		);
 		this.tscodeStorageService = storageService;
 		this.tscodeTokenStore = tokenStore; // test-workbench_change
+		this.tscodeEnvironmentService = environmentService; // test-workbench_change
 	}
 	// test-workbench_change end
 
@@ -564,6 +569,8 @@ export class TscodeWelcomePage extends GettingStartedPage {
 			// Randomly select a face type with timestamp-based seed for better randomness
 			const faceTypes = TSCODE_FACE_TYPES; // test-workbench_change
 			const randomFace = pickRandomTscodeFaceType(); // test-workbench_change
+			// test-workbench_change - only show the cloud mascot when connected over SSH
+			const showClouds = getRemoteName(this.tscodeEnvironmentService.remoteAuthority) === 'ssh-remote';
 			let currentFaceIndex = faceTypes.indexOf(randomFace);
 
 			console.log('TSCode Welcome: Selected random face:', randomFace, 'from index:', currentFaceIndex);
@@ -583,7 +590,7 @@ export class TscodeWelcomePage extends GettingStartedPage {
 			iconWrapper.style.animation = 'float-tscode 3.2s ease-in-out infinite';
 
 			// Create SVG element using DOM API
-			const svg = createTscodeFaceSvg(randomFace);
+			const svg = createTscodeFaceSvg(randomFace, 80, showClouds);
 			svg.style.marginRight = '12px'; // test-workbench_change
 			svg.style.pointerEvents = 'none'; // Let clicks pass through to wrapper
 			iconWrapper.appendChild(svg);
@@ -607,7 +614,7 @@ export class TscodeWelcomePage extends GettingStartedPage {
 				iconWrapper.style.boxSizing = 'border-box';
 
 				// Create new SVG
-				const newSvg = createTscodeFaceSvg(newFace);
+				const newSvg = createTscodeFaceSvg(newFace, 80, showClouds);
 				newSvg.style.marginRight = '12px'; // test-workbench_change
 				newSvg.style.pointerEvents = 'none';
 				iconWrapper.appendChild(newSvg);
@@ -638,6 +645,10 @@ export class TscodeWelcomePage extends GettingStartedPage {
 			// Add flex display to align icon and text
 			productNameElement.style.display = 'flex';
 			productNameElement.style.alignItems = 'center';
+			// test-workbench_change - shift icon + product name right so the SSH cloud is not clipped by the header overflow
+			if (showClouds) {
+				productNameElement.style.paddingLeft = '12px';
+			}
 		}
 	}
 

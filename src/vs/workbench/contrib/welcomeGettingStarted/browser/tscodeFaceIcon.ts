@@ -8,6 +8,9 @@
 
 export const TSCODE_FACE_TYPES = ['default', 'happy', 'surprised', 'shy', 'confused', 'smug', 'bounce', 'love'];
 
+// test-workbench_change - Cloud silhouette mirrored from the TestAgent cloud-mode mascot.
+const TSCODE_CLOUD_PATH = 'M-15.6 5.4c-2.4 0-4.4-1.8-4.4-4.0 0-1.9 1.5-3.6 3.5-4.0 .4-2.7 3.0-4.8 6.2-4.8 1.2 0 2.3 .3 3.3 .9 1.4-2.1 3.9-3.5 6.8-3.5 3.6 0 6.6 2.1 7.4 5.0 3.4 0 6.0 2.4 6.0 5.3 0 2.8-2.5 5.0-5.6 5.0H-15.6z';
+
 /**
  * Picks a face type using the same timestamp-seeded randomness the welcome page
  * has always used.
@@ -16,7 +19,7 @@ export function pickRandomTscodeFaceType(): string {
 	return TSCODE_FACE_TYPES[Math.floor((Math.random() * Date.now()) % TSCODE_FACE_TYPES.length)];
 }
 
-export function createTscodeFaceSvg(faceType: string, sizePx: number = 80): SVGElement {
+export function createTscodeFaceSvg(faceType: string, sizePx: number = 80, showClouds: boolean = false): SVGElement {
 	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 	svg.setAttribute('viewBox', '-2 -2 28 28');
 	svg.setAttribute('style', `width:${sizePx}px;height:${sizePx}px;overflow:visible;vertical-align:middle;display:inline-block;`);
@@ -49,6 +52,95 @@ export function createTscodeFaceSvg(faceType: string, sizePx: number = 80): SVGE
 
 	defs.appendChild(gradient);
 
+	// test-workbench_change start - Cloud gradients/filter/animation, only when SSH-connected
+	if (showClouds) {
+		const backGrad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+		backGrad.setAttribute('id', 'cloud-back-tscode-' + faceType);
+		backGrad.setAttribute('x1', '0');
+		backGrad.setAttribute('y1', '-9');
+		backGrad.setAttribute('x2', '0');
+		backGrad.setAttribute('y2', '9');
+		backGrad.setAttribute('gradientUnits', 'userSpaceOnUse');
+		const backStop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+		backStop1.setAttribute('offset', '0');
+		backStop1.setAttribute('stop-color', '#FFE3CE');
+		backGrad.appendChild(backStop1);
+		const backStop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+		backStop2.setAttribute('offset', '0.5');
+		backStop2.setAttribute('stop-color', '#FFD3B3');
+		backGrad.appendChild(backStop2);
+		const backStop3 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+		backStop3.setAttribute('offset', '1');
+		backStop3.setAttribute('stop-color', '#FFB89A');
+		backGrad.appendChild(backStop3);
+		defs.appendChild(backGrad);
+
+		const frontGrad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+		frontGrad.setAttribute('id', 'cloud-front-tscode-' + faceType);
+		frontGrad.setAttribute('x1', '0');
+		frontGrad.setAttribute('y1', '-9');
+		frontGrad.setAttribute('x2', '0');
+		frontGrad.setAttribute('y2', '9');
+		frontGrad.setAttribute('gradientUnits', 'userSpaceOnUse');
+		const frontStop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+		frontStop1.setAttribute('offset', '0');
+		frontStop1.setAttribute('stop-color', '#FFF1CE');
+		frontGrad.appendChild(frontStop1);
+		const frontStop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+		frontStop2.setAttribute('offset', '0.5');
+		frontStop2.setAttribute('stop-color', '#FCE3B0');
+		frontGrad.appendChild(frontStop2);
+		const frontStop3 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+		frontStop3.setAttribute('offset', '1');
+		frontStop3.setAttribute('stop-color', '#F5C374');
+		frontGrad.appendChild(frontStop3);
+		defs.appendChild(frontGrad);
+
+		const cloudHighlight = document.createElementNS('http://www.w3.org/2000/svg', 'radialGradient');
+		cloudHighlight.setAttribute('id', 'cloud-hi-tscode-' + faceType);
+		cloudHighlight.setAttribute('cx', '32%');
+		cloudHighlight.setAttribute('cy', '24%');
+		cloudHighlight.setAttribute('r', '60%');
+		const hiStop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+		hiStop1.setAttribute('offset', '0');
+		hiStop1.setAttribute('stop-color', '#ffffff');
+		hiStop1.setAttribute('stop-opacity', '.62');
+		cloudHighlight.appendChild(hiStop1);
+		const hiStop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+		hiStop2.setAttribute('offset', '1');
+		hiStop2.setAttribute('stop-color', '#ffffff');
+		hiStop2.setAttribute('stop-opacity', '0');
+		cloudHighlight.appendChild(hiStop2);
+		defs.appendChild(cloudHighlight);
+
+		const cloudShadow = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+		cloudShadow.setAttribute('id', 'cloud-shadow-tscode-' + faceType);
+		cloudShadow.setAttribute('x', '-80%');
+		cloudShadow.setAttribute('y', '-120%');
+		cloudShadow.setAttribute('width', '260%');
+		cloudShadow.setAttribute('height', '340%');
+		const dropShadow = document.createElementNS('http://www.w3.org/2000/svg', 'feDropShadow');
+		dropShadow.setAttribute('dx', '0');
+		dropShadow.setAttribute('dy', '0.9');
+		dropShadow.setAttribute('stdDeviation', '1.05');
+		dropShadow.setAttribute('flood-color', '#A2603C');
+		dropShadow.setAttribute('flood-opacity', '.18');
+		cloudShadow.appendChild(dropShadow);
+		defs.appendChild(cloudShadow);
+
+		const cloudStyle = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+		cloudStyle.textContent = `
+			@keyframes cm-cloud-bob-tscode {
+				0%, 100% { transform: translateY(0); }
+				50% { transform: translateY(-1.6px); }
+			}
+			.cm-cloud-bob-tscode { animation: cm-cloud-bob-tscode 4s ease-in-out infinite; }
+			.cm-cloud-front-tscode { animation-delay: 0.6s; }
+		`;
+		defs.appendChild(cloudStyle);
+	}
+	// test-workbench_change end
+
 	// Add blink animation for default face
 	if (faceType === 'default') {
 		const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
@@ -63,6 +155,38 @@ export function createTscodeFaceSvg(faceType: string, sizePx: number = 80): SVGE
 	}
 
 	svg.appendChild(defs);
+
+	// test-workbench_change start - Cloud groups drawn behind (back) and in front of the face
+	const createCloudGroup = (x: number, front: boolean): SVGGElement => {
+		const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+		group.setAttribute('transform', `translate(${x} 21.41) scale(0.85)`);
+		group.setAttribute('filter', `url(#cloud-shadow-tscode-${faceType})`);
+		const bob = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+		bob.setAttribute('class', front ? 'cm-cloud-bob-tscode cm-cloud-front-tscode' : 'cm-cloud-bob-tscode');
+		const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+		path.setAttribute('d', TSCODE_CLOUD_PATH);
+		path.setAttribute('fill', `url(#cloud-${front ? 'front' : 'back'}-tscode-${faceType})`);
+		path.setAttribute('stroke', front ? '#D9A04F' : '#E69E78');
+		path.setAttribute('stroke-width', '0.55');
+		path.setAttribute('stroke-opacity', front ? '0.36' : '0.32');
+		path.setAttribute('stroke-linejoin', 'round');
+		bob.appendChild(path);
+		const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+		highlight.setAttribute('cx', front ? '-3' : '-3.5');
+		highlight.setAttribute('cy', front ? '-4' : '-4.5');
+		highlight.setAttribute('rx', front ? '5.2' : '6');
+		highlight.setAttribute('ry', front ? '2.4' : '2.8');
+		highlight.setAttribute('fill', `url(#cloud-hi-tscode-${faceType})`);
+		highlight.setAttribute('opacity', front ? '0.55' : '0.48');
+		bob.appendChild(highlight);
+		group.appendChild(bob);
+		return group;
+	};
+
+	if (showClouds) {
+		svg.appendChild(createCloudGroup(11.0, false));
+	}
+	// test-workbench_change end
 
 	// Create background circle
 	const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -327,6 +451,12 @@ export function createTscodeFaceSvg(faceType: string, sizePx: number = 80): SVGE
 			svg.appendChild(rightLineSmug);
 			break;
 	}
+
+	// test-workbench_change start - Front cloud overlaps the face like the cloud-mode mascot
+	if (showClouds) {
+		svg.appendChild(createCloudGroup(17.88, true));
+	}
+	// test-workbench_change end
 
 	return svg;
 }

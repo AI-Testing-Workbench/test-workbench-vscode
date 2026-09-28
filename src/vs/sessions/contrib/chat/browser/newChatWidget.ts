@@ -67,6 +67,10 @@ import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attac
 import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
 import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 import { createTscodeFaceSvg, pickRandomTscodeFaceType, TSCODE_FACE_TYPES } from '../../../../workbench/contrib/welcomeGettingStarted/browser/tscodeFaceIcon.js'; // test-workbench_change
+import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js'; // test-workbench_change
+import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js'; // test-workbench_change
+import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js'; // test-workbench_change
+import { resolveRemoteAuthority } from '../../../browser/openInVSCodeUtils.js'; // test-workbench_change
 
 // #region --- New Chat Widget ---
 
@@ -145,6 +149,8 @@ export class NewChatWidget extends Disposable {
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService, // test-workbench_change
+		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService, // test-workbench_change
 	) {
 		super();
 		this._register(this._pendingPreferredUpgrade);
@@ -469,17 +475,35 @@ export class NewChatWidget extends Disposable {
 	// test-workbench_change start - TestAgent mascot in the top-left corner of the
 	// composer stack. Reuses the TSCode welcome page faces: a random one is picked
 	// on load and clicking cycles through them. Kept at a fixed size so switching
-	// does not shift the layout.
+	// does not shift the layout. Clouds are drawn only when the window is connected
+	// over SSH or the active session targets an SSH agent host.
+	private _isSshRemote(): boolean {
+		if (getRemoteName(this.environmentService.remoteAuthority) === 'ssh-remote') {
+			return true;
+		}
+		const session = this._session.get();
+		if (!session) {
+			return false;
+		}
+		const remoteAuthority = resolveRemoteAuthority(session.providerId, this.sessionsProvidersService, this.remoteAgentHostService);
+		return getRemoteName(remoteAuthority) === 'ssh-remote';
+	}
+
 	private _renderTestAgentBrandIcon(container: HTMLElement): void {
 		const iconWrapper = dom.append(container, dom.$('.new-chat-brand-icon'));
 		let faceType = pickRandomTscodeFaceType();
 		const renderFace = () => {
 			dom.clearNode(iconWrapper);
-			const svg = createTscodeFaceSvg(faceType, 80);
+			const svg = createTscodeFaceSvg(faceType, 80, this._isSshRemote());
 			svg.style.pointerEvents = 'none';
 			iconWrapper.appendChild(svg);
 		};
-		renderFace();
+		const providersChanged = observableSignalFromEvent(this, this.sessionsProvidersService.onDidChangeProviders);
+		this._register(autorun(reader => {
+			this._session.read(reader);
+			providersChanged.read(reader);
+			renderFace();
+		}));
 		this._register(dom.addDisposableListener(iconWrapper, dom.EventType.CLICK, (e: MouseEvent) => {
 			e.preventDefault();
 			e.stopPropagation();
