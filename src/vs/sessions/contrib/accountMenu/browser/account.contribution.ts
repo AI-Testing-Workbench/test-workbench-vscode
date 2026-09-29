@@ -1016,12 +1016,16 @@ registerAction2(class extends Action2 {
 		super({
 			id: SessionsTitleBarAccountWidgetAction,
 			title: localize2('agentsAccountStatusTitleBar', "Agents Account and Status"),
-			menu: {
-				id: Menus.TitleBarRightLayout,
-				group: 'navigation',
-				order: 100,
-				when: IsAuxiliaryWindowContext.toNegated(),
-			}
+			// test-workbench_change start
+			// 屏蔽 Agents 窗口右上角的账号 / "Sign in to use GitHub Copilot" 按钮。
+			// 不注册到 Menus.TitleBarRightLayout，因此标题栏不再渲染该 widget。
+			// menu: {
+			// 	id: Menus.TitleBarRightLayout,
+			// 	group: 'navigation',
+			// 	order: 100,
+			// 	when: IsAuxiliaryWindowContext.toNegated(),
+			// }
+			// test-workbench_change end
 		});
 	}
 

@@ -64,18 +64,61 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		};
 
 		try {
+			// test-workbench_change start
+			// Upstream asserted that the Agents titlebar toggle was contributed and
+			// evaluated its `when` clause. The fork hides the toggle, so those
+			// assertions are kept here as comments for merge context.
+			// assert.deepStrictEqual({
+			// 	titlebar: summarize(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID),
+			// 	chatInput: summarize(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID),
+			// }, {
+			// 	titlebar: { group: 'navigation', order: 90, icon: Codicon.radioTower.id },
+			// 	chatInput: { group: 'navigation', order: 10, icon: Codicon.radioTower.id },
+			// });
+			//
+			// const titlebarToggle = findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID);
+			// const chatInputToggle = findToggle(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID);
+			// if (!titlebarToggle?.when || !chatInputToggle?.when) {
+			// 	assert.fail('remote connections menu items should have when clauses');
+			// }
+			//
+			// const evalWhen = (when: ContextKeyExpression, values: Record<string, ContextKeyValue>) => {
+			// 	return when.evaluate({ getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T });
+			// };
+			// const agentHostChat = {
+			// 	[ChatContextKeys.enabled.key]: true,
+			// 	[ChatContextKeys.chatIsAgentHostSession.key]: true,
+			// 	[IsAuxiliaryWindowContext.key]: false,
+			// 	[RemoteNameContext.key]: '',
+			// };
+			//
+			// assert.deepStrictEqual({
+			// 	agentsTitlebar: evalWhen(titlebarToggle.when, { ...agentHostChat, [IsSessionsWindowContext.key]: true }),
+			// 	editorTitlebar: evalWhen(titlebarToggle.when, { ...agentHostChat, [IsSessionsWindowContext.key]: false }),
+			// 	agentsChatInput: evalWhen(chatInputToggle.when, { ...agentHostChat, [IsSessionsWindowContext.key]: true }),
+			// 	editorChatInput: evalWhen(chatInputToggle.when, { ...agentHostChat, [IsSessionsWindowContext.key]: false }),
+			// 	remoteEditorChatInput: evalWhen(chatInputToggle.when, { ...agentHostChat, [IsSessionsWindowContext.key]: false, [RemoteNameContext.key]: 'ssh-remote' }),
+			// }, {
+			// 	agentsTitlebar: true,
+			// 	editorTitlebar: false,
+			// 	agentsChatInput: false,
+			// 	editorChatInput: true,
+			// 	remoteEditorChatInput: false,
+			// });
+			//
+			// The fork hides the Agents titlebar toggle, so only the chat input
+			// toggle is asserted here.
 			assert.deepStrictEqual({
 				titlebar: summarize(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID),
 				chatInput: summarize(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID),
 			}, {
-				titlebar: { group: 'navigation', order: 90, icon: Codicon.radioTower.id },
+				titlebar: undefined,
 				chatInput: { group: 'navigation', order: 10, icon: Codicon.radioTower.id },
 			});
 
-			const titlebarToggle = findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID);
 			const chatInputToggle = findToggle(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID);
-			if (!titlebarToggle?.when || !chatInputToggle?.when) {
-				assert.fail('remote connections menu items should have when clauses');
+			if (!chatInputToggle?.when) {
+				assert.fail('remote connections chat input menu item should have a when clause');
 			}
 
 			const evalWhen = (when: ContextKeyExpression, values: Record<string, ContextKeyValue>) => {
@@ -89,18 +132,15 @@ suite('Sessions - Tunnel Host Contribution', () => {
 			};
 
 			assert.deepStrictEqual({
-				agentsTitlebar: evalWhen(titlebarToggle.when, { ...agentHostChat, [IsSessionsWindowContext.key]: true }),
-				editorTitlebar: evalWhen(titlebarToggle.when, { ...agentHostChat, [IsSessionsWindowContext.key]: false }),
 				agentsChatInput: evalWhen(chatInputToggle.when, { ...agentHostChat, [IsSessionsWindowContext.key]: true }),
 				editorChatInput: evalWhen(chatInputToggle.when, { ...agentHostChat, [IsSessionsWindowContext.key]: false }),
 				remoteEditorChatInput: evalWhen(chatInputToggle.when, { ...agentHostChat, [IsSessionsWindowContext.key]: false, [RemoteNameContext.key]: 'ssh-remote' }),
 			}, {
-				agentsTitlebar: true,
-				editorTitlebar: false,
 				agentsChatInput: false,
 				editorChatInput: true,
 				remoteEditorChatInput: false,
 			});
+			// test-workbench_change end
 		} finally {
 			contribution.dispose();
 		}

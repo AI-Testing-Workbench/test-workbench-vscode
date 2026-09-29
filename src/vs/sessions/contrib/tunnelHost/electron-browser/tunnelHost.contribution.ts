@@ -7,13 +7,18 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+// test-workbench_change start
+// import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+// test-workbench_change end
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+// test-workbench_change start
+// import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+// import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+// test-workbench_change end
 import { IRemoteTunnelService } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ToggleRemoteConnectionsActionViewItem } from '../../../../workbench/contrib/chat/electron-browser/toggleRemoteConnectionsActionViewItem.js';
 import { executeToggleRemoteConnections, TUNNEL_HOST_SHARING_KEY } from '../../../../workbench/contrib/chat/electron-browser/tunnelHost.contribution.js';
@@ -31,17 +36,21 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 	) {
 		super();
 
-		this._register(MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
-			command: {
-				id: TOGGLE_SHARING_FROM_AGENTS_ID,
-				title: localize('toggleSharing', "Allow Remote Connections"),
-				icon: Codicon.radioTower,
-				toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
-			},
-			group: 'navigation',
-			order: 90,
-			when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext, IsAuxiliaryWindowContext.toNegated())
-		}));
+		// test-workbench_change start
+		// 屏蔽 Agents 窗口右上角的 "Allow connections from other machines"（Allow Remote Connections）按钮。
+		// 不注册到 Menus.TitleBarRightLayout，因此标题栏不再渲染该 toggle。
+		// this._register(MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
+		// 	command: {
+		// 		id: TOGGLE_SHARING_FROM_AGENTS_ID,
+		// 		title: localize('toggleSharing', "Allow Remote Connections"),
+		// 		icon: Codicon.radioTower,
+		// 		toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
+		// 	},
+		// 	group: 'navigation',
+		// 	order: 90,
+		// 	when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext, IsAuxiliaryWindowContext.toNegated())
+		// }));
+		// test-workbench_change end
 
 		this._register(registerAction2(class ToggleRemoteConnectionsFromAgentsAction extends Action2 {
 			constructor() {

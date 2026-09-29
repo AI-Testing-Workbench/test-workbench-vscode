@@ -3,51 +3,89 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from '../../../base/common/resources.js';
+// test-workbench_change start
+// import { basename } from '../../../base/common/resources.js';
+// test-workbench_change end
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
-import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+// test-workbench_change start
+// import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+// import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+// test-workbench_change end
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
+// test-workbench_change start
+import { readCommitOperationMessage } from '../common/meta/agentCommitOperationMeta.js';
+// test-workbench_change end
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
-import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
-import { readSessionGitState, type ISessionFileDiff, type SessionState } from '../common/state/sessionState.js';
+// test-workbench_change start
+// import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
+import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
+// test-workbench_change end
+// test-workbench_change start
+// import { readSessionGitState, type ISessionFileDiff, type SessionState } from '../common/state/sessionState.js';
+import { readSessionGitState, type SessionState } from '../common/state/sessionState.js';
+// test-workbench_change end
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
-import { CopilotApiError, ICopilotApiService } from './shared/copilotApiService.js';
+// test-workbench_change start
+// import { CopilotApiError, ICopilotApiService } from './shared/copilotApiService.js';
+// test-workbench_change end
 
-const MAX_CHANGE_SUMMARY_PROMPT_CHARS = 20_000;
+// test-workbench_change start
+// const MAX_CHANGE_SUMMARY_PROMPT_CHARS = 20_000;
+// test-workbench_change end
 
 export class AgentHostCommitOperationHandler implements IChangesetOperationHandler {
 
 	public static readonly OPERATION_COMMIT = AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID;
 
+	// test-workbench_change start
+	// Upstream injected the authentication / endpoint / Copilot API services to
+	// generate the commit message. The fork requires a caller-provided message, so
+	// those dependencies are unused.
+	// constructor(
+	// 	private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
+	// 	private readonly _onCommitted: (sessionKey: string) => Promise<void>,
+	// 	@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
+	// 	@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
+	// 	@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
+	// 	@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
+	// 	@ILogService private readonly _logService: ILogService,
+	// ) { }
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
 		private readonly _onCommitted: (sessionKey: string) => Promise<void>,
-		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
-		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
-		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
+	// test-workbench_change end
 
+	// test-workbench_change start
+	// Upstream wrapped the Copilot request in an AbortController. The fork no longer
+	// performs a Copilot request, so the signal plumbing is gone.
+	// async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
+	// 	const abortController = new AbortController();
+	// 	if (token.isCancellationRequested) {
+	// 		abortController.abort();
+	// 	}
+	// 	const cancellationListener = token.onCancellationRequested(() => abortController.abort());
+	// 	try {
+	// 		return await this._invoke(params, token, abortController.signal);
+	// 	} finally {
+	// 		cancellationListener.dispose();
+	// 	}
+	// }
 	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
-		const abortController = new AbortController();
-		if (token.isCancellationRequested) {
-			abortController.abort();
-		}
-		const cancellationListener = token.onCancellationRequested(() => abortController.abort());
-		try {
-			return await this._invoke(params, token, abortController.signal);
-		} finally {
-			cancellationListener.dispose();
-		}
+		return this._invoke(params, token);
 	}
+	// test-workbench_change end
 
-	private async _invoke(params: InvokeChangesetOperationParams, token: CancellationToken, signal: AbortSignal): Promise<InvokeChangesetOperationResult> {
+	// test-workbench_change start
+	// private async _invoke(params: InvokeChangesetOperationParams, token: CancellationToken, signal: AbortSignal): Promise<InvokeChangesetOperationResult> {
+	private async _invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
+		// test-workbench_change end
 		const parsed = parseChangesetUri(params.channel);
 		if (!parsed) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not an uncommitted changeset URI: ${params.channel}`);
@@ -77,45 +115,54 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 		this._throwIfCancelled(token);
 
-		const copilotResource = this._gitHubEndpointService.getCopilotResource();
-		const authToken = this._authenticationService.getAuthToken({
-			resource: copilotResource.resource,
-			scopes: copilotResource.scopes_supported,
-		});
-		if (!authToken) {
-			throw new ProtocolError(
-				AHP_AUTH_REQUIRED,
-				localize('agentHost.changeset.commit.authRequired', "Sign in to GitHub Copilot to generate a commit message."),
-				[copilotResource],
-			);
-		}
-
-		const diffs = await this._gitService.computeSessionFileDiffs(workingDirectory, { sessionUri });
-		if (!diffs || diffs.length === 0) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.commit.diffFailed', "Could not compute uncommitted changes to generate a commit message."));
-		}
-		this._throwIfCancelled(token);
-
-		let message: string;
-		try {
-			message = this._cleanCommitMessage(await this._copilotApiService.utilityChatCompletion(authToken, {
-				messages: this._buildCommitMessagePrompt(workingDirectory, gitState.branchName, diffs),
-			}, { signal }));
-		} catch (err) {
-			this._throwIfCancelled(token);
-			if (this._isAuthFailure(err)) {
-				throw new ProtocolError(
-					AHP_AUTH_REQUIRED,
-					localize('agentHost.changeset.commit.authExpired', "Authentication is required to generate a commit message. Please sign in to GitHub Copilot and try again."),
-					[copilotResource],
-				);
-			}
-			throw err;
-		}
+		// test-workbench_change start
+		// Upstream generated the commit message with GitHub Copilot:
+		// const copilotResource = this._gitHubEndpointService.getCopilotResource();
+		// const authToken = this._authenticationService.getAuthToken({
+		// 	resource: copilotResource.resource,
+		// 	scopes: copilotResource.scopes_supported,
+		// });
+		// if (!authToken) {
+		// 	throw new ProtocolError(
+		// 		AHP_AUTH_REQUIRED,
+		// 		localize('agentHost.changeset.commit.authRequired', "Sign in to GitHub Copilot to generate a commit message."),
+		// 		[copilotResource],
+		// 	);
+		// }
+		//
+		// const diffs = await this._gitService.computeSessionFileDiffs(workingDirectory, { sessionUri });
+		// if (!diffs || diffs.length === 0) {
+		// 	throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.commit.diffFailed', "Could not compute uncommitted changes to generate a commit message."));
+		// }
+		// this._throwIfCancelled(token);
+		//
+		// let message: string;
+		// try {
+		// 	message = this._cleanCommitMessage(await this._copilotApiService.utilityChatCompletion(authToken, {
+		// 		messages: this._buildCommitMessagePrompt(workingDirectory, gitState.branchName, diffs),
+		// 	}, { signal }));
+		// } catch (err) {
+		// 	this._throwIfCancelled(token);
+		// 	if (this._isAuthFailure(err)) {
+		// 		throw new ProtocolError(
+		// 			AHP_AUTH_REQUIRED,
+		// 			localize('agentHost.changeset.commit.authExpired', "Authentication is required to generate a commit message. Please sign in to GitHub Copilot and try again."),
+		// 			[copilotResource],
+		// 		);
+		// 	}
+		// 	throw err;
+		// }
+		// if (!message) {
+		// 	throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.commit.emptyMessage', "Generated commit message was empty."));
+		// }
+		// this._throwIfCancelled(token);
+		// The fork requires the caller to provide the commit message.
+		const message = readCommitOperationMessage(params);
 		if (!message) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.commit.emptyMessage', "Generated commit message was empty."));
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.commit.messageRequired', "A commit message is required to commit changes."));
 		}
 		this._throwIfCancelled(token);
+		// test-workbench_change end
 
 		this._logService.info(`[AgentHostCommitOperationHandler] Committing uncommitted changes for session ${sessionUri}`);
 		try {
@@ -134,79 +181,82 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		return { message: { markdown: localize('agentHost.changeset.commit.committed', "Committed changes with message: `{0}`", message.split('\n')[0]) } };
 	}
 
-	private _buildCommitMessagePrompt(workingDirectory: URI, branchName: string | undefined, diffs: readonly ISessionFileDiff[]): { role: 'system' | 'user'; content: string }[] {
-		const changeSummary = this._summarizeDiffsForPrompt(diffs);
-		return [
-			{
-				role: 'system',
-				content: [
-					'You generate concise Git commit messages.',
-					'Return only the commit message text, with no markdown or code fences.',
-					'Use imperative mood. Keep the subject line under 72 characters.',
-					'Add a body only when it helps explain multiple related changes.',
-				].join(' '),
-			},
-			{
-				role: 'user',
-				content: [
-					`Repository: ${basename(workingDirectory)}`,
-					`Branch: ${branchName ?? 'unknown'}`,
-					'Changed files:',
-					changeSummary,
-				].join('\n'),
-			},
-		];
-	}
-
-	private _summarizeDiffsForPrompt(diffs: readonly ISessionFileDiff[]): string {
-		const lines: string[] = [];
-		for (const diff of diffs) {
-			const before = diff.before?.uri;
-			const after = diff.after?.uri;
-			const path = after ?? before ?? '(unknown)';
-			let kind = 'Edit';
-			if (!before && after) {
-				kind = 'Create';
-			} else if (before && !after) {
-				kind = 'Delete';
-			} else if (before && after && before !== after) {
-				kind = 'Rename';
-			}
-			lines.push(`- ${kind}: ${this._displayUri(path)} (+${diff.diff?.added ?? 0} -${diff.diff?.removed ?? 0})`);
-			if (lines.join('\n').length > MAX_CHANGE_SUMMARY_PROMPT_CHARS) {
-				lines.push('[file list truncated]');
-				break;
-			}
-		}
-		return lines.join('\n');
-	}
-
-	private _displayUri(uri: string): string {
-		try {
-			const parsed = URI.parse(uri);
-			return parsed.scheme === 'file' ? parsed.fsPath : parsed.path || uri;
-		} catch {
-			return uri;
-		}
-	}
-
-	private _cleanCommitMessage(raw: string): string {
-		let text = raw.trim().replace(/\r\n/g, '\n');
-		const fenced = /^```(?:text|gitcommit)?\s*([\s\S]*?)\s*```$/i.exec(text);
-		if (fenced) {
-			text = fenced[1].trim();
-		}
-		return text;
-	}
-
-	private _isAuthFailure(err: unknown): boolean {
-		if (err instanceof CopilotApiError) {
-			return err.status === 401 || err.status === 403;
-		}
-		const message = err instanceof Error ? err.message : String(err);
-		return /\b(401|403)\b/.test(message)
-			&& /\b(auth|authorization|unauthorized|forbidden|token|copilot endpoint discovery)\b/i.test(message);
-	}
+	// test-workbench_change start
+	// Upstream helpers that only supported Copilot commit-message generation.
+	// private _buildCommitMessagePrompt(workingDirectory: URI, branchName: string | undefined, diffs: readonly ISessionFileDiff[]): { role: 'system' | 'user'; content: string }[] {
+	// 	const changeSummary = this._summarizeDiffsForPrompt(diffs);
+	// 	return [
+	// 		{
+	// 			role: 'system',
+	// 			content: [
+	// 				'You generate concise Git commit messages.',
+	// 				'Return only the commit message text, with no markdown or code fences.',
+	// 				'Use imperative mood. Keep the subject line under 72 characters.',
+	// 				'Add a body only when it helps explain multiple related changes.',
+	// 			].join(' '),
+	// 		},
+	// 		{
+	// 			role: 'user',
+	// 			content: [
+	// 				`Repository: ${basename(workingDirectory)}`,
+	// 				`Branch: ${branchName ?? 'unknown'}`,
+	// 				'Changed files:',
+	// 				changeSummary,
+	// 			].join('\n'),
+	// 		},
+	// 	];
+	// }
+	//
+	// private _summarizeDiffsForPrompt(diffs: readonly ISessionFileDiff[]): string {
+	// 	const lines: string[] = [];
+	// 	for (const diff of diffs) {
+	// 		const before = diff.before?.uri;
+	// 		const after = diff.after?.uri;
+	// 		const path = after ?? before ?? '(unknown)';
+	// 		let kind = 'Edit';
+	// 		if (!before && after) {
+	// 			kind = 'Create';
+	// 		} else if (before && !after) {
+	// 			kind = 'Delete';
+	// 		} else if (before && after && before !== after) {
+	// 			kind = 'Rename';
+	// 		}
+	// 		lines.push(`- ${kind}: ${this._displayUri(path)} (+${diff.diff?.added ?? 0} -${diff.diff?.removed ?? 0})`);
+	// 		if (lines.join('\n').length > MAX_CHANGE_SUMMARY_PROMPT_CHARS) {
+	// 			lines.push('[file list truncated]');
+	// 			break;
+	// 		}
+	// 	}
+	// 	return lines.join('\n');
+	// }
+	//
+	// private _displayUri(uri: string): string {
+	// 	try {
+	// 		const parsed = URI.parse(uri);
+	// 		return parsed.scheme === 'file' ? parsed.fsPath : parsed.path || uri;
+	// 	} catch {
+	// 		return uri;
+	// 	}
+	// }
+	//
+	// private _cleanCommitMessage(raw: string): string {
+	// 	let text = raw.trim().replace(/\r\n/g, '\n');
+	// 	const fenced = /^```(?:text|gitcommit)?\s*([\s\S]*?)\s*```$/i.exec(text);
+	// 	if (fenced) {
+	// 		text = fenced[1].trim();
+	// 	}
+	// 	return text;
+	// }
+	//
+	// private _isAuthFailure(err: unknown): boolean {
+	// 	if (err instanceof CopilotApiError) {
+	// 		return err.status === 401 || err.status === 403;
+	// 	}
+	// 	const message = err instanceof Error ? err.message : String(err);
+	// 	return /\b(401|403)\b/.test(message)
+	// 		&& /\b(auth|authorization|unauthorized|forbidden|token|copilot endpoint discovery)\b/i.test(message);
+	// }
+	// test-workbench_change end
 
 	private _throwIfCancelled(token: CancellationToken): void {
 		if (token.isCancellationRequested) {

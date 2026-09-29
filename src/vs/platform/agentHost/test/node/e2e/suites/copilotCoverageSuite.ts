@@ -15,6 +15,9 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoReplyEnabledConfigKey } from '../../../../common/agentHostSchema.js';
 import { buildUncommittedChangesetUri } from '../../../../common/changesetUri.js';
+// test-workbench_change start
+import { createCommitOperationMeta } from '../../../../common/meta/agentCommitOperationMeta.js';
+// test-workbench_change end
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { McpServerStatus } from '../../../../common/state/protocol/state.js';
@@ -699,6 +702,8 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		const result = await context.client.call<{ readonly message?: { readonly markdown?: string } }>('invokeChangesetOperation', {
 			channel: changesetUri,
 			operationId: 'commit',
+			// test-workbench_change - commit messages are caller-provided
+			_meta: createCommitOperationMeta('Commit the test changes'),
 		}, 120_000);
 
 		assert.deepStrictEqual({

@@ -23,6 +23,7 @@ import { MockKeybindingService } from '../../../../../../platform/keybinding/tes
 import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, buildUncommittedChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { createCommitOperationMeta } from '../../../../../../platform/agentHost/common/meta/agentCommitOperationMeta.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRequestDetails, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -123,7 +124,10 @@ suite('AgentHostSessionChangesets', () => {
 				}
 			}();
 			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			instantiationService.stub(IDialogService, {
+				confirm: async () => ({ confirmed: true }),
+				input: async () => ({ confirmed: true, values: ['Test commit message'] }),
+			});
 			const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
 				icon: Codicon.copilot,
 				loading: constObservable(false),
@@ -314,7 +318,10 @@ suite('AgentHostSessionChangesets', () => {
 		/** Each surviving changeset as `<changeKind>`, with `*` marking the default. */
 		function selectDefault(changeKinds: readonly string[], defaultChangesetKind?: IAgentHostAdapterOptions['defaultChangesetKind']): string[] {
 			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			instantiationService.stub(IDialogService, {
+				confirm: async () => ({ confirmed: true }),
+				input: async () => ({ confirmed: true, values: ['Test commit message'] }),
+			});
 
 			const options: IAgentHostAdapterOptions = {
 				icon: Codicon.copilot,
@@ -372,7 +379,10 @@ suite('AgentHostSessionChangesets', () => {
 
 		test('rejects operation invocation while disconnected', async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			instantiationService.stub(IDialogService, {
+				confirm: async () => ({ confirmed: true }),
+				input: async () => ({ confirmed: true, values: ['Test commit message'] }),
+			});
 			const options: IAgentHostAdapterOptions = {
 				icon: Codicon.copilot,
 				loading: constObservable(false),
@@ -596,7 +606,7 @@ suite('AgentHostSessionChangesets', () => {
 			agentMergeOptions: { addressReviews: false, fixCI: true, resolveConflicts: true, mergePullRequest: 'ifUnchanged' },
 		};
 
-		function createPullRequestChangeset(operationIds: string[], invoke: (params: InvokeChangesetOperationParams) => Promise<InvokeChangesetOperationResult>) {
+		function createPullRequestChangeset(operationIds: string[], invoke: (params: InvokeChangesetOperationParams) => Promise<InvokeChangesetOperationResult>, inputResult: { confirmed: boolean; values?: string[] } = { confirmed: true, values: ['Test commit message'] }) {
 			const toOperations = (ids: string[]) => ids.map(id => ({
 				id, label: id, scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle,
 			}));
@@ -618,7 +628,10 @@ suite('AgentHostSessionChangesets', () => {
 				}
 			}();
 			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			instantiationService.stub(IDialogService, {
+				confirm: async () => ({ confirmed: true }),
+				input: async () => inputResult,
+			});
 			const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
 				icon: Codicon.copilot,
 				loading: constObservable(false),
@@ -633,6 +646,35 @@ suite('AgentHostSessionChangesets', () => {
 				setOperations: (ids: string[]) => subscription.set({ ...changesetState, operations: toOperations(ids) }),
 			};
 		}
+
+		test('prompts for a commit message and forwards it as metadata', async () => {
+			const invocations: InvokeChangesetOperationParams[] = [];
+			const { changeset } = createPullRequestChangeset(['commit'], async params => {
+				invocations.push(params);
+				return {};
+			});
+
+			await changeset.invokeOperation('commit');
+
+			assert.deepStrictEqual(invocations, [{
+				channel: 'changeset:/session-1',
+				operationId: 'commit',
+				target: undefined,
+				_meta: createCommitOperationMeta('Test commit message'),
+			}]);
+		});
+
+		test('does not invoke commit when the message prompt is cancelled', async () => {
+			const invocations: InvokeChangesetOperationParams[] = [];
+			const { changeset } = createPullRequestChangeset(['commit'], async params => {
+				invocations.push(params);
+				return {};
+			}, { confirmed: false });
+
+			await changeset.invokeOperation('commit');
+
+			assert.deepStrictEqual(invocations, []);
+		});
 
 		test('hides preparation from buttons and round-trips confirmed metadata', async () => {
 			const invocations: InvokeChangesetOperationParams[] = [];
@@ -768,7 +810,10 @@ suite('AgentHostSessionChangesets', () => {
 				}
 			}();
 			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+			instantiationService.stub(IDialogService, {
+				confirm: async () => ({ confirmed: true }),
+				input: async () => ({ confirmed: true, values: ['Test commit message'] }),
+			});
 			const changesets = createChangesets(sessionUri, {
 				icon: Codicon.copilot,
 				loading: constObservable(false),

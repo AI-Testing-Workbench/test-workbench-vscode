@@ -4,36 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type Anthropic from '@anthropic-ai/sdk';
-import type { CCAModel } from '@vscode/copilot-api';
+// test-workbench_change start
+// import type Anthropic from '@anthropic-ai/sdk';
+// import type { CCAModel } from '@vscode/copilot-api';
+// test-workbench_change end
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
+// test-workbench_change start
+// import { Event } from '../../../../base/common/event.js';
+// test-workbench_change end
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+// test-workbench_change start
+import { createCommitOperationMeta } from '../../common/meta/agentCommitOperationMeta.js';
+// test-workbench_change end
 import { SessionStatus, withSessionGitState, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import type { IAgentHostGitService, IBranch, IDefaultBranch } from '../../common/agentHostGitService.js';
 import { AgentHostCommitOperationHandler } from '../../node/agentHostCommitOperationHandler.js';
-import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+// test-workbench_change start
+// import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+// test-workbench_change end
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { CopilotApiError, type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
+// test-workbench_change start
+// import { CopilotApiError, type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+// import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+// import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+// test-workbench_change end
 import { ChangesSummary } from '../../common/state/protocol/state.js';
 import type { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
-import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+// test-workbench_change start
+// import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+// test-workbench_change end
 
 class TestGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly calls: string[] = [];
 	uncommitted = true;
-	diffs: readonly ISessionFileDiff[] | undefined = [{
-		after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } },
-		diff: { added: 1, removed: 0 },
-	}];
+	// test-workbench_change start
+	// diffs: readonly ISessionFileDiff[] | undefined = [{
+	// 	after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } },
+	// 	diff: { added: 1, removed: 0 },
+	// }];
+	// test-workbench_change end
 
 	async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
 	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
@@ -64,10 +80,13 @@ class TestGitService implements IAgentHostGitService {
 	async pull(): Promise<void> { }
 	async push(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
-	async computeSessionFileDiffs(): Promise<readonly ISessionFileDiff[] | undefined> {
-		this.calls.push('computeSessionFileDiffs');
-		return this.diffs;
-	}
+	// test-workbench_change start
+	// async computeSessionFileDiffs(): Promise<readonly ISessionFileDiff[] | undefined> {
+	// 	this.calls.push('computeSessionFileDiffs');
+	// 	return this.diffs;
+	// }
+	// test-workbench_change end
+	async computeSessionFileDiffs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
 	async showBlob(): Promise<undefined> { return undefined; }
 	async captureWorkingTreeAsTree(): Promise<undefined> { return undefined; }
 	async commitTree(): Promise<undefined> { return undefined; }
@@ -84,37 +103,41 @@ class TestGitService implements IAgentHostGitService {
 	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
-class TestCopilotApiService implements ICopilotApiService {
-	declare readonly _serviceBrand: undefined;
-
-	readonly calls: { token: string; request: ICopilotUtilityChatCompletionRequest; options?: ICopilotApiServiceRequestOptions }[] = [];
-	response = '```text\nUpdate session changes\n```';
-	error: Error | undefined;
-
-	messages(_githubToken: string, request: Anthropic.MessageCreateParamsStreaming, _options?: ICopilotApiServiceRequestOptions): AsyncGenerator<Anthropic.MessageStreamEvent>;
-	messages(_githubToken: string, request: Anthropic.MessageCreateParamsNonStreaming, _options?: ICopilotApiServiceRequestOptions): Promise<Anthropic.Message>;
-	messages(): AsyncGenerator<Anthropic.MessageStreamEvent> | Promise<Anthropic.Message> {
-		throw new Error('not used');
-	}
-	responses(
-		githubToken: string,
-		body: string,
-		options?: ICopilotApiServiceRequestOptions,
-	): Promise<Response> {
-		throw new Error('not used');
-	}
-	async countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used'); }
-	async models(): Promise<CCAModel[]> { return []; }
-	async resolveRestrictedTelemetryContext() { return { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }; }
-	async resolveApiEndpoint() { return undefined; }
-	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
-		this.calls.push({ token: githubToken, request, options });
-		if (this.error) {
-			throw this.error;
-		}
-		return this.response;
-	}
-}
+// test-workbench_change start
+// Upstream's Copilot-assisted tests used this fake. The fork no longer calls the
+// Copilot API from the commit handler.
+// class TestCopilotApiService implements ICopilotApiService {
+// 	declare readonly _serviceBrand: undefined;
+//
+// 	readonly calls: { token: string; request: ICopilotUtilityChatCompletionRequest; options?: ICopilotApiServiceRequestOptions }[] = [];
+// 	response = '```text\nUpdate session changes\n```';
+// 	error: Error | undefined;
+//
+// 	messages(_githubToken: string, request: Anthropic.MessageCreateParamsStreaming, _options?: ICopilotApiServiceRequestOptions): AsyncGenerator<Anthropic.MessageStreamEvent>;
+// 	messages(_githubToken: string, request: Anthropic.MessageCreateParamsNonStreaming, _options?: ICopilotApiServiceRequestOptions): Promise<Anthropic.Message>;
+// 	messages(): AsyncGenerator<Anthropic.MessageStreamEvent> | Promise<Anthropic.Message> {
+// 		throw new Error('not used');
+// 	}
+// 	responses(
+// 		githubToken: string,
+// 		body: string,
+// 		options?: ICopilotApiServiceRequestOptions,
+// 	): Promise<Response> {
+// 		throw new Error('not used');
+// 	}
+// 	async countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used'); }
+// 	async models(): Promise<CCAModel[]> { return []; }
+// 	async resolveRestrictedTelemetryContext() { return { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }; }
+// 	async resolveApiEndpoint() { return undefined; }
+// 	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
+// 		this.calls.push({ token: githubToken, request, options });
+// 		if (this.error) {
+// 			throw this.error;
+// 		}
+// 		return this.response;
+// 	}
+// }
+// test-workbench_change end
 
 class TestChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
@@ -142,15 +165,22 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onSessionTruncated(_session: string): void { }
 }
 
-function createAuthenticationService(token: string | undefined): IAgentHostAuthenticationService {
-	return {
-		_serviceBrand: undefined,
-		onDidChangeAuthToken: Event.None,
-		getAuthToken: () => token,
-	};
-}
+// test-workbench_change start
+// Upstream authentication fake used by the Copilot-assisted tests.
+// function createAuthenticationService(token: string | undefined): IAgentHostAuthenticationService {
+// 	return {
+// 		_serviceBrand: undefined,
+// 		onDidChangeAuthToken: Event.None,
+// 		getAuthToken: () => token,
+// 	};
+// }
+// test-workbench_change end
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, copilotApiService: TestCopilotApiService, changesets: TestChangesetService, options?: { readonly onCommittedError?: Error }): { handler: AgentHostCommitOperationHandler; session: URI; committedSessions: string[] } {
+// test-workbench_change start
+// Upstream setup signature threaded through the Copilot API fake:
+// function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, copilotApiService: TestCopilotApiService, changesets: TestChangesetService, options?: { readonly onCommittedError?: Error }): { handler: AgentHostCommitOperationHandler; session: URI; committedSessions: string[] } {
+// test-workbench_change end
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, changesets: TestChangesetService, options?: { readonly onCommittedError?: Error }): { handler: AgentHostCommitOperationHandler; session: URI; committedSessions: string[] } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const committedSessions: string[] = [];
@@ -168,13 +198,22 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		uncommittedChanges: 1,
 	}));
 	return {
+		// test-workbench_change start
+		// handler: new AgentHostCommitOperationHandler(sessionKey => stateManager.getSessionState(sessionKey), async sessionKey => {
+		// 	committedSessions.push(sessionKey);
+		// 	changesets.calls.push(`onCommitted:${sessionKey}`);
+		// 	if (options?.onCommittedError) {
+		// 		throw options.onCommittedError;
+		// 	}
+		// }, createAuthenticationService('gh-repo-token'), createTestGitHubEndpointService(), gitService, copilotApiService, new NullLogService()),
+		// test-workbench_change end
 		handler: new AgentHostCommitOperationHandler(sessionKey => stateManager.getSessionState(sessionKey), async sessionKey => {
 			committedSessions.push(sessionKey);
 			changesets.calls.push(`onCommitted:${sessionKey}`);
 			if (options?.onCommittedError) {
 				throw options.onCommittedError;
 			}
-		}, createAuthenticationService('gh-repo-token'), createTestGitHubEndpointService(), gitService, copilotApiService, new NullLogService()),
+		}, gitService, new NullLogService()),
 		session,
 		committedSessions,
 	};
@@ -183,53 +222,277 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 suite('AgentHostCommitOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('generates a commit message, commits all changes, and invokes post-commit refresh', async () => {
-		const gitService = new TestGitService();
-		const copilotApiService = new TestCopilotApiService();
-		const changesets = new TestChangesetService();
-		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
+	// test-workbench_change start
+	// Upstream tests (commit message generated with GitHub Copilot):
+	// test('generates a commit message, commits all changes, and invokes post-commit refresh', async () => {
+	// 	const gitService = new TestGitService();
+	// 	const copilotApiService = new TestCopilotApiService();
+	// 	const changesets = new TestChangesetService();
+	// 	const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
+	//
+	// 	const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+	//
+	// 	assert.deepStrictEqual({
+	// 		message: result.message,
+	// 		gitCalls: gitService.calls,
+	// 		completion: copilotApiService.calls.map(call => ({ token: call.token, fileIncluded: call.request.messages.some(message => message.content.includes('file.ts')) })),
+	// 		changesetCalls: changesets.calls,
+	// 		committedSessions,
+	// 	}, {
+	// 		message: { markdown: 'Committed changes with message: `Update session changes`' },
+	// 		gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
+	// 		completion: [{ token: 'gh-repo-token', fileIncluded: true }],
+	// 		changesetCalls: ['onCommitted:agent:/session'],
+	// 		committedSessions: ['agent:/session'],
+	// 	});
+	// });
+	//
+	// test('returns no-op success without generating a message or committing when the working tree is clean', async () => {
+	// 	const gitService = new TestGitService();
+	// 	gitService.uncommitted = false;
+	// 	const copilotApiService = new TestCopilotApiService();
+	// 	const changesets = new TestChangesetService();
+	// 	const { handler, session } = setup(disposables, gitService, copilotApiService, changesets);
+	//
+	// 	const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+	//
+	// 	assert.deepStrictEqual({ message: result.message, gitCalls: gitService.calls, completionCalls: copilotApiService.calls.length, changesetCalls: changesets.calls }, {
+	// 		message: { markdown: 'No uncommitted changes to commit.' },
+	// 		gitCalls: ['hasUncommittedChanges'],
+	// 		completionCalls: 0,
+	// 		changesetCalls: [],
+	// 	});
+	// });
+	//
+	// test('returns success when post-commit refresh fails', async () => {
+	// 	const gitService = new TestGitService();
+	// 	const copilotApiService = new TestCopilotApiService();
+	// 	const changesets = new TestChangesetService();
+	// 	const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets, { onCommittedError: new Error('refresh failed') });
+	//
+	// 	const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+	//
+	// 	assert.deepStrictEqual({
+	// 		message: result.message,
+	// 		gitCalls: gitService.calls,
+	// 		changesetCalls: changesets.calls,
+	// 		committedSessions,
+	// 	}, {
+	// 		message: { markdown: 'Committed changes with message: `Update session changes`' },
+	// 		gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
+	// 		changesetCalls: ['onCommitted:agent:/session'],
+	// 		committedSessions: ['agent:/session'],
+	// 	});
+	// });
+	//
+	// test('honors cancellation before mutating the repository', async () => {
+	// 	const gitService = new TestGitService();
+	// 	const copilotApiService = new TestCopilotApiService();
+	// 	const changesets = new TestChangesetService();
+	// 	const { handler, session } = setup(disposables, gitService, copilotApiService, changesets);
+	// 	const cts = disposables.add(new CancellationTokenSource());
+	// 	cts.cancel();
+	//
+	// 	await assert.rejects(
+	// 		() => handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, cts.token),
+	// 		/Commit operation was cancelled/,
+	// 	);
+	//
+	// 	assert.deepStrictEqual({ gitCalls: gitService.calls, completionCalls: copilotApiService.calls.length, changesetCalls: changesets.calls }, {
+	// 		gitCalls: [],
+	// 		completionCalls: 0,
+	// 		changesetCalls: [],
+	// 	});
+	// });
+	//
+	// test('maps stale Copilot auth failures to AHP_AUTH_REQUIRED before committing', async () => {
+	// 	const gitService = new TestGitService();
+	// 	const copilotApiService = new TestCopilotApiService();
+	// 	copilotApiService.error = new CopilotApiError(401, {
+	// 		type: 'error',
+	// 		error: { type: 'authentication_error', message: 'bad token' },
+	// 		request_id: null,
+	// 	});
+	// 	const changesets = new TestChangesetService();
+	// 	const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
+	//
+	// 	let err: ProtocolError | undefined;
+	// 	try {
+	// 		await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+	// 	} catch (error) {
+	// 		err = error as ProtocolError;
+	// 	}
+	//
+	// 	assert.deepStrictEqual({
+	// 		code: err?.code,
+	// 		data: err?.data,
+	// 		gitCalls: gitService.calls,
+	// 		completionCalls: copilotApiService.calls.length,
+	// 		changesetCalls: changesets.calls,
+	// 		committedSessions,
+	// 	}, {
+	// 		code: AHP_AUTH_REQUIRED,
+	// 		data: [GITHUB_COPILOT_PROTECTED_RESOURCE],
+	// 		gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs'],
+	// 		completionCalls: 1,
+	// 		changesetCalls: [],
+	// 		committedSessions: [],
+	// 	});
+	// });
+	//
+	// test('maps Copilot API auth failures to AHP_AUTH_REQUIRED before committing', async () => {
+	// 	const gitService = new TestGitService();
+	// 	const copilotApiService = new TestCopilotApiService();
+	// 	copilotApiService.error = new Error('Copilot API authorization failed: 403 Forbidden');
+	// 	const changesets = new TestChangesetService();
+	// 	const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
+	//
+	// 	let err: ProtocolError | undefined;
+	// 	try {
+	// 		await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+	// 	} catch (error) {
+	// 		err = error as ProtocolError;
+	// 	}
+	//
+	// 	assert.deepStrictEqual({
+	// 		code: err?.code,
+	// 		data: err?.data,
+	// 		gitCalls: gitService.calls,
+	// 		completionCalls: copilotApiService.calls.length,
+	// 		changesetCalls: changesets.calls,
+	// 		committedSessions,
+	// 	}, {
+	// 		code: AHP_AUTH_REQUIRED,
+	// 		data: [GITHUB_COPILOT_PROTECTED_RESOURCE],
+	// 		gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs'],
+	// 		completionCalls: 1,
+	// 		changesetCalls: [],
+	// 		committedSessions: [],
+	// 	});
+	// });
+	// test-workbench_change end
 
-		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+	test('commits all changes with the caller-provided commit message', async () => {
+		const gitService = new TestGitService();
+		const changesets = new TestChangesetService();
+		const { handler, session, committedSessions } = setup(disposables, gitService, changesets);
+
+		const result = await handler.invoke({
+			channel: buildUncommittedChangesetUri(session.toString()),
+			operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT,
+			_meta: createCommitOperationMeta('Update session changes'),
+		}, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			message: result.message,
 			gitCalls: gitService.calls,
-			completion: copilotApiService.calls.map(call => ({ token: call.token, fileIncluded: call.request.messages.some(message => message.content.includes('file.ts')) })),
 			changesetCalls: changesets.calls,
 			committedSessions,
 		}, {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
-			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
-			completion: [{ token: 'gh-repo-token', fileIncluded: true }],
+			gitCalls: ['hasUncommittedChanges', 'commitAll:Update session changes'],
 			changesetCalls: ['onCommitted:agent:/session'],
 			committedSessions: ['agent:/session'],
 		});
 	});
 
-	test('returns no-op success without generating a message or committing when the working tree is clean', async () => {
+	test('trims the caller-provided commit message', async () => {
+		const gitService = new TestGitService();
+		const changesets = new TestChangesetService();
+		const { handler, session } = setup(disposables, gitService, changesets);
+
+		await handler.invoke({
+			channel: buildUncommittedChangesetUri(session.toString()),
+			operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT,
+			_meta: createCommitOperationMeta('  Fixed the thing  \r\n'),
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(gitService.calls, ['hasUncommittedChanges', 'commitAll:Fixed the thing']);
+	});
+
+	test('rejects a missing commit message without mutating the repository', async () => {
+		const gitService = new TestGitService();
+		const changesets = new TestChangesetService();
+		const { handler, session, committedSessions } = setup(disposables, gitService, changesets);
+
+		let err: ProtocolError | undefined;
+		try {
+			await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+		} catch (error) {
+			err = error as ProtocolError;
+		}
+
+		assert.deepStrictEqual({
+			code: err?.code,
+			gitCalls: gitService.calls,
+			changesetCalls: changesets.calls,
+			committedSessions,
+		}, {
+			code: JsonRpcErrorCodes.InvalidParams,
+			gitCalls: ['hasUncommittedChanges'],
+			changesetCalls: [],
+			committedSessions: [],
+		});
+	});
+
+	test('rejects a blank commit message without mutating the repository', async () => {
+		const gitService = new TestGitService();
+		const changesets = new TestChangesetService();
+		const { handler, session, committedSessions } = setup(disposables, gitService, changesets);
+
+		let err: ProtocolError | undefined;
+		try {
+			await handler.invoke({
+				channel: buildUncommittedChangesetUri(session.toString()),
+				operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT,
+				_meta: createCommitOperationMeta('   '),
+			}, CancellationToken.None);
+		} catch (error) {
+			err = error as ProtocolError;
+		}
+
+		assert.deepStrictEqual({
+			code: err?.code,
+			gitCalls: gitService.calls,
+			changesetCalls: changesets.calls,
+			committedSessions,
+		}, {
+			code: JsonRpcErrorCodes.InvalidParams,
+			gitCalls: ['hasUncommittedChanges'],
+			changesetCalls: [],
+			committedSessions: [],
+		});
+	});
+
+	test('returns no-op success without committing when the working tree is clean', async () => {
 		const gitService = new TestGitService();
 		gitService.uncommitted = false;
-		const copilotApiService = new TestCopilotApiService();
 		const changesets = new TestChangesetService();
-		const { handler, session } = setup(disposables, gitService, copilotApiService, changesets);
+		const { handler, session } = setup(disposables, gitService, changesets);
 
-		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+		const result = await handler.invoke({
+			channel: buildUncommittedChangesetUri(session.toString()),
+			operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT,
+			_meta: createCommitOperationMeta('Update session changes'),
+		}, CancellationToken.None);
 
-		assert.deepStrictEqual({ message: result.message, gitCalls: gitService.calls, completionCalls: copilotApiService.calls.length, changesetCalls: changesets.calls }, {
+		assert.deepStrictEqual({ message: result.message, gitCalls: gitService.calls, changesetCalls: changesets.calls }, {
 			message: { markdown: 'No uncommitted changes to commit.' },
 			gitCalls: ['hasUncommittedChanges'],
-			completionCalls: 0,
 			changesetCalls: [],
 		});
 	});
 
 	test('returns success when post-commit refresh fails', async () => {
 		const gitService = new TestGitService();
-		const copilotApiService = new TestCopilotApiService();
 		const changesets = new TestChangesetService();
-		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets, { onCommittedError: new Error('refresh failed') });
+		const { handler, session, committedSessions } = setup(disposables, gitService, changesets, { onCommittedError: new Error('refresh failed') });
 
-		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+		const result = await handler.invoke({
+			channel: buildUncommittedChangesetUri(session.toString()),
+			operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT,
+			_meta: createCommitOperationMeta('Update session changes'),
+		}, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			message: result.message,
@@ -238,7 +501,7 @@ suite('AgentHostCommitOperationHandler', () => {
 			committedSessions,
 		}, {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
-			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
+			gitCalls: ['hasUncommittedChanges', 'commitAll:Update session changes'],
 			changesetCalls: ['onCommitted:agent:/session'],
 			committedSessions: ['agent:/session'],
 		});
@@ -246,87 +509,23 @@ suite('AgentHostCommitOperationHandler', () => {
 
 	test('honors cancellation before mutating the repository', async () => {
 		const gitService = new TestGitService();
-		const copilotApiService = new TestCopilotApiService();
 		const changesets = new TestChangesetService();
-		const { handler, session } = setup(disposables, gitService, copilotApiService, changesets);
+		const { handler, session } = setup(disposables, gitService, changesets);
 		const cts = disposables.add(new CancellationTokenSource());
 		cts.cancel();
 
 		await assert.rejects(
-			() => handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, cts.token),
+			() => handler.invoke({
+				channel: buildUncommittedChangesetUri(session.toString()),
+				operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT,
+				_meta: createCommitOperationMeta('Update session changes'),
+			}, cts.token),
 			/Commit operation was cancelled/,
 		);
 
-		assert.deepStrictEqual({ gitCalls: gitService.calls, completionCalls: copilotApiService.calls.length, changesetCalls: changesets.calls }, {
+		assert.deepStrictEqual({ gitCalls: gitService.calls, changesetCalls: changesets.calls }, {
 			gitCalls: [],
-			completionCalls: 0,
 			changesetCalls: [],
-		});
-	});
-
-	test('maps stale Copilot auth failures to AHP_AUTH_REQUIRED before committing', async () => {
-		const gitService = new TestGitService();
-		const copilotApiService = new TestCopilotApiService();
-		copilotApiService.error = new CopilotApiError(401, {
-			type: 'error',
-			error: { type: 'authentication_error', message: 'bad token' },
-			request_id: null,
-		});
-		const changesets = new TestChangesetService();
-		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
-
-		let err: ProtocolError | undefined;
-		try {
-			await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
-		} catch (error) {
-			err = error as ProtocolError;
-		}
-
-		assert.deepStrictEqual({
-			code: err?.code,
-			data: err?.data,
-			gitCalls: gitService.calls,
-			completionCalls: copilotApiService.calls.length,
-			changesetCalls: changesets.calls,
-			committedSessions,
-		}, {
-			code: AHP_AUTH_REQUIRED,
-			data: [GITHUB_COPILOT_PROTECTED_RESOURCE],
-			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs'],
-			completionCalls: 1,
-			changesetCalls: [],
-			committedSessions: [],
-		});
-	});
-
-	test('maps Copilot API auth failures to AHP_AUTH_REQUIRED before committing', async () => {
-		const gitService = new TestGitService();
-		const copilotApiService = new TestCopilotApiService();
-		copilotApiService.error = new Error('Copilot API authorization failed: 403 Forbidden');
-		const changesets = new TestChangesetService();
-		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
-
-		let err: ProtocolError | undefined;
-		try {
-			await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
-		} catch (error) {
-			err = error as ProtocolError;
-		}
-
-		assert.deepStrictEqual({
-			code: err?.code,
-			data: err?.data,
-			gitCalls: gitService.calls,
-			completionCalls: copilotApiService.calls.length,
-			changesetCalls: changesets.calls,
-			committedSessions,
-		}, {
-			code: AHP_AUTH_REQUIRED,
-			data: [GITHUB_COPILOT_PROTECTED_RESOURCE],
-			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs'],
-			completionCalls: 1,
-			changesetCalls: [],
-			committedSessions: [],
 		});
 	});
 });
