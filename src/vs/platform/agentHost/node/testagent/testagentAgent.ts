@@ -63,6 +63,8 @@ import {
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { ITestAgentSession, TestAgentSession } from './testagentSession.js';
 import { TestAgentEventStream } from './testagentEventStream.js';
+import { McpHttpServer } from './serverToolMcpServer.js'; // test-workbench_change — server tool MCP 桥
+import { ArtifactServerToolName } from '../../common/serverToolNames.js'; // test-workbench_change — 试验工具名
 // test-workbench_change start — describeCustomization:合成 customization URI 的只读详情视图数据源
 import { fetchTestAgentCustomizations, userTestagentConfigRoot } from './testagentCustomizations.js';
 // test-workbench_change end
@@ -74,6 +76,13 @@ import { fetchTestAgentCustomizations, userTestagentConfigRoot } from './testage
 
 const TESTAGENT_STARTUP_TIMEOUT = 90_000; // test-workbench_change — 30s→90s：163MB bun 单文件二进制在 macOS 首次 exec 需冷签名验证+页载入(企业 EDR 还会首扫),实测首轮 30s 内未打出 listening 被误杀,第二次 spawn 才 12s 就绪
 const TESTAGENT_REQUEST_TIMEOUT = 120_000;
+
+// test-workbench_change — server tool MCP 桥暴露给后端的工具白名单(均为 session 作用域、无需 host 确认)。
+const MCP_BRIDGED_SERVER_TOOL_NAMES: readonly string[] = [
+	ArtifactServerToolName.AddArtifactOrReference,
+	ArtifactServerToolName.RemoveArtifactOrReference,
+	ArtifactServerToolName.ListArtifactsAndReferences,
+];
 
 // test-workbench_change start
 // ── Shared backend discovery ────────────────────────────────────────────────
@@ -275,8 +284,95 @@ export class TestAgent extends Disposable implements IAgent {
 		this._serverToolHost = host;
 	}
 
+	// test-workbench_change start — server tool MCP 桥(白名单见 MCP_BRIDGED_SERVER_TOOL_NAMES)。
+	// 参照 testagent-kilo 的 vs code 浏览器工具桥:host 在本地起一个 MCP server,
+	// 通过 POST /mcp 注册进 testagent 后端。工具只在 host 进程内执行,不经过 opencode 的插件/自定义工具。
+	private readonly _serverToolMcpServers = new Map<string, { readonly server: McpHttpServer; readonly name: string; readonly toolNames: readonly string[] }>();
+
+	/** 每个 session 一个唯一的 MCP server 名,避免同一 backend instance 内互相顶替。 */
+	private _serverToolMcpName(sessionId: string): string {
+		return `ahp_artifacts_${sessionId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 16)}`;
+	}
+
+	/** MCP 上暴露的限定工具 id(与 opencode `sanitize(server)_sanitize(tool)` 对齐)。 */
+	private _serverToolMcpToolIds(sessionKey: string): readonly string[] {
+		const entry = this._serverToolMcpServers.get(sessionKey);
+		return entry ? entry.toolNames.map(toolName => `${entry.name}_${toolName}`) : [];
+	}
+
+	/** 幂等:为 session 起 MCP server 并注册进后端;失败仅记日志,不影响 send。 */
+	private async _ensureServerToolMcp(session: ITestAgentSession, workingDirectory?: URI): Promise<void> {
+		const host = this._serverToolHost;
+		if (!host || this._serverToolMcpServers.has(session.sessionId)) {
+			return;
+		}
+		// 协议层 URI 是 string(`protocol/common/state.ts`),workbench 侧 URI 需 toString
+		const defs = host.getDefinitionsForSession(session.sessionUri.toString())
+			.filter(d => MCP_BRIDGED_SERVER_TOOL_NAMES.includes(d.name));
+		if (defs.length === 0) {
+			this._logService.trace(`[TestAgent] no mcp-bridged server tools enabled for ${session.sessionUri.toString()}`);
+			return;
+		}
+		const bridgedNames = new Set(defs.map(d => d.name));
+		const chatUri = session.chatChannelUri.toString();
+		const name = this._serverToolMcpName(session.sessionId);
+		const server = new McpHttpServer({
+			list: () => defs.map(d => ({
+				name: d.name,
+				description: d.description,
+				inputSchema: (d.inputSchema ?? { type: 'object', properties: {} }) as unknown as Record<string, unknown>,
+			})),
+			call: async (toolName, args) => {
+				if (!bridgedNames.has(toolName)) {
+					return { content: [{ type: 'text', text: `Unknown tool: ${toolName}` }], isError: true };
+				}
+				try {
+					const text = await host.executeTool(chatUri, toolName, args);
+					return { content: [{ type: 'text', text }] };
+				} catch (err) {
+					return { content: [{ type: 'text', text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+				}
+			},
+		}, { name, version: '1.0.0' });
+		try {
+			const url = await server.start();
+			const connected = await session.registerServerToolMcp(name, url, workingDirectory);
+			if (!connected) {
+				this._logService.warn(`[TestAgent] server tool MCP not connected: ${name}`);
+				await server.stop();
+				return;
+			}
+			const toolNames = defs.map(d => d.name);
+			this._serverToolMcpServers.set(session.sessionId, { server, name, toolNames });
+			this._logService.info(`[TestAgent] server tool MCP registered: ${name} [${toolNames.join(', ')}] -> ${url}`);
+		} catch (err) {
+			this._logService.warn(`[TestAgent] server tool MCP registration failed: ${err}`);
+			await server.stop();
+		}
+	}
+
+	private _releaseServerToolMcp(sessionId: string, session?: ITestAgentSession): void {
+		const entry = this._serverToolMcpServers.get(sessionId);
+		if (!entry) {
+			return;
+		}
+		this._serverToolMcpServers.delete(sessionId);
+		if (session) {
+			void session.unregisterServerToolMcp(entry.name, session.currentWorkingDirectory).catch(() => { /* backend may be gone */ });
+		}
+		void entry.server.stop();
+	}
+
+	private _releaseAllServerToolMcp(): void {
+		for (const sessionId of [...this._serverToolMcpServers.keys()]) {
+			this._releaseServerToolMcp(sessionId);
+		}
+	}
+	// test-workbench_change end
+
 	// test-workbench_change start — 释放 customization 目录 watcher 与防抖定时器
 	override dispose(): void {
+		this._releaseAllServerToolMcp(); // test-workbench_change — 停掉 server tool MCP 桥
 		if (this._customizationsDebounce !== undefined) {
 			clearTimeout(this._customizationsDebounce);
 			this._customizationsDebounce = undefined;
@@ -382,6 +478,7 @@ export class TestAgent extends Disposable implements IAgent {
 				return;
 			}
 			this._peerChatSessions.delete(chat.toString());
+			this._releaseServerToolMcp(session.sessionId, session); // test-workbench_change — 注销 MCP 桥
 			try {
 				const ready = await this._ensureConnection();
 				if (session.testagentSessionId) {
@@ -401,6 +498,7 @@ export class TestAgent extends Disposable implements IAgent {
 				const session = this._peerChatSessions.get(chat.toString());
 				if (session && !session.hasActiveTurn) {
 					this._peerChatSessions.delete(chat.toString());
+					this._releaseServerToolMcp(session.sessionId, session); // test-workbench_change — 注销 MCP 桥
 					this._sessions.deleteAndDispose(session.sessionId);
 				}
 				return;
@@ -437,6 +535,8 @@ export class TestAgent extends Disposable implements IAgent {
 				? workingDirectoriesOrDirectory[0]
 				: workingDirectoriesOrDirectory)
 				?? session.currentWorkingDirectory;
+			// test-workbench_change — 首条 send 时把 server tool MCP 桥注册进后端(幂等)
+			await this._ensureServerToolMcp(session, workingDirectory);
 			const toolNames = this._getEnabledToolNames(chat);
 			await session.sendMessage(prompt, workingDirectory, attachments, turnId, toolNames);
 		},
@@ -577,6 +677,7 @@ export class TestAgent extends Disposable implements IAgent {
 			try {
 				await this._request(ready, 'DELETE', `/session/${s.testagentSessionId ?? key}`);
 			} catch { /* ignore */ }
+			this._releaseServerToolMcp(key, s); // test-workbench_change — 注销 MCP 桥
 			this._sessions.deleteAndDispose(key);
 			this._toolSets.delete(key);
 		}
@@ -956,6 +1057,11 @@ export class TestAgent extends Disposable implements IAgent {
 		const seen = new Set<string>();
 		const result: string[] = [];
 		for (const t of serverTools) { if (!seen.has(t.name)) { seen.add(t.name); result.push(t.name); } }
+		// test-workbench_change — MCP 桥暴露的工具要用后端限定 id 才能命中 session 权限规则
+		// (`{ [toolId]: true }` 会让 opencode 自动放行,不再对每次调用弹权限框)。
+		for (const mcpToolId of this._serverToolMcpToolIds(sessionKey)) {
+			if (!seen.has(mcpToolId)) { seen.add(mcpToolId); result.push(mcpToolId); }
+		}
 		for (const t of clientTools) { if (!seen.has(t.name)) { seen.add(t.name); result.push(t.name); } }
 		return result;
 	}
@@ -973,6 +1079,7 @@ export class TestAgent extends Disposable implements IAgent {
 	// ── Shutdown ───────────────────────────────────────────────────────────
 
 	async shutdown(): Promise<void> {
+		this._releaseAllServerToolMcp(); // test-workbench_change — 停掉 server tool MCP 桥
 		this._eventStream?.dispose();
 		this._eventStream = undefined;
 		if (this._connection.kind === 'ready') {
@@ -1304,6 +1411,7 @@ export class TestAgent extends Disposable implements IAgent {
 		for (const [, session] of this._sessions) {
 			session.onConnectionLost();
 		}
+		this._releaseAllServerToolMcp(); // test-workbench_change — 后端状态没了,运行时注册的 MCP 桥一并失效
 		// test-workbench_change — 自起的后端没了,发布的状态文件随之失效
 		if (this._ownsSharedServer) {
 			clearSharedServerState();

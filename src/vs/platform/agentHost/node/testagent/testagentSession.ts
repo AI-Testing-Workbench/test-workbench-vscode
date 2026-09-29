@@ -89,6 +89,10 @@ export interface ITestAgentSession {
 	getCustomizations(): Promise<readonly Customization[]>;
 	/** test-workbench_change — 设置会话 agent(plan/build 等),undefined 回退后端默认 */
 	setAgent(name: string | undefined): void;
+	/** test-workbench_change — server tool MCP 桥:把 host 提供的 MCP server 注册进后端 */
+	registerServerToolMcp(name: string, url: string, workingDirectory?: URI): Promise<boolean>;
+	/** test-workbench_change — server tool MCP 桥:从后端注销 */
+	unregisterServerToolMcp(name: string, workingDirectory?: URI): Promise<void>;
 	abort(): void;
 	getMessages(): Promise<readonly Turn[]>;
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
@@ -518,6 +522,42 @@ export class TestAgentSession extends Disposable implements ITestAgentSession {
 	// test-workbench_change end
 
 	setAgent(name: string | undefined): void { this._agentName = name; } // test-workbench_change
+
+	// test-workbench_change start — server tool MCP 桥:host 在本进程跑一个 MCP server,
+	// 通过 POST /mcp 注册进后端;工具的 execute 仍走 host 的 IAgentServerToolHost。
+	// workingDirectory 决定后端 instance 路由(x-opencode-directory),首条 send 时用它。
+	async registerServerToolMcp(name: string, url: string, workingDirectory?: URI): Promise<boolean> {
+		const status = await this._mcpRequest<Record<string, { status?: string; error?: string }>>('POST', '/mcp', {
+			name,
+			config: { type: 'remote', url, enabled: true, oauth: false, timeout: 30 },
+		}, workingDirectory);
+		return status?.[name]?.status === 'connected';
+	}
+
+	async unregisterServerToolMcp(name: string, workingDirectory?: URI): Promise<void> {
+		await this._mcpRequest('POST', `/mcp/${encodeURIComponent(name)}/disconnect`, {}, workingDirectory);
+	}
+
+	private async _mcpRequest<T>(method: string, path: string, body: unknown, workingDirectory?: URI): Promise<T> {
+		const url = `${this._baseUrl}${path}`;
+		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+		if (this._authHeader) { headers.Authorization = this._authHeader; }
+		const dir = workingDirectory ?? this._workingDirectory;
+		if (dir) { headers['x-opencode-directory'] = encodeURIComponent(dir.fsPath); }
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), 30_000);
+		try {
+			const resp = await fetch(url, { method, headers, body: JSON.stringify(body), signal: controller.signal });
+			if (!resp.ok) {
+				const text = await resp.text().catch(() => '');
+				throw new Error(`TestAgent ${method} ${path} failed: HTTP ${resp.status} ${text}`);
+			}
+			return await resp.json() as T;
+		} finally {
+			clearTimeout(timer);
+		}
+	}
+	// test-workbench_change end
 
 	async getCustomizations(): Promise<readonly Customization[]> {
 		const cached = this._customizationsCache;
