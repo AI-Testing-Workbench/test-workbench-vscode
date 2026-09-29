@@ -3820,18 +3820,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const scoped = new Set(scopedProviderIds);
 			filtered = filtered.filter(s => scoped.has(s.providerId));
 		}
-		if (this.excludedSessionTypes.size > 0) {
-			filtered = filtered.filter(s => !this.excludedSessionTypes.has(s.sessionType));
-		}
-		if (this.excludedStatuses.size > 0) {
-			filtered = filtered.filter(s => !this.excludedStatuses.has(s.status.get()));
-		}
-		if (this._excludeArchived) {
-			filtered = filtered.filter(s => !s.isArchived.get());
-		}
-		if (this._excludeRead) {
-			filtered = filtered.filter(s => !s.isRead.get());
-		}
+		// test-workbench_change start — 过滤功能整体关闭:不按会话类型/状态/已归档/已读过滤,
+		// 列表始终显示全部会话。
+		// if (this.excludedSessionTypes.size > 0) {
+		// 	filtered = filtered.filter(s => !this.excludedSessionTypes.has(s.sessionType));
+		// }
+		// if (this.excludedStatuses.size > 0) {
+		// 	filtered = filtered.filter(s => !this.excludedStatuses.has(s.status.get()));
+		// }
+		// if (this._excludeArchived) {
+		// 	filtered = filtered.filter(s => !s.isArchived.get());
+		// }
+		// if (this._excludeRead) {
+		// 	filtered = filtered.filter(s => !s.isRead.get());
+		// }
+		// test-workbench_change end
 
 		// Keep the active user-facing session visible even when another filter excludes it.
 		for (const revealedSession of [activeSession, archiveOnboardingSession]) {

@@ -258,12 +258,15 @@ MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
 	order: 20,
 });
 
-MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
-	submenu: SessionsViewFilterOptionsSubMenu,
-	title: localize2('filter', "Filter"),
-	group: '0_filter',
-	order: 0,
-});
+// test-workbench_change start — 关闭过滤菜单(会话类型/状态/已归档/已读/空分组/Reset 等选项)。
+// 需要恢复时取消下面注释即可。
+// MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
+// 	submenu: SessionsViewFilterOptionsSubMenu,
+// 	title: localize2('filter', "Filter"),
+// 	group: '0_filter',
+// 	order: 0,
+// });
+// test-workbench_change end
 
 registerExternalSessionsFilterMenu(SessionsViewFilterOptionsSubMenu, Menus.SessionsViewExternalFilter, '2_external');
 
