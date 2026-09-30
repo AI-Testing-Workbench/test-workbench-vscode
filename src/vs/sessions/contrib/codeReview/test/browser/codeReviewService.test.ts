@@ -10,33 +10,33 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IObservable, constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+// import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js'; // test-workbench_change — Run Code Review UI 暂时下线
+// import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js'; // test-workbench_change — Run Code Review UI 暂时下线
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+// import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js'; // test-workbench_change — Run Code Review UI 暂时下线
+// import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js'; // test-workbench_change — Run Code Review UI 暂时下线
 import { DisposableStore, ImmortalReference, IReference } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
-import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+// import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js'; // test-workbench_change — Run Code Review UI 暂时下线
+// import { Menus } from '../../../../browser/menus.js'; // test-workbench_change — Run Code Review UI 暂时下线
+// import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js'; // test-workbench_change — Run Code Review UI 暂时下线
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPRFetcher } from '../../../github/browser/fetchers/githubPRFetcher.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
 import { toPRContentUri } from '../../../github/common/utils.js';
-import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
+// import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js'; // test-workbench_change — Run Code Review UI 暂时下线
 import { IGitHubInfo, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { commentableRightLines, mapCurrentLineToPullRequestLine, mapCurrentRangeToPullRequestRange, ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js'; // test-workbench_change — 移除 ISendRequestOptions(Run Code Review UI 暂时下线)
+// import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js'; // test-workbench_change — Run Code Review UI 暂时下线
+// import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js'; // test-workbench_change — Run Code Review UI 暂时下线
+// import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js'; // test-workbench_change — Run Code Review UI 暂时下线
 import '../../browser/codeReview.contributions.js';
 
 suite('CodeReviewService', () => {
@@ -640,96 +640,99 @@ suite('CodeReviewService', () => {
 	});
 });
 
-suite('Code Review Contributions', () => {
-
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('Run Code Review is contributed to the editor header layout actions', () => {
-		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
-			.filter(isIMenuItem)
-			.find(item => item.command.id === 'sessions.codeReview.run');
-
-		assert.ok(headerItem, 'expected Run Code Review in the editor header layout actions');
-		const when = headerItem.when?.serialize() ?? '';
-		const enablementContext = new Context(1, null);
-		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);
-		enablementContext.setValue(SessionHasChangesContext.key, true);
-		const enabledFromSessionChanges = headerItem.command.precondition?.evaluate(enablementContext);
-		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, true);
-		enablementContext.setValue(SessionHasChangesContext.key, false);
-		assert.deepStrictEqual({
-			group: headerItem.group,
-			order: headerItem.order,
-			enabledFromSessionChanges,
-			enabledFromChatChanges: headerItem.command.precondition?.evaluate(enablementContext),
-			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
-			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditorInput.EDITOR_ID),
-			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
-			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
-			hasTopRightEditorGroupGate: when.includes(IsTopRightEditorGroupContext.key),
-			hasChangesGate: when.includes(SessionHasChangesContext.key),
-			hasCreatedGate: when.includes(SessionIsCreatedContext.key),
-			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
-		}, {
-			group: 'navigation',
-			order: 10,
-			enabledFromSessionChanges: true,
-			enabledFromChatChanges: true,
-			hasSessionsWindowGate: true,
-			hasActiveEditorGate: true,
-			hasSinglePaneLayoutGate: true,
-			hasAuxiliaryWindowGate: true,
-			hasTopRightEditorGroupGate: true,
-			hasChangesGate: true,
-			hasCreatedGate: true,
-			hasEditorAreaVisibleGate: false,
-		});
-	});
-
-	test('Run Code Review is shown in the classic Changes toolbar only for created sessions', () => {
-		const item = MenuRegistry.getMenuItems(MenuId.AgentsChangesToolbar)
-			.filter(isIMenuItem)
-			.find(item => item.command.id === 'sessions.codeReview.run');
-
-		assert.ok(item, 'expected Run Code Review action on the classic Changes toolbar');
-		assert.strictEqual(
-			item.when?.serialize().includes(SessionIsCreatedContext.key),
-			true,
-		);
-	});
-
-	test('Run Code Review resolves a Changes editor resource to its owning session', async () => {
-		const sessionResource = URI.parse('session:test');
-		const editorResource = URI.parse('changes-multi-diff-source:test');
-		const session = {
-			resource: sessionResource,
-			capabilities: constObservable({ supportsMultipleChats: true }),
-		} as ISession;
-		let sentQuery: string | undefined;
-		const testInstantiationService = store.add(new TestInstantiationService());
-		testInstantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override getSession(resource: URI): ISession | undefined {
-				return resource.toString() === sessionResource.toString() ? session : undefined;
-			}
-			override async sendNewChatRequest(_session: ISession, options: ISendRequestOptions): Promise<void> {
-				sentQuery = options.query;
-			}
-		});
-		testInstantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
-		testInstantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
-		testInstantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
-			override getSessionResource(resource: URI): URI | undefined {
-				return resource.toString() === editorResource.toString() ? sessionResource : undefined;
-			}
-		});
-		const command = CommandsRegistry.getCommand('sessions.codeReview.run');
-		assert.ok(command);
-
-		await testInstantiationService.invokeFunction((accessor: ServicesAccessor) => command.handler(accessor, editorResource));
-
-		assert.strictEqual(sentQuery, '/code-review');
-	});
-});
+// test-workbench_change start — Run Code Review UI 暂时下线,对应菜单贡献(action 注册)已注释,
+// 这组断言菜单/命令存在的测试一并停用。待 codeReview.contributions.ts 恢复后取消本段注释。
+// suite('Code Review Contributions', () => {
+//
+// 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+//
+// 	test('Run Code Review is contributed to the editor header layout actions', () => {
+// 		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+// 			.filter(isIMenuItem)
+// 			.find(item => item.command.id === 'sessions.codeReview.run');
+//
+// 		assert.ok(headerItem, 'expected Run Code Review in the editor header layout actions');
+// 		const when = headerItem.when?.serialize() ?? '';
+// 		const enablementContext = new Context(1, null);
+// 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);
+// 		enablementContext.setValue(SessionHasChangesContext.key, true);
+// 		const enabledFromSessionChanges = headerItem.command.precondition?.evaluate(enablementContext);
+// 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, true);
+// 		enablementContext.setValue(SessionHasChangesContext.key, false);
+// 		assert.deepStrictEqual({
+// 			group: headerItem.group,
+// 			order: headerItem.order,
+// 			enabledFromSessionChanges,
+// 			enabledFromChatChanges: headerItem.command.precondition?.evaluate(enablementContext),
+// 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
+// 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditorInput.EDITOR_ID),
+// 			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
+// 			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
+// 			hasTopRightEditorGroupGate: when.includes(IsTopRightEditorGroupContext.key),
+// 			hasChangesGate: when.includes(SessionHasChangesContext.key),
+// 			hasCreatedGate: when.includes(SessionIsCreatedContext.key),
+// 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
+// 		}, {
+// 			group: 'navigation',
+// 			order: 10,
+// 			enabledFromSessionChanges: true,
+// 			enabledFromChatChanges: true,
+// 			hasSessionsWindowGate: true,
+// 			hasActiveEditorGate: true,
+// 			hasSinglePaneLayoutGate: true,
+// 			hasAuxiliaryWindowGate: true,
+// 			hasTopRightEditorGroupGate: true,
+// 			hasChangesGate: true,
+// 			hasCreatedGate: true,
+// 			hasEditorAreaVisibleGate: false,
+// 		});
+// 	});
+//
+// 	test('Run Code Review is shown in the classic Changes toolbar only for created sessions', () => {
+// 		const item = MenuRegistry.getMenuItems(MenuId.AgentsChangesToolbar)
+// 			.filter(isIMenuItem)
+// 			.find(item => item.command.id === 'sessions.codeReview.run');
+//
+// 		assert.ok(item, 'expected Run Code Review action on the classic Changes toolbar');
+// 		assert.strictEqual(
+// 			item.when?.serialize().includes(SessionIsCreatedContext.key),
+// 			true,
+// 		);
+// 	});
+//
+// 	test('Run Code Review resolves a Changes editor resource to its owning session', async () => {
+// 		const sessionResource = URI.parse('session:test');
+// 		const editorResource = URI.parse('changes-multi-diff-source:test');
+// 		const session = {
+// 			resource: sessionResource,
+// 			capabilities: constObservable({ supportsMultipleChats: true }),
+// 		} as ISession;
+// 		let sentQuery: string | undefined;
+// 		const testInstantiationService = store.add(new TestInstantiationService());
+// 		testInstantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+// 			override getSession(resource: URI): ISession | undefined {
+// 				return resource.toString() === sessionResource.toString() ? session : undefined;
+// 			}
+// 			override async sendNewChatRequest(_session: ISession, options: ISendRequestOptions): Promise<void> {
+// 				sentQuery = options.query;
+// 			}
+// 		});
+// 		testInstantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
+// 		testInstantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
+// 		testInstantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+// 			override getSessionResource(resource: URI): URI | undefined {
+// 				return resource.toString() === editorResource.toString() ? sessionResource : undefined;
+// 			}
+// 		});
+// 		const command = CommandsRegistry.getCommand('sessions.codeReview.run');
+// 		assert.ok(command);
+//
+// 		await testInstantiationService.invokeFunction((accessor: ServicesAccessor) => command.handler(accessor, editorResource));
+//
+// 		assert.strictEqual(sentQuery, '/code-review');
+// 	});
+// });
+// test-workbench_change end
 
 function makeGitHubInfo(prNumber = 1): IGitHubInfo {
 	return {
