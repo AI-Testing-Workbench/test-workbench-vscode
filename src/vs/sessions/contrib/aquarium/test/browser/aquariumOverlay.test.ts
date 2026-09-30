@@ -15,7 +15,7 @@ import { TestAccessibilityService } from '../../../../../platform/accessibility/
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { AquariumService, SESSIONS_DEVELOPER_JOY_ENABLED_SETTING } from '../../browser/aquariumOverlay.js';
@@ -34,6 +34,7 @@ suite('AquariumService', () => {
 		}));
 
 		const storageService = store.add(new InMemoryStorageService());
+		storageService.store('sessions.aquarium.action.visible', true, StorageScope.APPLICATION, StorageTarget.USER); // test-workbench_change: visibility now defaults to false, seed it for this scenario
 		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
 			override readonly mainContainer = mainContainer;
 		}();

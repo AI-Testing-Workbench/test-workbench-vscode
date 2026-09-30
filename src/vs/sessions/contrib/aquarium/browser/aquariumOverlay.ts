@@ -134,7 +134,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 	private readonly activeContextKey: IContextKey<boolean>;
 	private readonly streak: FishFeedingStreak;
 	private readonly hungerRefreshScheduler: RunOnceScheduler;
-	private readonly _actionVisible = observableValue(this, true);
+	private readonly _actionVisible = observableValue(this, false); // test-workbench_change: default off
 	readonly actionVisible: IObservable<boolean> = this._actionVisible;
 
 	constructor(
@@ -151,13 +151,13 @@ export class AquariumService extends Disposable implements IAquariumService {
 		this.mainContainer = layoutService.mainContainer;
 		this.activeContextKey = SessionsAquariumActiveContext.bindTo(contextKeyService);
 		this.streak = new FishFeedingStreak(storageService);
-		this._actionVisible.set(this.storageService.getBoolean(ACTION_VISIBLE_STORAGE_KEY, StorageScope.APPLICATION, true), undefined);
+		this._actionVisible.set(this.storageService.getBoolean(ACTION_VISIBLE_STORAGE_KEY, StorageScope.APPLICATION, false), undefined); // test-workbench_change: default off
 		this.hungerRefreshScheduler = this._register(new RunOnceScheduler(() => {
 			this.updateAllToggleButtonsVisual(!!this.activeRef.value);
 		}, 0));
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, ACTION_VISIBLE_STORAGE_KEY, this._store)(() => {
-			this.setActionVisible(this.storageService.getBoolean(ACTION_VISIBLE_STORAGE_KEY, StorageScope.APPLICATION, true));
+			this.setActionVisible(this.storageService.getBoolean(ACTION_VISIBLE_STORAGE_KEY, StorageScope.APPLICATION, false)); // test-workbench_change: default off
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SESSIONS_DEVELOPER_JOY_ENABLED_SETTING)) {

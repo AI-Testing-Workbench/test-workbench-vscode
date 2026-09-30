@@ -549,7 +549,7 @@ export class NewChatWidget extends Disposable {
 				menuId: Menus.SessionChatBackgroundContext,
 				contextKeyService: this.contextKeyService,
 				getAnchor: () => anchor,
-				getActions: () => [aquariumAction, petAction],
+				getActions: () => [], // test-workbench_change: hide Aquarium / Pet entries
 				getCheckedActionsRepresentation: () => 'checkbox',
 			});
 		}));
