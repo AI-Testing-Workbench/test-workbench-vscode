@@ -203,6 +203,12 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	/** Deferred focus request awaiting the active diff editor to be rendered. */
 	private readonly _pendingFocus = this._register(new MutableDisposable());
 
+	// test-workbench_change start
+	/** Items this editor has already defaulted to collapsed when they appeared. */
+	private readonly _defaultCollapsedItems = new WeakSet<object>();
+	private readonly _defaultCollapseDisposable = this._register(new MutableDisposable());
+	// test-workbench_change end
+
 	private readonly _logger: MultiDiffEditorLogger;
 
 	constructor(
@@ -355,6 +361,26 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		});
 		this.widget?.setViewModel(viewModel, { preserveFocus: options?.preserveFocus, viewState });
 		this._applyOptions(options);
+
+		// test-workbench_change start
+		// Default the Agents window Changes page to collapsed so the list of changed
+		// files and their stats is visible at a glance before diving into an
+		// individual diff. This has to keep applying after `setInput`: switching
+		// changesets (e.g. Uncommitted Changes) updates the same view model in place
+		// and creates new items without another `setInput`. Items restored from the
+		// persisted view state, and items the user has already expanded/collapsed,
+		// are left untouched.
+		const restoredKeys = new Set(Object.keys(viewState?.docStates ?? {}));
+		this._defaultCollapseDisposable.value = autorun(reader => {
+			for (const item of viewModel.items.read(reader)) {
+				if (restoredKeys.has(item.getKey()) || this._defaultCollapsedItems.has(item)) {
+					continue;
+				}
+				this._defaultCollapsedItems.add(item);
+				item.collapsed.set(true, undefined);
+			}
+		});
+		// test-workbench_change end
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
