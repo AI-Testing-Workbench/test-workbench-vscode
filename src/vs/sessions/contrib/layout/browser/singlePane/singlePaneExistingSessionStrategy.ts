@@ -22,7 +22,7 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { HasDockedDetailsContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
@@ -269,7 +269,6 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		const activeEditorObs = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorService.activeEditor);
 		const mainPartEmptyObs = observableFromEvent(this, Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange, this._editorService.onDidCloseEditor), () => isMainPartEmpty(this._editorGroupsService));
 		const editorPartVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
-		const editorMaximizedObs = observableFromEvent(this, this._layoutService.onDidChangeEditorMaximized, () => this._layoutService.isEditorMaximized());
 		let initialized = false;
 		let wasExistingActive = false;
 		let activeSessionKey: string | undefined;
@@ -319,7 +318,6 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 
 			const activeEditor = activeEditorObs.read(reader);
 			const mainPartEmpty = mainPartEmptyObs.read(reader);
-			const editorMaximized = editorMaximizedObs.read(reader);
 			const editorPartVisible = editorPartVisibleObs.read(reader);
 			if (pendingSessionKey && activeEditor && activeEditor !== pendingOutgoingEditor) {
 				pendingSessionKey = undefined;
@@ -335,7 +333,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 			previousActiveEditor = activeEditor;
 			previousEditorPartVisible = editorPartVisible;
 			previousEditorSessionKey = sessionKey;
-			const target = this._computeTarget(activeEditor, mainPartEmpty, editorMaximized, editorPartVisible);
+			const target = this._computeTarget(activeEditor, mainPartEmpty, editorPartVisible);
 			const revealOnly = this._ctx.multipleSessionsVisibleObs.read(reader);
 			if (!isWorkspaceConversion) {
 				this._syncDetailVisibility(target, revealOnly, emptyFilesShown);
@@ -399,7 +397,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		}
 	}
 
-	private _computeTarget(activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean): DetailPanelTarget {
+	private _computeTarget(activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorPartVisible: boolean): DetailPanelTarget {
 		if (mainPartEmpty) {
 			return this._ctx.isRestoringSessionLayout ? DetailPanelTarget.Preserve : DetailPanelTarget.Hidden;
 		}
@@ -408,9 +406,10 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 			return editorPartVisible ? DetailPanelTarget.EditorHidden : DetailPanelTarget.Changes;
 		}
 
-		if (editorMaximized) {
-			return DetailPanelTarget.Changes;
-		}
+		// test-workbench_change: maximizing the editor no longer forces the Changes detail.
+		// The detail keeps following the active tab (Changes/File map to their own detail,
+		// Browser hides, Search/Terminal keep the current detail), so un-related tabs are
+		// not switched to Changes with an empty state.
 
 		if (!activeEditor) {
 			return DetailPanelTarget.Changes;
@@ -489,15 +488,16 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 						id: MenuId.EditorTitleLayout,
 						group: 'navigation',
 						order: singlePaneHeaderToggleDetailsOrder,
-						// Not every tab type has a detail panel to show/hide (e.g. browser and
-						// search tabs), so only surface the toggle for tab types that do.
+						// test-workbench_change: always surface Toggle Details while the editor
+						// area is visible, regardless of the active tab's docked details, so the
+						// detail panel is always toggleable (previously hidden for tabs with no
+						// docked detail, e.g. Browser/Search/Terminal).
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
 							IsAuxiliaryWindowContext.toNegated(),
 							IsTopRightEditorGroupContext,
 							SinglePaneLayoutEnabledContext,
-							MainEditorAreaVisibleContext,
-							HasDockedDetailsContext)
+							MainEditorAreaVisibleContext)
 					}
 				});
 			}

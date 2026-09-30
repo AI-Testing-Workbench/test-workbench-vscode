@@ -16,6 +16,7 @@ import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/brow
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { SinglePaneDetailPanelCoordinator } from '../../browser/singlePane/singlePaneDetailPanelCoordinator.js';
@@ -378,6 +379,131 @@ suite('SinglePane layout strategies', () => {
 			auxiliaryBarVisible: true,
 			lastVisibilityChange: { hidden: false, part: Parts.AUXILIARYBAR_PART },
 		});
+	});
+
+	// test-workbench_change: maximizing the editor must not switch an unrelated tab to the
+	// Changes detail. It used to force Changes for every tab except Browser, which showed an
+	// empty Changes panel for Search/Terminal/session-less tabs.
+
+	test('Existing Session maximize keeps the Files detail for a file editor instead of forcing Changes', async () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/existing'));
+		const fileEditor = store.add(new TestStubEditorInput(URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' })));
+		harness.activeGroupEditors.push(fileEditor);
+		harness.activeEditorInput = fileEditor;
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		const visibilityStore = createVisibilityStore();
+		visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: true, auxiliaryBarVisible: true });
+		store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			visibilityStore,
+			createDetailPanel(),
+		));
+		activate(session);
+		await timeout(0);
+		assert.deepStrictEqual(harness.openedViewContainers, [SESSIONS_FILES_CONTAINER_ID], 'a file editor maps to the Files detail');
+		harness.openedViewContainers.length = 0;
+
+		harness.editorMaximized = true;
+		harness.onDidChangeEditorMaximized.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.openedViewContainers,
+			[],
+			'maximize must not switch a file editor to the Changes detail'
+		);
+	});
+
+	test('Existing Session maximize keeps the current detail for a Search/Terminal editor instead of forcing Changes', async () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/existing'));
+		const searchEditor = store.add(new TestStubEditorInput(URI.parse('search-editor://q')));
+		harness.activeGroupEditors.push(searchEditor);
+		harness.activeEditorInput = searchEditor;
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		const visibilityStore = createVisibilityStore();
+		visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: true, auxiliaryBarVisible: true });
+		store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			visibilityStore,
+			createDetailPanel(),
+		));
+		activate(session);
+		await timeout(0);
+		assert.deepStrictEqual(harness.openedViewContainers, [], 'a Search editor has no docked detail');
+		harness.openedViewContainers.length = 0;
+
+		harness.editorMaximized = true;
+		harness.onDidChangeEditorMaximized.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.openedViewContainers,
+			[],
+			'maximize must not force the Changes detail for Search/Terminal'
+		);
+	});
+
+	test('Existing Session maximize keeps the Changes detail for a Changes editor', async () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/existing'));
+		const changesEditor = store.add(new TestStubEditorInput(harness.sessionChangesService.getChangesEditorResource(session.resource)));
+		harness.activeGroupEditors.push(changesEditor);
+		harness.activeEditorInput = changesEditor;
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		const visibilityStore = createVisibilityStore();
+		visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: true, auxiliaryBarVisible: true });
+		store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			visibilityStore,
+			createDetailPanel(),
+		));
+		activate(session);
+		await timeout(0);
+		assert.deepStrictEqual(harness.openedViewContainers, [CHANGES_VIEW_CONTAINER_ID], 'a Changes editor maps to the Changes detail');
+		harness.openedViewContainers.length = 0;
+
+		harness.editorMaximized = true;
+		harness.onDidChangeEditorMaximized.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.openedViewContainers,
+			[],
+			'maximize must not re-select the detail for a Changes editor'
+		);
+	});
+
+	test('New Session maximize keeps the current detail for a Search editor instead of forcing Changes', async () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
+		const searchEditor = store.add(new TestStubEditorInput(URI.parse('search-editor://q')));
+		harness.activeGroupEditors.push(searchEditor);
+		harness.activeEditorInput = searchEditor;
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		createDraftStrategy(ctx);
+		activate(session);
+		await timeout(0);
+		assert.deepStrictEqual(harness.openedViewContainers, [], 'a Search editor has no docked detail');
+		harness.openedViewContainers.length = 0;
+
+		harness.editorMaximized = true;
+		harness.onDidChangeEditorMaximized.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.openedViewContainers,
+			[],
+			'maximize must not force the Changes detail for a Search editor'
+		);
 	});
 
 	test('New Session closes the side pane instead of opening Empty Files when its last file closes', () => {

@@ -7,7 +7,6 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import {
 	autorun,
-	IObservable,
 	IReader,
 	observableFromEvent,
 	observableSignalFromEvent,
@@ -476,11 +475,6 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 			this._layoutService.onDidChangePartVisibility,
 			() => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
 		);
-		const editorMaximizedObs = observableFromEvent(
-			this,
-			this._layoutService.onDidChangeEditorMaximized,
-			() => this._layoutService.isEditorMaximized(),
-		);
 		let previousActiveEditor: EditorInput | undefined;
 		let previousEditorPartVisible = false;
 		let previousEditorSessionKey: string | undefined;
@@ -514,12 +508,7 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 				previousActiveEditor = activeEditor;
 				previousEditorPartVisible = editorPartVisible;
 				previousEditorSessionKey = sessionKey;
-				const target = this._computeTarget(
-					reader,
-					activeEditor,
-					editorMaximizedObs,
-					editorPartVisible,
-				);
+				const target = this._computeTarget(activeEditor, editorPartVisible);
 				const revealOnly = this._ctx.multipleSessionsVisibleObs.read(reader);
 				this._syncDetailVisibility(target, revealOnly, emptyFilesShown);
 				this._detailPanel.sync(target);
@@ -585,9 +574,7 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 	}
 
 	private _computeTarget(
-		reader: IReader,
 		activeEditor: EditorInput | undefined,
-		editorMaximizedObs: IObservable<boolean>,
 		editorPartVisible: boolean,
 	): DetailPanelTarget {
 		// A New Session's empty editor group is normal (the Files detail is owned by the
@@ -599,9 +586,10 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 			return editorPartVisible ? DetailPanelTarget.EditorHidden : DetailPanelTarget.Files;
 		}
 
-		if (editorMaximizedObs.read(reader)) {
-			return DetailPanelTarget.Changes;
-		}
+		// test-workbench_change: maximizing the editor no longer forces the Changes detail.
+		// The detail keeps following the active tab (Changes/File map to their own detail,
+		// Browser hides, Search/Terminal keep the current detail), so un-related tabs are
+		// not switched to Changes with an empty state.
 
 		if (!activeEditor) {
 			return DetailPanelTarget.Files;

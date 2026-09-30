@@ -2711,6 +2711,8 @@ suite('LayoutController (desktop)', () => {
 			afterMaximize: (items[0].order ?? 0) > (maximizeItem.order ?? 0),
 			hasToggled: !!items[0].command.toggled,
 			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
+			// test-workbench_change: the toggle is no longer gated on docked details, so it
+			// stays available on Browser/Search/Terminal tabs too.
 			gatedOnDockedDetails: when.includes(HasDockedDetailsContext.key),
 		}, {
 			group: 'navigation',
@@ -2719,7 +2721,7 @@ suite('LayoutController (desktop)', () => {
 			afterMaximize: true,
 			hasToggled: true,
 			gatedOnEditorArea: true,
-			gatedOnDockedDetails: true,
+			gatedOnDockedDetails: false,
 		});
 	});
 
