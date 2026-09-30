@@ -427,6 +427,18 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this.viewModel?.expandAll();
 	}
 
+	// test-workbench_change start
+	/** Selects and expands the next file in the Changes list. */
+	goToNextFile(): void {
+		this.widget?.goToNextFile();
+	}
+
+	/** Selects and expands the previous file in the Changes list. */
+	goToPreviousFile(): void {
+		this.widget?.goToPreviousFile();
+	}
+	// test-workbench_change end
+
 	public collapse(resource: URI): void {
 		const item = this.viewModel?.items.read(undefined)
 			.find(i => isEqual(i.modifiedUri, resource) || isEqual(i.originalUri, resource));

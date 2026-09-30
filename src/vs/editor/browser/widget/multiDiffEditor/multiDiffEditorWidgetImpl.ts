@@ -614,6 +614,32 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._navigateToChange('previous');
 	}
 
+	// test-workbench_change start
+	public goToNextFile(): void {
+		this._navigateToFile('next');
+	}
+
+	public goToPreviousFile(): void {
+		this._navigateToFile('previous');
+	}
+
+	private _navigateToFile(direction: 'next' | 'previous'): void {
+		const viewItems = this._viewItems.get();
+		if (viewItems.length === 0) {
+			return;
+		}
+
+		const activeViewModel = this._viewModel.get()?.activeDiffItem.get();
+		const currentIndex = activeViewModel ? viewItems.findIndex(v => v.viewModel === activeViewModel) : -1;
+		const nextIndex = currentIndex === -1
+			? (direction === 'next' ? 0 : viewItems.length - 1)
+			: (currentIndex + (direction === 'next' ? 1 : -1) + viewItems.length) % viewItems.length;
+
+		this._logger.log('navigate to file', { direction, currentIndex, nextIndex, items: viewItems.length });
+		this._goToFile(nextIndex, direction === 'next' ? 'first' : 'last');
+	}
+	// test-workbench_change end
+
 	private _navigateToChange(direction: 'next' | 'previous', focusEditor: boolean = true): void {
 		const viewItems = this._viewItems.get();
 		if (viewItems.length === 0) {

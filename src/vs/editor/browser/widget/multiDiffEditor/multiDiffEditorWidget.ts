@@ -268,6 +268,18 @@ export class MultiDiffEditorWidget extends Disposable {
 	public goToPreviousChange(): void {
 		this._widgetImpl.get().goToPreviousChange();
 	}
+
+	// test-workbench_change start
+	/** Selects and expands the next file in the multi-diff. */
+	public goToNextFile(): void {
+		this._widgetImpl.get().goToNextFile();
+	}
+
+	/** Selects and expands the previous file in the multi-diff. */
+	public goToPreviousFile(): void {
+		this._widgetImpl.get().goToPreviousFile();
+	}
+	// test-workbench_change end
 }
 
 export interface RevealOptions {

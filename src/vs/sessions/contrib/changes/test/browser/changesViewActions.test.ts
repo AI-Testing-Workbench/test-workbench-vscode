@@ -169,12 +169,12 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('collapse all diffs is contributed to the editor header layout overflow menu', () => {
+	test('collapse all diffs is contributed inline to the editor header layout', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.collapseAllDiffs');
 
-		assert.ok(item, 'expected collapse all diffs action in the editor header layout overflow menu');
+		assert.ok(item, 'expected collapse all diffs action in the editor header layout');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -185,8 +185,8 @@ suite('Changes View Actions', () => {
 			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			group: 'secondary/1_diff',
-			order: 10,
+			group: '1_diff',
+			order: 30,
 			icon: Codicon.collapseAll.id,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
@@ -195,12 +195,12 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('expand all diffs is contributed to the editor header layout overflow menu', () => {
+	test('expand all diffs is contributed inline to the editor header layout', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.expandAllDiffs');
 
-		assert.ok(item, 'expected expand all diffs action in the editor header layout overflow menu');
+		assert.ok(item, 'expected expand all diffs action in the editor header layout');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -212,14 +212,40 @@ suite('Changes View Actions', () => {
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 			hasAllCollapsedGate: when.includes(EditorContextKeys.multiDiffEditorAllCollapsed.key),
 		}, {
-			group: 'secondary/1_diff',
-			order: 10,
+			group: '1_diff',
+			order: 30,
 			icon: Codicon.expandAll.id,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasSinglePaneConfigGate: true,
 			hasEditorAreaVisibleGate: true,
 			hasAllCollapsedGate: true,
+		});
+	});
+
+	test('previous and next file actions are contributed inline to the editor header layout', () => {
+		const findItem = (id: string) => MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === id);
+		const previous = findItem('workbench.action.agentSessions.previousFile');
+		const next = findItem('workbench.action.agentSessions.nextFile');
+
+		assert.ok(previous, 'expected previous file action in the editor header layout');
+		assert.ok(next, 'expected next file action in the editor header layout');
+		assert.deepStrictEqual({
+			previous: {
+				group: previous.group,
+				order: previous.order,
+				icon: ThemeIcon.isThemeIcon(previous.command.icon) ? previous.command.icon.id : undefined,
+			},
+			next: {
+				group: next.group,
+				order: next.order,
+				icon: ThemeIcon.isThemeIcon(next.command.icon) ? next.command.icon.id : undefined,
+			},
+		}, {
+			previous: { group: '1_diff', order: 10, icon: Codicon.arrowUp.id },
+			next: { group: '1_diff', order: 20, icon: Codicon.arrowDown.id },
 		});
 	});
 

@@ -449,8 +449,9 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 			f1: false,
 			menu: {
 				id: Menus.SessionsEditorHeaderLayout,
-				group: 'secondary/1_diff',
-				order: 10,
+				// test-workbench_change - out of the overflow ("...") menu, inline next to the file navigation buttons
+				group: '1_diff',
+				order: 30,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorTitleVisible,
 					ContextKeyExpr.not('multiDiffEditorAllCollapsed'))
@@ -479,8 +480,9 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 			f1: false,
 			menu: {
 				id: Menus.SessionsEditorHeaderLayout,
-				group: 'secondary/1_diff',
-				order: 10,
+				// test-workbench_change - out of the overflow ("...") menu, inline next to the file navigation buttons
+				group: '1_diff',
+				order: 30,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorActive,
 					IsAuxiliaryWindowContext.toNegated(),
@@ -500,6 +502,66 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 }
 
 registerAction2(ExpandAllSessionChangesDiffsAction);
+
+// test-workbench_change start
+/** Selects and expands the next file in the Agents window Changes editor. */
+class GoToNextSessionChangesFileAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.nextFile';
+
+	constructor() {
+		super({
+			id: GoToNextSessionChangesFileAction.ID,
+			title: localize2('agentSessions.nextFile', "Next File"),
+			icon: Codicon.arrowDown,
+			f1: false,
+			menu: {
+				id: Menus.SessionsEditorHeaderLayout,
+				group: '1_diff',
+				order: 20,
+				when: singlePaneChangesEditorTitleVisible,
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+		if (activeEditorPane instanceof SessionChangesEditor) {
+			activeEditorPane.goToNextFile();
+		}
+	}
+}
+
+registerAction2(GoToNextSessionChangesFileAction);
+
+/** Selects and expands the previous file in the Agents window Changes editor. */
+class GoToPreviousSessionChangesFileAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.previousFile';
+
+	constructor() {
+		super({
+			id: GoToPreviousSessionChangesFileAction.ID,
+			title: localize2('agentSessions.previousFile', "Previous File"),
+			icon: Codicon.arrowUp,
+			f1: false,
+			menu: {
+				id: Menus.SessionsEditorHeaderLayout,
+				group: '1_diff',
+				order: 10,
+				when: singlePaneChangesEditorTitleVisible,
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+		if (activeEditorPane instanceof SessionChangesEditor) {
+			activeEditorPane.goToPreviousFile();
+		}
+	}
+}
+
+registerAction2(GoToPreviousSessionChangesFileAction);
+// test-workbench_change end
 
 // The Agents window reuses the workbench `toggle.diff.renderSideBySide` command so a
 // user's keybinding for it carries over here (issue #324765). The sessions override of
