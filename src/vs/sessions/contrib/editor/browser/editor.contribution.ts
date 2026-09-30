@@ -9,6 +9,7 @@ import './media/editorHeader.css';
 import '../../../../workbench/services/themes/browser/modernTabColorCustomizations.js';
 import './diffEditor.sessions.contribution.js';
 import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from './addTabActions.js';
+import './sessionsEditorEmptyState.js'; // test-workbench_change
 import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';

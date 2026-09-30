@@ -634,6 +634,33 @@ suite('SinglePane layout strategies', () => {
 		});
 	});
 
+	test('Quick Chat with an empty editor group shows the Editor area instead of the Files detail', async () => {
+		const ctx = setup();
+		const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		createDraftStrategy(ctx);
+		harness.setPartHiddenCalls.length = 0;
+
+		activate(quickChat);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: false,
+			visibilityChanges: [
+				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
+				{ hidden: false, part: Parts.EDITOR_PART },
+			],
+		});
+	});
+
 	test('Quick Chat reload preserves an Auxiliary-Bar-only composition', () => {
 		harness = createTestHarness(store);
 		const { ctx, state } = createStrategyTestContext(store, harness);

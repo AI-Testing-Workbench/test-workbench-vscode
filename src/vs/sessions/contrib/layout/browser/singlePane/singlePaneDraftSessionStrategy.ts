@@ -190,6 +190,10 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 				if (!multipleSessionsVisible && hasSavedWorkingSet) {
 					this._applyQuickChatSharedVisibility();
 				}
+				// test-workbench_change: an editorless new Quick Chat shows the editor area
+				// (empty-group shortcut cards) instead of inheriting a persisted Detail-only
+				// Files panel. Run before the Files sync so a hidden detail panel wins.
+				this._showEditorAreaForEmptyQuickChat();
 				this._detailPanel.sync(DetailPanelTarget.Files);
 			}
 		}));
@@ -204,6 +208,9 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 			}
 			this._logService.trace(`[SinglePaneLayout] No workspace layout restore settled: session=${sessionKey} width=${this._layoutService.getSize(Parts.EDITOR_PART).width} editor=${this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)} details=${this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)}`);
 			if (this._pendingEditorRestoreKey !== sessionKey) {
+				// test-workbench_change: the working set may have emptied the group only after
+				// entry, so settle an editorless Quick Chat on the editor area here too.
+				this._showEditorAreaForEmptyQuickChat();
 				return;
 			}
 
@@ -267,6 +274,45 @@ export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 			}
 			if (sidePaneVisible !== this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._layoutService.setPartHidden(!sidePaneVisible, Parts.EDITOR_PART);
+			}
+		} finally {
+			this._changingVisibility = false;
+			suppression.dispose();
+		}
+	}
+
+	/**
+	 * test-workbench_change: an editorless Quick Chat should land on the editor area (the
+	 * empty-group shortcut cards) rather than inherit a persisted Detail-only composition
+	 * that renders the Files empty view ("Folders and files will appear here."). Acts only
+	 * when the main editor group is empty and the docked detail panel is actually showing,
+	 * so a deliberately closed side pane and sessions with real content are left alone.
+	 */
+	private _showEditorAreaForEmptyQuickChat(): void {
+		if (this._ctx.multipleSessionsVisibleObs.get() || this._ctx.isRestoringSessionLayout) {
+			return;
+		}
+		if (!this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			return;
+		}
+		if (!isMainPartEmpty(this._editorGroupsService)) {
+			return;
+		}
+		this._showEditorAreaForNewSession();
+	}
+
+	/**
+	 * test-workbench_change: reveals the editor area and hides the docked detail panel.
+	 */
+	private _showEditorAreaForNewSession(): void {
+		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+		this._changingVisibility = true;
+		try {
+			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			}
+			if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 			}
 		} finally {
 			this._changingVisibility = false;

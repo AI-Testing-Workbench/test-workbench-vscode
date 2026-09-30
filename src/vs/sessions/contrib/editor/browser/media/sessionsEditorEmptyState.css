@@ -1,0 +1,84 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* test-workbench_change - new file */
+/* Agent-window-only empty editor state. Every rule is scoped under
+ * `.monaco-workbench.agent-sessions-workbench`, which only the sessions window root
+ * carries, so the regular editor window keeps the stock watermark and shortcut hints
+ * unchanged. The extra `.monaco-workbench` also keeps specificity above upstream rules. */
+
+/* Hide the stock watermark logo in the agent window: the shortcut cards replace it. */
+.monaco-workbench.agent-sessions-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .letterpress {
+	display: none;
+}
+
+/* The stock empty group is dimmed to 0.5 to signal inactivity; keep our cards crisp. */
+.monaco-workbench.agent-sessions-workbench .part.editor > .content .editor-group-container.empty {
+	opacity: 1;
+}
+
+/* Positioning context for the centered overlay hosted on the group container. */
+.monaco-workbench.agent-sessions-workbench .part.editor > .content .editor-group-container {
+	position: relative;
+}
+
+/* Only shown while the group is empty (no managed tab open). */
+.monaco-workbench.agent-sessions-workbench .part.editor > .content .editor-group-container:not(.empty) > .sessions-editor-empty-state {
+	display: none;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.editor > .content .editor-group-container > .sessions-editor-empty-state {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.editor > .content .sessions-editor-empty-state > .sessions-editor-empty-state-actions {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+	pointer-events: auto;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.editor > .content .sessions-editor-empty-state-action {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	box-sizing: border-box;
+	width: 132px;
+	min-height: 96px;
+	padding: 16px;
+	border: 1px solid var(--vscode-editorGroup-border, var(--vscode-widget-border));
+	border-radius: 8px;
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font-family: inherit;
+	font-size: var(--vscode-fontSize-body1, 13px);
+}
+
+.monaco-workbench.agent-sessions-workbench .part.editor > .content .sessions-editor-empty-state-action:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.monaco-workbench.agent-sessions-workbench .part.editor > .content .sessions-editor-empty-state-action:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.editor > .content .sessions-editor-empty-state-action-icon {
+	font-size: 24px;
+	line-height: 1;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.editor > .content .sessions-editor-empty-state-action-label {
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
+}
