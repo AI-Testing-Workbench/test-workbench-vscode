@@ -9,11 +9,13 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
+import { TerminalCommandId } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
@@ -28,6 +30,7 @@ import { Menus } from '../../../browser/menus.js';
 export const NEW_BROWSER_TAB_COMMAND_ID = 'workbench.action.agentSessions.newBrowserTab';
 export const NEW_SEARCH_TAB_COMMAND_ID = 'workbench.action.agentSessions.newSearchTab';
 export const NEW_CHANGES_TAB_COMMAND_ID = 'workbench.action.agentSessions.newChangesTab';
+export const NEW_TERMINAL_TAB_COMMAND_ID = 'workbench.action.agentSessions.newTerminalTab'; // test-workbench_change
 
 // The add-tab actions are only registered in the single-pane layout, so the
 // `when` clauses don't need to gate on the setting.
@@ -195,5 +198,31 @@ export class NewChangesTabAction extends Action2 {
 			const group = editorGroupsService.mainPart.activeGroup;
 			await sessionChangesService.openChangesEditor(session.resource, { index: group.count }, group);
 		}
+	}
+}
+
+// test-workbench_change: offer a terminal tab in the add-tab menu, shown in the right-hand editor pane.
+export class NewTerminalTabAction extends Action2 {
+
+	constructor() {
+		super({
+			id: NEW_TERMINAL_TAB_COMMAND_ID,
+			title: localize2('newTerminalTab', "Terminal"),
+			category: SessionsCategories.Sessions,
+			icon: Codicon.terminal,
+			f1: true,
+			precondition: addTabActionWhen,
+			menu: {
+				id: Menus.SessionsEditorTabsBarAddTab,
+				group: 'navigation',
+				order: 4,
+				when: addTabLayoutWhen
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		// Reuse the workbench "Create New Terminal in Editor Area" command.
+		await accessor.get(ICommandService).executeCommand(TerminalCommandId.CreateTerminalEditor);
 	}
 }

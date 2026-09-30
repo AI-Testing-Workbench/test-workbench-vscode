@@ -25,7 +25,7 @@ import { EditorGroupView } from '../../../../workbench/browser/parts/editor/edit
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
-import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_COMMAND_ID } from './addTabActions.js';
+import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_COMMAND_ID, NEW_TERMINAL_TAB_COMMAND_ID } from './addTabActions.js';
 
 interface ISessionsEditorEmptyStateItem {
 	readonly id: string;
@@ -39,6 +39,7 @@ const EMPTY_STATE_ITEMS: readonly ISessionsEditorEmptyStateItem[] = [
 	{ id: NEW_FILE_TAB_COMMAND_ID, label: localize('sessionsEditorEmptyState.files', "Files"), icon: Codicon.files },
 	{ id: NEW_BROWSER_TAB_COMMAND_ID, label: localize('sessionsEditorEmptyState.browser', "Browser"), icon: Codicon.globe },
 	{ id: NEW_SEARCH_TAB_COMMAND_ID, label: localize('sessionsEditorEmptyState.search', "Search"), icon: Codicon.search },
+	{ id: NEW_TERMINAL_TAB_COMMAND_ID, label: localize('sessionsEditorEmptyState.terminal', "Terminal"), icon: Codicon.terminal },
 ];
 
 class SessionsEditorEmptyStateController extends Disposable {

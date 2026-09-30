@@ -8,7 +8,7 @@ import './media/editorBreadcrumbs.css';
 import './media/editorHeader.css';
 import '../../../../workbench/services/themes/browser/modernTabColorCustomizations.js';
 import './diffEditor.sessions.contribution.js';
-import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from './addTabActions.js';
+import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction, NewTerminalTabAction } from './addTabActions.js'; // test-workbench_change
 import './sessionsEditorEmptyState.js'; // test-workbench_change
 import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -89,6 +89,7 @@ class SinglePaneAddTabContribution extends Disposable implements IWorkbenchContr
 		this._register(registerAction2(NewBrowserTabAction));
 		this._register(registerAction2(NewSearchTabAction));
 		this._register(registerAction2(NewChangesTabAction));
+		this._register(registerAction2(NewTerminalTabAction)); // test-workbench_change
 	}
 }
 
