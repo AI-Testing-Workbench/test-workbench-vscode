@@ -63,4 +63,6 @@ export const ActiveSessionContextKeys = {
 	HasPullRequest: new RawContextKey<boolean>('sessions.hasPullRequest', false),
 	HasGitOperationInProgress: new RawContextKey<boolean>('sessions.hasGitOperationInProgress', false),
 	HasOpenPullRequest: new RawContextKey<boolean>('sessions.hasOpenPullRequest', false),
+	// test-workbench_change - whether the active session's uncommitted changeset offers "Discard All Changes".
+	CanDiscardAllChanges: new RawContextKey<boolean>('sessions.canDiscardAllChanges', false),
 };

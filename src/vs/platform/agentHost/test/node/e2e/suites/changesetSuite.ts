@@ -809,6 +809,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		assert.deepStrictEqual(operations.map(operation => ({ id: operation.id, scopes: operation.scopes })), [
 			{ id: 'commit', scopes: ['changeset'] },
 			{ id: 'discard-changes', scopes: ['resource'] },
+			{ id: 'discard-all-changes', scopes: ['changeset'] }, // test-workbench_change
 		]);
 	});
 

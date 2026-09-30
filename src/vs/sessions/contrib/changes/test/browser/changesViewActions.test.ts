@@ -249,6 +249,30 @@ suite('Changes View Actions', () => {
 		});
 	});
 
+	// test-workbench_change start
+	test('discard all changes is contributed inline to the editor header layout', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'workbench.action.agentSessions.discardAllChanges');
+
+		assert.ok(item, 'expected discard all changes action in the editor header layout');
+		const when = item.when?.serialize() ?? '';
+		assert.deepStrictEqual({
+			group: item.group,
+			order: item.order,
+			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
+			hasDiscardAllGate: when.includes(ActiveSessionContextKeys.CanDiscardAllChanges.key),
+			hasCreatedSessionGate: when.includes(SessionIsCreatedContext.key),
+		}, {
+			group: '1_diff',
+			order: 40,
+			icon: Codicon.discard.id,
+			hasDiscardAllGate: true,
+			hasCreatedSessionGate: true,
+		});
+	});
+	// test-workbench_change end
+
 	test('Diff View submenu is contributed for text and multi-diff editors in both Agents layouts', () => {
 		const getSubmenu = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isISubmenuItem)

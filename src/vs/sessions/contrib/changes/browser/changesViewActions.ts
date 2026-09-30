@@ -36,6 +36,8 @@ import { Menus } from '../../../browser/menus.js';
 import { CustomViewVisibleContext, SessionHasChangesContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { AGENT_HOST_DISCARD_ALL_CHANGES_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js'; // test-workbench_change
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
@@ -87,6 +89,14 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 			const changes = activeSession.changes.read(reader);
 			return changes.length > 0;
 		}));
+
+		// test-workbench_change start - true when the uncommitted changeset advertises "Discard All Changes".
+		this._register(bindContextKey(ActiveSessionContextKeys.CanDiscardAllChanges, contextKeyService, reader => {
+			const changesets = sessionsService.activeSession.read(reader)?.changesets.read(reader);
+			const uncommitted = changesets?.find(changeset => changeset.id === UNCOMMITTED_CHANGES_CHANGESET_ID);
+			return uncommitted?.operations.read(reader).some(operation => operation.id === AGENT_HOST_DISCARD_ALL_CHANGES_CHANGESET_OPERATION_ID) ?? false;
+		}));
+		// test-workbench_change end
 
 		this._register(bindContextKey(ChangesContextKeys.ViewMode, contextKeyService, reader => {
 			return changesViewService.viewModeObs.read(reader);
@@ -561,6 +571,42 @@ class GoToPreviousSessionChangesFileAction extends Action2 {
 }
 
 registerAction2(GoToPreviousSessionChangesFileAction);
+
+/** Discards the working-tree changes of every file in the Agents window Changes editor. */
+class DiscardAllSessionChangesAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.discardAllChanges';
+
+	constructor() {
+		super({
+			id: DiscardAllSessionChangesAction.ID,
+			title: localize2('agentSessions.discardAllChanges', "Discard All Changes"),
+			icon: Codicon.discard,
+			f1: false,
+			menu: {
+				id: Menus.SessionsEditorHeaderLayout,
+				group: '1_diff',
+				order: 40,
+				when: ContextKeyExpr.and(
+					singlePaneChangesEditorTitleVisible,
+					SessionIsCreatedContext,
+					ActiveSessionContextKeys.CanDiscardAllChanges,
+				),
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const changeset = accessor.get(ISessionsService).activeSession.get()
+			?.changesets.get()?.find(candidate => candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID);
+		const operation = changeset?.operations.get().find(op => op.id === AGENT_HOST_DISCARD_ALL_CHANGES_CHANGESET_OPERATION_ID);
+		if (!changeset || !operation) {
+			return;
+		}
+		await changeset.invokeOperation(operation.id);
+	}
+}
+
+registerAction2(DiscardAllSessionChangesAction);
 // test-workbench_change end
 
 // The Agents window reuses the workbench `toggle.diff.renderSideBySide` command so a

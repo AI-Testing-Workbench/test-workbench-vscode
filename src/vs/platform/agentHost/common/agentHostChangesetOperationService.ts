@@ -16,6 +16,9 @@ export const AGENT_HOST_MERGE_CHANGESET_OPERATION_ID = 'merge';
 export const AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID = 'checkout';
 export const AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID = 'commit';
 export const AGENT_HOST_SYNC_CHANGESET_OPERATION_ID = 'sync';
+// test-workbench_change start - changeset-scoped operation that discards every file's working-tree changes at once.
+export const AGENT_HOST_DISCARD_ALL_CHANGES_CHANGESET_OPERATION_ID = 'discard-all-changes';
+// test-workbench_change end
 
 /**
  * Changeset operations advertised for a branch that already has a pull

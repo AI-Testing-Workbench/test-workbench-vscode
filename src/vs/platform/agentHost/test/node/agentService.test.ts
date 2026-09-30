@@ -22250,7 +22250,7 @@ suite('AgentService (node dispatcher)', () => {
 					gitStateCalls: [{ resource: sourceDir.toString(), baseBranch: undefined }],
 					diffCalls: [sourceDir.toString()],
 					uncommittedFiles: [sourceFile],
-					uncommittedOperations: ['checkout', 'commit', 'discard-changes'],
+					uncommittedOperations: ['checkout', 'commit', 'discard-all-changes', 'discard-changes'], // test-workbench_change
 				},
 				afterMaterialization: {
 					workingDirectory: worktreeDir.toString(),

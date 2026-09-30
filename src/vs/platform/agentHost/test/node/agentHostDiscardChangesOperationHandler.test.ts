@@ -26,6 +26,7 @@ class TestGitService implements IAgentHostGitService {
 	restoreError: Error | undefined;
 	repositoryRoot = URI.file('/repo');
 	untrackedPaths: readonly string[] = [];
+	headOid: string | undefined = 'deadbeef';
 
 	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
 	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return undefined; }
@@ -61,7 +62,7 @@ class TestGitService implements IAgentHostGitService {
 	async commitTree(): Promise<undefined> { return undefined; }
 	async updateRef(): Promise<void> { }
 	async deleteRefs(): Promise<void> { }
-	async revParse(): Promise<string | undefined> { return undefined; }
+	async revParse(): Promise<string | undefined> { return this.headOid; }
 	async resolveBranchBaselineCommit(): Promise<string | undefined> { return undefined; }
 	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
 	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
@@ -85,7 +86,7 @@ class TestFileService extends mock<IFileService>() {
 	}
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly workingDirectory?: URI; readonly registerSession?: boolean }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; fileService: TestFileService; session: URI } {
+function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly workingDirectory?: URI; readonly registerSession?: boolean; readonly onDiscarded?: (sessionKey: string) => Promise<void> }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; fileService: TestFileService; session: URI } {
 	const gitService = new TestGitService();
 	const fileService = new TestFileService();
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -103,6 +104,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 	}
 	const handler = new AgentHostDiscardChangesOperationHandler(
 		sessionKey => stateManager.getSessionState(sessionKey),
+		opts?.onDiscarded ?? (async () => { }),
 		gitService,
 		fileService,
 		new NullLogService(),
@@ -344,4 +346,94 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 
 		assert.deepStrictEqual({ restoreCalls: gitService.restoreCalls.length }, { restoreCalls: 0 });
 	});
+
+	// test-workbench_change start - changeset-scoped "discard all" variant.
+	test('discard-all restores the whole working tree without touching the index', async () => {
+		const { handler, gitService, fileService, session } = setup(disposables);
+
+		const result = await handler.invoke({
+			channel: buildUncommittedChangesetUri(session.toString()),
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_ALL_CHANGES,
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			restoreCalls: gitService.restoreCalls,
+			deleteCalls: fileService.deleteCalls,
+			message: result.message,
+		}, {
+			// An empty path list means `git restore .` and no `--staged`, so staged changes survive.
+			restoreCalls: [{ workingDirectory: URI.file('/repo').toString(), paths: [], options: undefined }],
+			deleteCalls: [],
+			message: { markdown: 'Discarded all uncommitted changes.' },
+		});
+	});
+
+	test('discard-all deletes every untracked file from the repository root', async () => {
+		const workingDirectory = URI.file('/var/folders/repo');
+		const { handler, gitService, fileService, session } = setup(disposables, { workingDirectory });
+		gitService.repositoryRoot = URI.file('/private/var/folders/repo');
+		gitService.untrackedPaths = ['src/new.ts', 'docs/readme.md'];
+
+		await handler.invoke({
+			channel: buildUncommittedChangesetUri(session.toString()),
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_ALL_CHANGES,
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			restoreCalls: gitService.restoreCalls,
+			deleteCalls: fileService.deleteCalls,
+		}, {
+			restoreCalls: [{ workingDirectory: URI.file('/private/var/folders/repo').toString(), paths: [], options: undefined }],
+			deleteCalls: [
+				{ resource: URI.file('/private/var/folders/repo/src/new.ts').toString(), useTrash: true },
+				{ resource: URI.file('/private/var/folders/repo/docs/readme.md').toString(), useTrash: true },
+			],
+		});
+	});
+
+	test('discard-all skips restore in a repository with no commits', async () => {
+		const { handler, gitService, fileService, session } = setup(disposables);
+		gitService.headOid = undefined;
+		gitService.untrackedPaths = ['fresh.txt'];
+
+		await handler.invoke({
+			channel: buildUncommittedChangesetUri(session.toString()),
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_ALL_CHANGES,
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			restoreCalls: gitService.restoreCalls,
+			deleteCalls: fileService.deleteCalls,
+		}, {
+			restoreCalls: [],
+			deleteCalls: [{ resource: URI.file('/repo/fresh.txt').toString(), useTrash: true }],
+		});
+	});
+
+	test('discard-all refreshes the session after a successful discard', async () => {
+		const discarded: string[] = [];
+		const { handler, session } = setup(disposables, { onDiscarded: async sessionKey => { discarded.push(sessionKey); } });
+
+		await handler.invoke({
+			channel: buildUncommittedChangesetUri(session.toString()),
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_ALL_CHANGES,
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(discarded, [session.toString()]);
+	});
+
+	test('discard-all rejects channels that are not uncommitted-changeset URIs', async () => {
+		const { handler, gitService, session } = setup(disposables);
+
+		await assert.rejects(
+			() => handler.invoke({
+				channel: buildSessionChangesetUri(session.toString()),
+				operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_ALL_CHANGES,
+			}, CancellationToken.None),
+			(err: ProtocolError) => err.code === JsonRpcErrorCodes.InvalidParams,
+		);
+
+		assert.deepStrictEqual({ restoreCalls: gitService.restoreCalls.length }, { restoreCalls: 0 });
+	});
+	// test-workbench_change end
 });
