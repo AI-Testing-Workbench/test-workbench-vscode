@@ -360,6 +360,15 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.saveViewCustomizations();
 	}
 
+	// test-workbench_change start: Agents window relocates shared view containers into its own layout.
+	moveViewContainerToLocationForWindow(viewContainer: ViewContainer, location: ViewContainerLocation, reason?: string): void {
+		// Deliberately does not persist the move: the Agents window relocation must not
+		// leak into the editor window, which shares the same profile storage.
+		this.logger.value.trace(`moveViewContainerToLocationForWindow: viewContainer:${viewContainer.id} location:${location} reason:${reason}`);
+		this.moveViewContainerToLocationWithoutSaving(viewContainer, location);
+	}
+	// test-workbench_change end
+
 	getViewContainerBadgeEnablementState(id: string): boolean {
 		return this.viewContainerBadgeEnablementStates.get(id) ?? true;
 	}

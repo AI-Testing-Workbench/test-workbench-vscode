@@ -20,8 +20,9 @@ import { WorkspaceFolderCountContext } from '../../../../workbench/common/contex
 import { SESSIONS_FILES_EMPTY_VIEW_ID, SESSIONS_FILES_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SESSIONS_FILES_CONTAINER_ID } from '../../../common/sessionToolContainers.js'; // test-workbench_change
 
-export const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
+export { SESSIONS_FILES_CONTAINER_ID }; // test-workbench_change
 
 const filesViewIcon = registerIcon('sessions-files-view-icon', Codicon.files, localize2('sessionsFilesViewIcon', 'View icon of the files view in the sessions window.').value);
 

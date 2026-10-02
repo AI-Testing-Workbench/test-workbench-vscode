@@ -15,7 +15,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from '../../../common/views.js';
+import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, WindowEnablement } from '../../../common/views.js';
 import { SCMViewPaneContainer } from './scmViewPaneContainer.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ModesRegistry } from '../../../../editor/common/languages/modesRegistry.js';
@@ -62,6 +62,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 	alwaysUseContainerInfo: true,
 	order: 2,
 	hideIfEmpty: true,
+	windowEnablement: WindowEnablement.Both, // test-workbench_change: allow the Agents window to host Source Control
 }, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
@@ -100,7 +101,8 @@ viewsRegistry.registerViews([{
 	order: 0,
 	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
 	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
-	containerIcon: sourceControlViewIcon
+	containerIcon: sourceControlViewIcon,
+	windowEnablement: WindowEnablement.Both, // test-workbench_change: allowed in the Agents window
 }], viewContainer);
 
 viewsRegistry.registerViews([{
@@ -124,7 +126,8 @@ viewsRegistry.registerViews([{
 			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG },
 		},
 		order: 2,
-	}
+	},
+	windowEnablement: WindowEnablement.Both, // test-workbench_change: allowed in the Agents window
 }], viewContainer);
 
 viewsRegistry.registerViews([{
@@ -141,7 +144,8 @@ viewsRegistry.registerViews([{
 		ContextKeyExpr.has('scm.historyProviderCount'),
 		ContextKeyExpr.notEquals('scm.historyProviderCount', 0),
 	),
-	containerIcon: sourceControlViewIcon
+	containerIcon: sourceControlViewIcon,
+	windowEnablement: WindowEnablement.Both, // test-workbench_change: allowed in the Agents window
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)

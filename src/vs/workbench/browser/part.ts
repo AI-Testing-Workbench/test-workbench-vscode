@@ -111,7 +111,10 @@ export abstract class Part<MementoType extends object = object> extends Componen
 			throw new Error('Header already exists');
 		}
 
-		if (!this.parent || !this.titleArea) {
+		// test-workbench_change: the title area is not required for a header, which lets
+		// title-less parts (e.g. the Agents window single-pane auxiliary bar) host a top
+		// composite bar / activity bar.
+		if (!this.parent) {
 			return;
 		}
 

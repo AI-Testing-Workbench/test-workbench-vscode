@@ -8,10 +8,13 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
+import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { HasDockedDetailsContext } from '../../../../common/contextkeys.js';
+import { SESSIONS_FILES_TOOL_CONTAINER_IDS } from '../../../../common/sessionToolContainers.js'; // test-workbench_change
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
@@ -35,10 +38,14 @@ export class SinglePaneDetailPanelCoordinator extends Disposable {
 	private readonly _sequencer = new Sequencer();
 	private _generation = 0;
 	private _target = DetailPanelTarget.Preserve;
+	// test-workbench_change: remembers the last tool container picked in the Files tool's top bar,
+	// so returning to the Files tool restores that selection instead of resetting to Explorer.
+	private _preferredFilesToolContainerId: string | undefined;
 
 	constructor(
 		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
 		@IViewsService private readonly _viewsService: IViewsService,
+		@IPaneCompositePartService paneCompositePartService: IPaneCompositePartService,
 		@ISessionsService sessionsService: ISessionsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -47,6 +54,15 @@ export class SinglePaneDetailPanelCoordinator extends Disposable {
 		this._register(this._layoutService.onDidChangePartVisibility(event => {
 			if (event.partId === Parts.AUXILIARYBAR_PART && event.visible) {
 				this._queueTarget(this._target);
+			}
+		}));
+		// test-workbench_change: track the top bar's last explicit selection.
+		this._register(paneCompositePartService.onDidPaneCompositeOpen(({ composite, viewContainerLocation }) => {
+			if (viewContainerLocation === ViewContainerLocation.AuxiliaryBar) {
+				const id = composite.getId();
+				if (SESSIONS_FILES_TOOL_CONTAINER_IDS.includes(id)) {
+					this._preferredFilesToolContainerId = id;
+				}
 			}
 		}));
 		this._register(autorun(reader => {
@@ -85,7 +101,8 @@ export class SinglePaneDetailPanelCoordinator extends Disposable {
 				return;
 			case DetailPanelTarget.Files:
 			case DetailPanelTarget.FilesForced:
-				await this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
+				// test-workbench_change: restore the last tool selected in the Files tool's top bar.
+				await this._viewsService.openViewContainer(this._preferredFilesToolContainerId ?? SESSIONS_FILES_CONTAINER_ID, false);
 				return;
 			case DetailPanelTarget.Hidden:
 			case DetailPanelTarget.EditorHidden:

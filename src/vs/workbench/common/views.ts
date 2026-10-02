@@ -628,6 +628,16 @@ export interface IViewDescriptorService {
 	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }>;
 	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number, reason?: string): void;
 
+	// test-workbench_change start: Agents window relocates shared view containers into its own layout.
+	/**
+	 * Moves a view container to the given location for the current window **without
+	 * persisting** the move. Used by the Agents window to place shared view containers
+	 * (e.g. Source Control, Extensions) in its auxiliary bar. Unlike
+	 * {@link moveViewContainerToLocation} this is not gated by {@link canMoveViews}.
+	 */
+	moveViewContainerToLocationForWindow(viewContainer: ViewContainer, location: ViewContainerLocation, reason?: string): void;
+	// test-workbench_change end
+
 	getViewContainerBadgeEnablementState(id: string): boolean;
 	setViewContainerBadgeEnablementState(id: string, badgesEnabled: boolean): void;
 

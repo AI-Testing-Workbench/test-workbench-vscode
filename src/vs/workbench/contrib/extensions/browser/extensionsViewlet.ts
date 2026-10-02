@@ -31,7 +31,7 @@ import Severity from '../../../../base/common/severity.js';
 import { IActivityService, IBadge, NumberBadge, WarningBadge } from '../../../services/activity/common/activity.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef, ViewContainerLocation, IViewContainersRegistry } from '../../../common/views.js';
+import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef, ViewContainerLocation, IViewContainersRegistry, WindowEnablement } from '../../../common/views.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -152,6 +152,14 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 			),
 			order: -1,
 		});
+
+		// test-workbench_change start: allow the Agents window to host the Extensions views.
+		for (const viewDescriptor of viewDescriptors) {
+			if (viewDescriptor.windowEnablement === undefined) {
+				Object.defineProperty(viewDescriptor, 'windowEnablement', { value: WindowEnablement.Both, enumerable: true, configurable: true });
+			}
+		}
+		// test-workbench_change end
 
 		const viewRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewRegistry.registerViews(viewDescriptors, this.container);

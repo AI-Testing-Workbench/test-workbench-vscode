@@ -283,6 +283,8 @@ import '../workbench/contrib/git/browser/git.contributions.js';
 // SCM
 import '../workbench/contrib/scm/browser/quickDiff.contribution.js';
 import '../workbench/contrib/scm/browser/scm.service.contribution.js';
+import '../workbench/contrib/scm/browser/scm.contribution.js'; // test-workbench_change: Source Control tool for the Agents window
+import '../workbench/contrib/extensions/browser/extensions.contribution.js'; // test-workbench_change: Extensions tool for the Agents window
 
 // Debug (service)
 import { NullDebugService, NullDebugVisualizerService } from '../workbench/contrib/debug/common/nullDebugService.js';
@@ -491,6 +493,8 @@ import './contrib/configuration/browser/configuration.contribution.js';
 import './contrib/browserView/browser/sessionBrowserView.contribution.js';
 import './contrib/editor/browser/editor.contribution.js';
 import './contrib/extensions/browser/extensions.contribution.js';
+import './contrib/layout/browser/auxiliaryBarToolViews.contribution.js'; // test-workbench_change: relocate shared tool containers into the auxiliary bar
+import './contrib/scm/browser/scmWorkspaceFilter.contribution.js'; // test-workbench_change: scope Source Control to the active session workspace
 
 import './contrib/terminal/browser/sessionsTerminalContribution.js';
 import './contrib/chatDebug/browser/chatDebug.contribution.js';

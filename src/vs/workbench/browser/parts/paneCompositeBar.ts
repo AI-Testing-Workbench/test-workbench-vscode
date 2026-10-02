@@ -80,6 +80,8 @@ export interface IPaneCompositeBarOptions {
 	readonly compositeSize: number;
 	readonly overflowActionSize: number;
 	readonly preventLoopNavigation?: boolean;
+	// test-workbench_change: allows a part to surface only a subset of the view containers at its location.
+	readonly filterViewContainer?: (viewContainer: ViewContainer) => boolean;
 	readonly activityHoverOptions: IActivityHoverOptions;
 	readonly fillExtraContextMenuActions: (actions: IAction[], e?: MouseEvent | GestureEvent) => void;
 	readonly colors: (theme: IColorTheme) => ICompositeBarColors;
@@ -271,6 +273,10 @@ export class PaneCompositeBar extends Disposable {
 		for (const { id } of this.cachedViewContainers) {
 			const viewContainer = this.getViewContainer(id);
 			if (viewContainer) {
+				// test-workbench_change
+				if (this.isViewContainerFilteredOut(viewContainer)) {
+					continue;
+				}
 				this.showOrHideViewContainer(viewContainer);
 			} else {
 				if (this.viewDescriptorService.isViewContainerRemovedPermanently(id)) {
@@ -287,6 +293,11 @@ export class PaneCompositeBar extends Disposable {
 	private onDidViewContainerVisible(id: string): void {
 		const viewContainer = this.getViewContainer(id);
 		if (viewContainer) {
+
+			// test-workbench_change
+			if (this.isViewContainerFilteredOut(viewContainer)) {
+				return;
+			}
 
 			// Update the composite bar by adding
 			this.addComposite(viewContainer);
@@ -337,6 +348,11 @@ export class PaneCompositeBar extends Disposable {
 
 	private onDidRegisterViewContainers(viewContainers: readonly ViewContainer[]): void {
 		for (const viewContainer of viewContainers) {
+			// test-workbench_change
+			if (this.isViewContainerFilteredOut(viewContainer)) {
+				continue;
+			}
+
 			this.addComposite(viewContainer);
 
 			// Pin it by default if it is new
@@ -520,8 +536,15 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private getViewContainers(): readonly ViewContainer[] {
-		return this.viewDescriptorService.getViewContainersByLocation(this.location);
+		return this.viewDescriptorService.getViewContainersByLocation(this.location)
+			.filter(viewContainer => !this.isViewContainerFilteredOut(viewContainer)); // test-workbench_change
 	}
+
+	// test-workbench_change start
+	private isViewContainerFilteredOut(viewContainer: ViewContainer): boolean {
+		return this.options.filterViewContainer ? !this.options.filterViewContainer(viewContainer) : false;
+	}
+	// test-workbench_change end
 
 	private updateCompositeBarItemsFromStorage(retainExisting: boolean): void {
 		if (this.pinnedViewContainersValue === this.getStoredPinnedViewContainersValue()) {
@@ -536,6 +559,11 @@ export class PaneCompositeBar extends Disposable {
 		const compositeItems = this.compositeBar.getCompositeBarItems();
 
 		for (const cachedViewContainer of this.cachedViewContainers) {
+			// test-workbench_change: never resurrect a container hidden by the part's filter
+			const cachedViewContainerRef = this.getViewContainer(cachedViewContainer.id);
+			if (cachedViewContainerRef && this.isViewContainerFilteredOut(cachedViewContainerRef)) {
+				continue;
+			}
 			newCompositeItems.push({
 				id: cachedViewContainer.id,
 				name: cachedViewContainer.name,
