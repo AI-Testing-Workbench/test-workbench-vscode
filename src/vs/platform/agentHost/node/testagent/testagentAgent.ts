@@ -77,6 +77,23 @@ import { fetchTestAgentCustomizations, userTestagentConfigRoot } from './testage
 const TESTAGENT_STARTUP_TIMEOUT = 90_000; // test-workbench_change — 30s→90s：163MB bun 单文件二进制在 macOS 首次 exec 需冷签名验证+页载入(企业 EDR 还会首扫),实测首轮 30s 内未打出 listening 被误杀,第二次 spawn 才 12s 就绪
 const TESTAGENT_REQUEST_TIMEOUT = 120_000;
 
+// test-workbench_change start — 全局会话发现分页参数。仅取元数据(标题/目录/时间),按
+// time_updated 倒序;每页上限与最大页数共同约束一次发现的网络/DB 成本。
+const TESTAGENT_DISCOVERY_PAGE_SIZE = 100;
+const TESTAGENT_DISCOVERY_MAX_PAGES = 50;
+// test-workbench_change end
+
+// test-workbench_change start — testagent 原生会话行(`/session/` 与 `/experimental/session` 均返回)
+interface ITestAgentDiscoveryRow {
+	readonly id: string;
+	readonly title?: string;
+	readonly slug?: string;
+	readonly parentID?: string;
+	readonly directory?: string;
+	readonly time?: { readonly created?: number; readonly updated?: number; readonly archived?: number | null };
+}
+// test-workbench_change end
+
 // test-workbench_change — server tool MCP 桥暴露给后端的工具白名单(均为 session 作用域、无需 host 确认)。
 const MCP_BRIDGED_SERVER_TOOL_NAMES: readonly string[] = [
 	ArtifactServerToolName.AddArtifactOrReference,
@@ -260,6 +277,14 @@ export class TestAgent extends Disposable implements IAgent {
 	/** 多 chat 支持:chat channel URI → TestAgentSession(peer chat 拥有独立 testagent 会话) */
 	private readonly _peerChatSessions = new Map<string, ITestAgentSession>();
 	private readonly _toolSets = new Map<string, ActiveClientToolSet>();
+	/**
+	 * test-workbench_change — testagent 原生会话 id → 其工作目录缓存。
+	 * workspace-routing 按 `x-opencode-directory` 定位 instance:provider 侧的
+	 * `GET /session/:id` / materialize 等若不带头会落到后端 process.cwd(),
+	 * 跨目录会话取不到(404)或取到错误 instance。发现全局 catalog 与创建会话时
+	 * 回填本表,并持久化以便重启后仍能定位。
+	 */
+	private readonly _directoryByTestAgentId = new Map<string, string>();
 	private _serverToolHost: IAgentServerToolHost | undefined;
 	private _eventStream: TestAgentEventStream | undefined;
 	private _connection: ConnectionState = { kind: 'idle' };
@@ -619,9 +644,11 @@ export class TestAgent extends Disposable implements IAgent {
 		// (保住历史),而不是再建一个空会话。 // test-workbench_change
 		if (config.session) {
 			session.knownTestAgentSessionId = this._getTestAgentId(sessionId);
+			if (session.knownTestAgentSessionId) { this._rememberSessionDirectory(session.knownTestAgentSessionId, workingDirectory.fsPath); }
 		}
 		session.onSessionCreated = (testagentSessionId) => {
 			this._rememberTestAgentId(sessionId, testagentSessionId);
+			this._rememberSessionDirectory(testagentSessionId, workingDirectory.fsPath);
 		};
 
 		this._sessions.set(sessionId, session);
@@ -737,16 +764,22 @@ export class TestAgent extends Disposable implements IAgent {
 		const isDefault = isDefaultChatUri(chat);
 		if (isDefault ? this._sessions.has(sessionId) : this._peerChatSessions.has(chat.toString())) { return; }
 
-		const testagentId = providerData ?? (isDefault ? this._getTestAgentId(sessionId) : undefined);
+		// test-workbench_change — 外部发现的会话其 AH session id 即 testagent 原生 id,
+		// 映射文件无记录时回退到 sessionId(发现阶段已回填目录证明其真实存在)。
+		const testagentId = providerData
+			?? (isDefault ? (this._getTestAgentId(sessionId) ?? (this._hasSessionDirectory(sessionId) ? sessionId : undefined)) : undefined);
 		if (testagentId === undefined) {
 			this._logService.warn(`[TestAgent] materializeChat: no providerData for ${chat.toString()}; chat restores with history but no live backing`);
 			return;
 		}
 		try {
 			const ready = await this._ensureConnection();
-			// 验证 testagent 侧会话仍存在(拿到规范 ID),不存在则降级
-			const info = await this._request<{ id: string }>(ready, 'GET', `/session/${testagentId}`);
+			// 验证 testagent 侧会话仍存在(拿到规范 ID),不存在则降级。带上工作目录:多目录
+			// 共享后端下,不带 `x-opencode-directory` 会路由到错误 instance 而 404。
+			const info = await this._request<{ id: string; directory?: string }>(ready, 'GET', `/session/${testagentId}`, undefined, this._directoryUriFor(testagentId));
 			const canonicalId = info.id ?? testagentId;
+			const workingDirectory = info.directory ? URI.file(info.directory) : undefined;
+			if (info.directory) { this._rememberSessionDirectory(canonicalId, info.directory); }
 			const backingId = isDefault ? sessionId : sessionId + '-fork-' + generateUuid().slice(0, 8);
 			const session = new TestAgentSession(
 				backingId, sessionUri,
@@ -756,8 +789,10 @@ export class TestAgent extends Disposable implements IAgent {
 				chat,
 			);
 			session.testagentSessionId = canonicalId;
+			// 先落工作目录,后续 getMessages / abort / fork 等会话级请求才会带对目录。
+			if (workingDirectory) { session.setWorkingDirectory(workingDirectory); }
 			this._sessions.set(backingId, session);
-			this._bindSessionCustomizations(session, undefined); // test-workbench_change — turn 结束广播+用户级目录监听
+			this._bindSessionCustomizations(session, workingDirectory); // test-workbench_change — turn 结束广播+用户级目录监听
 			if (isDefault) {
 				this._rememberTestAgentId(sessionId, canonicalId);
 			} else {
@@ -796,15 +831,20 @@ export class TestAgent extends Disposable implements IAgent {
 		if (this._connection.kind !== 'ready') { return undefined; }
 		const ready = this._connection;
 		try {
-			const sessionList = await this._request<Array<{
-				id: string; title?: string; slug?: string; parentID?: string;
-				directory?: string; time?: { created?: number; updated?: number; archived?: number | null };
-			}>>(ready, 'GET', '/session/');
+			// test-workbench_change start — 用全局 catalog(`GET /experimental/session`,
+			// 即 Session.listGlobal)而非按 instance 的 `GET /session/`。后者不带
+			// `x-opencode-directory` 时会落到后端 process.cwd() 的 project,只能看到
+			// “服务器默认目录”的会话,导致编辑器模式/其它工作区创建的历史会话在
+			// Agents 窗口发现不到。全局列表跨 project、按 time_updated 倒序,行内含
+			// directory,可正确按工作区分组;旧后端无该路由时回退到实例列表。
+			const sessionList = await this._listNativeSessionsForDiscovery(ready);
 			const now = Date.now();
-			return sessionList
+			const discoveredDirectories = new Map<string, string>();
+			const chats = sessionList
 				// task/subagent 派生的子会话与归档会话不作为顶层 external session 浮现
 				.filter(s => !s.parentID && s.time?.archived === undefined)
 				.map(s => {
+					if (s.directory) { discoveredDirectories.set(s.id, s.directory); }
 					const chat = URI.parse(buildDefaultChatUri(AgentSession.uri(this.id, s.id)));
 					return {
 						chat,
@@ -814,11 +854,47 @@ export class TestAgent extends Disposable implements IAgent {
 						workingDirectories: s.directory ? [URI.file(s.directory)] : undefined,
 					} satisfies IAgentChatMetadata;
 				});
+			this._rememberSessionDirectories(discoveredDirectories);
+			return chats;
+			// test-workbench_change end
 		} catch (err) {
 			this._logService.warn(`[TestAgent] native session catalog failed: ${err}`);
 			return undefined;
 		}
 	}
+
+	// test-workbench_change start
+	/**
+	 * 拉取跨 project 的原生会话元数据。优先 `/experimental/session`(listGlobal,cursor
+	 * 分页);后端不支持时(404/解析失败)回退 `/session/` 的实例列表,保证旧后端仍可用。
+	 */
+	private async _listNativeSessionsForDiscovery(ready: ConnectionReady): Promise<ITestAgentDiscoveryRow[]> {
+		try {
+			return await this._listNativeSessionsGlobal(ready);
+		} catch (err) {
+			this._logService.info(`[TestAgent] global session catalog unavailable, falling back to instance list: ${err}`);
+			return await this._request<ITestAgentDiscoveryRow[]>(ready, 'GET', '/session/');
+		}
+	}
+
+	/** `GET /experimental/session` + cursor 分页,直到取尽或达到页数上限。 */
+	private async _listNativeSessionsGlobal(ready: ConnectionReady): Promise<ITestAgentDiscoveryRow[]> {
+		const rows: ITestAgentDiscoveryRow[] = [];
+		let cursor: string | undefined;
+		for (let page = 0; page < TESTAGENT_DISCOVERY_MAX_PAGES; page++) {
+			const query = new URLSearchParams({ roots: 'true', limit: String(TESTAGENT_DISCOVERY_PAGE_SIZE) });
+			if (cursor !== undefined) { query.set('cursor', cursor); }
+			const { data, headers } = await this._requestWithHeaders<ITestAgentDiscoveryRow[]>(
+				ready, 'GET', `/experimental/session?${query.toString()}`,
+			);
+			rows.push(...data);
+			const next = headers.get('x-next-cursor') ?? undefined;
+			if (!next || next === cursor || data.length === 0) { break; }
+			cursor = next;
+		}
+		return rows;
+	}
+	// test-workbench_change end
 
 	/** registry 命中 + 本 provider 自有 backing(default/peer/fork/subagent)都算 known。 */
 	private async _knownChatSessionKeys(chats: readonly IAgentChatMetadata[]): Promise<ReadonlySet<string>> {
@@ -890,7 +966,12 @@ export class TestAgent extends Disposable implements IAgent {
 		const testagentId = providerData
 			?? this._sessions.get(sessionId)?.testagentSessionId
 			?? this._peerChatSessions.get(chat.toString())?.testagentSessionId
-			?? this._getTestAgentId(sessionId);
+			?? this._getTestAgentId(sessionId)
+			// test-workbench_change — 外部发现的会话其 AH session id 即 testagent 原生 id
+			// (发现时按 AgentSession.uri(id, s.id) 构造),映射文件里没有记录;仅当发现阶段
+			// 已回填目录(证明是真实存在的原生会话)时才回退到 sessionId,避免草稿/未
+			// materialize 的会话被误当作后端会话。
+			?? (isDefaultChatUri(chat) && this._hasSessionDirectory(sessionId) ? sessionId : undefined);
 		if (!testagentId) { return undefined; }
 		try {
 			const ready = await this._ensureConnection();
@@ -901,7 +982,8 @@ export class TestAgent extends Disposable implements IAgent {
 				id?: string; title?: string; slug?: string; directory?: string;
 				model?: { id?: string; providerID?: string };
 				time?: { created?: number; updated?: number };
-			}>(ready, 'GET', `/session/${testagentId}`);
+			}>(ready, 'GET', `/session/${testagentId}`, undefined, this._directoryUriFor(testagentId));
+			if (info.directory) { this._rememberSessionDirectory(info.id ?? testagentId, info.directory); }
 			return {
 				chat,
 				startTime: info.time?.created ?? fallback?.startTime ?? now,
@@ -1749,12 +1831,89 @@ export class TestAgent extends Disposable implements IAgent {
 		return this._sessionMapPath;
 	}
 
+	// ── Session directory cache ────────────────────────────────────────────
+	// test-workbench_change — testagent 原生会话 id → 工作目录。发现(catalog)与创建会话时
+	// 回填;provider 侧 `GET /session/:id` 等请求据此带上 `x-opencode-directory`,避免多目录
+	// 共享后端下路由到 process.cwd() 的错误 instance。
+
+	private _directoryMapPath: string | undefined;
+	private _directoryMapLoaded = false;
+
+	/** 解析原生会话的工作目录为 URI(供请求头使用)。 */
+	private _directoryUriFor(testagentSessionId: string): URI | undefined {
+		const directory = this._getSessionDirectory(testagentSessionId);
+		return directory ? URI.file(directory) : undefined;
+	}
+
+	private _getSessionDirectory(testagentSessionId: string): string | undefined {
+		if (!this._directoryMapLoaded) { this._loadDirectoryMap(); }
+		return this._directoryByTestAgentId.get(testagentSessionId);
+	}
+
+	/** 是否存在该原生会话的工作目录记录(会确保持久化映射已加载)。 */
+	private _hasSessionDirectory(testagentSessionId: string): boolean {
+		if (!this._directoryMapLoaded) { this._loadDirectoryMap(); }
+		return this._directoryByTestAgentId.has(testagentSessionId);
+	}
+
+	private _rememberSessionDirectory(testagentSessionId: string, directory: string): void {
+		this._rememberSessionDirectories(new Map([[testagentSessionId, directory]]));
+	}
+
+	/** 批量回填并一次性持久化,避免发现阶段逐条写文件。 */
+	private _rememberSessionDirectories(entries: ReadonlyMap<string, string>): void {
+		if (entries.size === 0) { return; }
+		if (!this._directoryMapLoaded) { this._loadDirectoryMap(); }
+		let changed = false;
+		for (const [testagentSessionId, directory] of entries) {
+			if (testagentSessionId && directory && this._directoryByTestAgentId.get(testagentSessionId) !== directory) {
+				this._directoryByTestAgentId.set(testagentSessionId, directory);
+				changed = true;
+			}
+		}
+		if (changed) { this._saveDirectoryMap(); }
+	}
+
+	private _loadDirectoryMap(): void {
+		this._directoryMapLoaded = true;
+		try {
+			const parsed = JSON.parse(fs.readFileSync(this._directoryMapFile(), 'utf8')) as Record<string, unknown>;
+			for (const [key, value] of Object.entries(parsed)) {
+				if (typeof value === 'string') { this._directoryByTestAgentId.set(key, value); }
+			}
+		} catch { /* missing/corrupt: start empty */ }
+	}
+
+	private _saveDirectoryMap(): void {
+		try {
+			const file = this._directoryMapFile();
+			fs.mkdirSync(dirname(file), { recursive: true });
+			fs.writeFileSync(file, JSON.stringify(Object.fromEntries(this._directoryByTestAgentId), null, 2), 'utf8');
+		} catch (err) {
+			this._logService.warn(`[TestAgent] failed to persist session directory map: ${err}`);
+		}
+	}
+
+	private _directoryMapFile(): string {
+		if (!this._directoryMapPath) {
+			this._directoryMapPath = join(os.homedir(), '.tscode-agent-host', 'testagent-session-directories.json');
+		}
+		return this._directoryMapPath;
+	}
+
 	// ── HTTP helpers ───────────────────────────────────────────────────────
 
-	private async _request<T>(ready: ConnectionReady, method: string, path: string, body?: unknown): Promise<T> {
+	private async _request<T>(ready: ConnectionReady, method: string, path: string, body?: unknown, directory?: URI): Promise<T> {
+		return (await this._requestWithHeaders<T>(ready, method, path, body, directory)).data;
+	}
+
+	private async _requestWithHeaders<T>(ready: ConnectionReady, method: string, path: string, body?: unknown, directory?: URI): Promise<{ readonly data: T; readonly headers: { get(name: string): string | null } }> {
 		const url = `${ready.baseUrl}${path}`;
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 		if (ready.authHeader) { headers.Authorization = ready.authHeader; }
+		// test-workbench_change — workspace-routing 按 x-opencode-directory 定位实例;
+		// 不带该头会落到后端 process.cwd(),跨目录会话取不到或取到错误 instance。
+		if (directory) { headers['x-opencode-directory'] = encodeURIComponent(directory.fsPath); }
 
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), TESTAGENT_REQUEST_TIMEOUT);
@@ -1769,7 +1928,7 @@ export class TestAgent extends Disposable implements IAgent {
 			if (!resp.ok) {
 				throw new Error(`TestAgent ${method} ${path} failed: HTTP ${resp.status}`);
 			}
-			return await resp.json() as T;
+			return { data: await resp.json() as T, headers: resp.headers };
 		} finally {
 			clearTimeout(timer);
 		}

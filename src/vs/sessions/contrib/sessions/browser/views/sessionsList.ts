@@ -3049,7 +3049,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private static readonly EXCLUDE_READ_KEY = 'sessionsListControl.excludeRead';
 	private static readonly SHOW_EMPTY_GROUPS_KEY = 'sessionsListControl.showEmptyGroups';
 	private static readonly WORKSPACE_GROUP_CAPPED_KEY = 'sessionsListControl.workspaceGroupCapped';
-	private static readonly DEFAULT_SESSION_GROUP_LIMIT = 5;
+	private static readonly DEFAULT_SESSION_GROUP_LIMIT = 10; // test-workbench_change — 5→10:工作区/自定义分组默认只展示前 10 条,其余经 “+N more” 展开
 
 	/**
 	 * Experiment treatment that overrides how many sessions are shown per group

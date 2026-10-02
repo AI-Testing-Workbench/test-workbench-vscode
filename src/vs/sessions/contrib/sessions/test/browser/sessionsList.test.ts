@@ -1004,7 +1004,7 @@ suite('Sessions - SessionsList', () => {
 		for (const grouped of [false, true]) {
 			const kind = grouped ? 'group' : 'workspace';
 
-			test(`prioritizes input, inactive CI failures, then unread in a ${kind}`, () => {
+			test(`prioritizes input, inactive CI failures, then unread in a ${kind}`, async () => {
 				const unread = createTestSession('Unread', { isRead: false });
 				const failingCI = createTestSession('Failing CI');
 				const needsInput = createTestSession('Needs input');
@@ -1013,7 +1013,9 @@ suite('Sessions - SessionsList', () => {
 				const { list, container, failingCISessions } = renderList(sessions, grouped ? {
 					groups: [group],
 					memberships: new Map(sessions.map(session => [session.sessionId, group.id])),
-				} : {});
+					sessionGroupLimit: 5,
+				} : { sessionGroupLimit: 5 });
+				await Promise.resolve();
 				failingCISessions.set([failingCI.session], undefined);
 				const label = grouped ? group.name : 'Workspace';
 				const header = getHeader(container, label);
@@ -1057,7 +1059,7 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 
-			test(`prioritizes needs-input behind show more and reacts to status changes in a ${kind}`, () => {
+			test(`prioritizes needs-input behind show more and reacts to status changes in a ${kind}`, async () => {
 				const unread = createTestSession('Unread', { isRead: false });
 				const needsInput = createTestSession('Needs input', { status: SessionStatus.NeedsInput });
 				const sessions = [unread.session, ...Array.from({ length: 4 }, (_, index) => createTestSession(`Read ${index}`).session), needsInput.session]
@@ -1065,7 +1067,9 @@ suite('Sessions - SessionsList', () => {
 				const { list, container } = renderList(sessions, grouped ? {
 					groups: [group],
 					memberships: new Map(sessions.map(session => [session.sessionId, group.id])),
-				} : {});
+					sessionGroupLimit: 5,
+				} : { sessionGroupLimit: 5 });
+				await Promise.resolve();
 				const label = grouped ? group.name : 'Workspace';
 				const header = getHeader(container, label);
 				const getStatus = () => header.querySelector('.monaco-pixel-spinner-ring') ? 'needsInput' : header.querySelector('.codicon-circle-filled') ? 'unread' : 'none';
@@ -1152,7 +1156,7 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 
-			test(`includes unread sessions behind show more in a collapsed ${kind}`, () => {
+			test(`includes unread sessions behind show more in a collapsed ${kind}`, async () => {
 				const sessions = Array.from({ length: 6 }, (_, index) => ({
 					...createTestSession(`Session ${index}`, { isRead: index !== 5 }).session,
 					createdAt: new Date(Date.now() - index * 1000),
@@ -1160,7 +1164,9 @@ suite('Sessions - SessionsList', () => {
 				const { list, container } = renderList(sessions, grouped ? {
 					groups: [group],
 					memberships: new Map(sessions.map(session => [session.sessionId, group.id])),
-				} : {});
+					sessionGroupLimit: 5,
+				} : { sessionGroupLimit: 5 });
+				await Promise.resolve();
 				const visibleTitles = [...container.querySelectorAll('.session-title')].map(title => title.textContent);
 
 				list.collapseAllSections();
@@ -2733,14 +2739,14 @@ suite('Sessions - SessionsList', () => {
 					showMore: [...container.querySelectorAll('.session-show-more-label')].map(label => label.textContent),
 				});
 				const before = snapshot();
-				const target = harness.store.add(list.revealArchiveAction(sessions[9]));
+				const target = harness.store.add(list.revealArchiveAction(sessions[10]));
 				const during = snapshot();
 				target.dispose();
 
 				assert.deepStrictEqual({ before, during, after: snapshot() }, {
-					before: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4'], showMore: ['+7 more'] },
-					during: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 9'], showMore: ['+6 more'] },
-					after: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4'], showMore: ['+7 more'] },
+					before: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 5', 'Session 6', 'Session 7', 'Session 8', 'Session 9'], showMore: ['+2 more'] },
+					during: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 5', 'Session 6', 'Session 7', 'Session 8', 'Session 9', 'Session 10'], showMore: ['+1 more'] },
+					after: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 5', 'Session 6', 'Session 7', 'Session 8', 'Session 9'], showMore: ['+2 more'] },
 				});
 			});
 		}

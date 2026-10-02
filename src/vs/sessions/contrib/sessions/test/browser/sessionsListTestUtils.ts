@@ -186,6 +186,8 @@ export interface IListHarnessOptions {
 	readonly groups?: readonly ISessionGroup[];
 	readonly memberships?: ReadonlyMap<string, string>;
 	readonly pinnedSessionIds?: ReadonlySet<string>;
+	/** Overrides the per-group session cap; defaults to the product default when omitted. */
+	readonly sessionGroupLimit?: number;
 }
 
 type ConfigureListHarness = (instantiationService: TestInstantiationService) => void;
@@ -247,7 +249,12 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	});
 	instantiationService.stub(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
 		override readonly onDidRefetchAssignments = Event.None;
-		override async getTreatment<T extends string | number | boolean>(): Promise<T | undefined> { return undefined; }
+		override getTreatment<T extends string | number | boolean>(treatment: string): Promise<T | undefined> {
+			// test-workbench_change — 让依赖分组上限的用例可显式固定 cap,而不受产品默认值影响。
+			// 用例需 `await Promise.resolve()` 让该 treatment 生效后再断言。
+			const value = treatment === 'sessions.workspaceGroupLimit' ? options.sessionGroupLimit as T | undefined : undefined;
+			return Promise.resolve(value);
+		}
 	});
 	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override readonly onDidChangeProviders = Event.None;
