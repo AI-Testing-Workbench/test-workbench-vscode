@@ -132,62 +132,99 @@ interface ForkPart {
 }
 
 /**
- * 将 fork 的 `{ info, parts }` 消息记录转换为 agent host 协议的 Turn。
- * 用户消息 → Turn.message;助手消息 → Turn.responseParts(text→markdown、reasoning→reasoning)。
+ * 将 fork 的 `{ info, parts }` 消息记录按回合重建为 agent host 协议的 Turn。
+ *
+ * v1-plan 语义:一条 user 记录开启一个新 Turn(`Turn.message`,origin=User);其后的
+ * assistant 记录(一次 LLM step 一条,同一回合可能多条)把 text/reasoning/tool parts
+ * 依次追加到该 Turn 的 `responseParts`。绝不能把 assistant 回复文本写进 `Turn.message`
+ * ——那是"发起回合的消息",否则 reload 后会被渲染成用户消息。
+ *
+ * `Turn.id` 取该回合最后一条后端消息 id,作为截断/fork 的锚点,与 live 的
+ * `_hostTurnAnchors` 锚点语义一致(live host turnId → 本轮最后一条消息)。 // test-workbench_change
  */
-function forkMessageToTurn(record: { info: ForkMessageInfo; parts?: ForkPart[] }): Turn {
-	const { info, parts = [] } = record;
-	const isUser = info.role === 'user';
+function forkMessagesToTurns(records: ReadonlyArray<{ info: ForkMessageInfo; parts?: ForkPart[] }>): Turn[] {
+	const turns: Turn[] = [];
+	let pending: {
+		message: Message;
+		responseParts: ResponsePart[];
+		usage: Turn['usage'];
+		/** 该回合锚点:最后一条后端消息 id(无 assistant 时回落 user id) */
+		anchorId: string;
+		startedAt: string | undefined;
+	} | undefined;
 
-	// 用户消息的文本来自其 text part(或 info.text);跳过 synthetic(工具调用/结果的文本化内容) // test-workbench_change
-	const textParts = parts.filter(p => p.type === 'text' && typeof p.text === 'string' && !p.synthetic);
-	const text = (isUser ? (info.text ?? '') : '') || textParts.map(p => p.text).join('\n');
+	const flush = (): void => {
+		if (!pending) { return; }
+		turns.push({
+			id: pending.anchorId,
+			startedAt: pending.startedAt,
+			message: pending.message,
+			responseParts: pending.responseParts,
+			usage: pending.usage,
+			state: TurnState.Complete,
+		});
+		pending = undefined;
+	};
 
-	const responseParts: ResponsePart[] = [];
-	for (const part of parts) {
-		const partId = part.id ?? generateUuid();
-		if (part.type === 'text' && typeof part.text === 'string' && !part.synthetic) {
-			responseParts.push({ kind: ResponsePartKind.Markdown, id: partId, content: part.text });
-		} else if (part.type === 'reasoning' && typeof part.text === 'string') {
-			responseParts.push({ kind: ResponsePartKind.Reasoning, id: partId, content: part.text });
-		} else if (part.type === 'tool' && part.callID && part.tool) {
-			const status = part.state?.status;
-			responseParts.push({
-				kind: ResponsePartKind.ToolCall,
-				// fork 协议字段(title/output)与协议 ToolCallState 不完全一致,需断言 // test-workbench_change
-				// eslint-disable-next-line local/code-no-dangerous-type-assertions
-				toolCall: {
-					toolCallId: part.callID,
-					toolName: part.tool,
-					status: status === 'completed' ? 'completed' : status === 'error' ? 'error' : 'pending',
-					title: part.state?.title,
-					output: part.state?.output,
-					error: part.state?.error ? { message: part.state.error } : undefined,
-				} as unknown as ToolCallState,
-			});
+	for (const { info, parts = [] } of records) {
+		if (info.role === 'user') {
+			// 用户消息的文本来自其 text part(或 info.text);跳过 synthetic(工具调用/结果的文本化内容) // test-workbench_change
+			const textParts = parts.filter(p => p.type === 'text' && typeof p.text === 'string' && !p.synthetic);
+			const text = (info.text ?? '') || textParts.map(p => p.text).join('\n');
+			flush();
+			pending = {
+				message: { text, origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+				anchorId: info.id,
+				startedAt: info.time?.created ? new Date(info.time.created).toISOString() : undefined,
+			};
+			continue;
 		}
+
+		// assistant 记录:并入当前 Turn 的 responseParts。没有前置 user(异常)时丢弃,
+		// 避免把回复伪造成一个用户 Turn。 // test-workbench_change
+		if (!pending) {
+			continue;
+		}
+
+		for (const part of parts) {
+			const partId = part.id ?? generateUuid();
+			if (part.type === 'text' && typeof part.text === 'string' && !part.synthetic) {
+				pending.responseParts.push({ kind: ResponsePartKind.Markdown, id: partId, content: part.text });
+			} else if (part.type === 'reasoning' && typeof part.text === 'string') {
+				pending.responseParts.push({ kind: ResponsePartKind.Reasoning, id: partId, content: part.text });
+			} else if (part.type === 'tool' && part.callID && part.tool) {
+				const status = part.state?.status;
+				pending.responseParts.push({
+					kind: ResponsePartKind.ToolCall,
+					// fork 协议字段(title/output)与协议 ToolCallState 不完全一致,需断言 // test-workbench_change
+					// eslint-disable-next-line local/code-no-dangerous-type-assertions
+					toolCall: {
+						toolCallId: part.callID,
+						toolName: part.tool,
+						status: status === 'completed' ? 'completed' : status === 'error' ? 'error' : 'pending',
+						title: part.state?.title,
+						output: part.state?.output,
+						error: part.state?.error ? { message: part.state.error } : undefined,
+					} as unknown as ToolCallState,
+				});
+			}
+		}
+
+		// 锚点推进到该回合最后一条消息(截断/fork 保留到锚点为止)。 // test-workbench_change
+		pending.anchorId = info.id;
+
+		// test-workbench_change start — 历史 assistant turn 的 usage.model:reload 后 footer 模型名
+		// 来源(与 live ChatUsage.model 同格式 providerID/modelID)。user 消息无模型。
+		if (info.modelID) {
+			pending.usage = { model: info.providerID ? `${info.providerID}/${info.modelID}` : info.modelID };
+		}
+		// test-workbench_change end
 	}
 
-	const message: Message = {
-		text,
-		origin: { kind: isUser ? MessageKind.User : MessageKind.Agent },
-	};
-
-	// test-workbench_change start — 历史 assistant turn 的 usage.model:reload 后 footer 模型名
-	// 来源(与 live ChatUsage.model 同格式 providerID/modelID)。user 消息无模型。
-	const usage: Turn['usage'] = isUser || !info.modelID
-		? undefined
-		: { model: info.providerID ? `${info.providerID}/${info.modelID}` : info.modelID };
-	// test-workbench_change end
-
-	return {
-		id: info.id,
-		startedAt: info.time?.created ? new Date(info.time.created).toISOString() : undefined,
-		message,
-		responseParts,
-		usage,
-		state: TurnState.Complete,
-	};
+	flush();
+	return turns;
 }
 
 /**
@@ -744,7 +781,7 @@ export class TestAgentSession extends Disposable implements ITestAgentSession {
 			const records = await this._request<Array<{ info: ForkMessageInfo; parts?: ForkPart[] }>>(
 				'GET', `/session/${this.testagentSessionId}/message`,
 			);
-			return records.map(forkMessageToTurn);
+			return forkMessagesToTurns(records);
 		} catch (err) {
 			this._logService.warn(`[TestAgent] getMessages failed: ${err}`);
 			return [];
