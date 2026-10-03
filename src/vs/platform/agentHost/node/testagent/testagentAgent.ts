@@ -660,6 +660,37 @@ export class TestAgent extends Disposable implements IAgent {
 		return { session: sessionUri, resolvedWorkingDirectory: workingDirectory }; // test-workbench_change - 新上游字段名为 resolvedWorkingDirectory
 	}
 
+	// test-workbench_change start — cross-surface session identity translation.
+	/**
+	 * The backend conversation id the editor-side TestAgent extension uses for
+	 * this session. Host-created sessions map their Agent Host id to the backend
+	 * id; externally-created (extension) sessions already use the backend id as
+	 * their raw id.
+	 */
+	async resolveBackendSessionId(session: URI): Promise<string | undefined> {
+		const sessionId = AgentSession.id(session);
+		return this._sessions.get(sessionId)?.testagentSessionId
+			?? this._getTestAgentId(sessionId)
+			?? sessionId;
+	}
+
+	/**
+	 * The Agent Host session resource owning a backend conversation id, so a
+	 * shared-backend surface can reopen the exact session instead of the
+	 * suppressed chat backing. Falls back to the backend id as the raw id for
+	 * externally-created (plugin) sessions.
+	 */
+	async resolveSessionUriForBackendSessionId(backendSessionId: string): Promise<URI | undefined> {
+		if (!this._sessionMap) { this._sessionMap = this._loadSessionMap(); }
+		for (const [agentSessionId, testagentId] of Object.entries(this._sessionMap)) {
+			if (testagentId === backendSessionId) {
+				return AgentSession.uri(this.id, agentSessionId);
+			}
+		}
+		return AgentSession.uri(this.id, backendSessionId);
+	}
+	// test-workbench_change end
+
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		try {
 			const ready = await this._ensureConnection();

@@ -1,12 +1,13 @@
 # OpenCode(testagent-core fork)接入 Agent Host 特性需求文档
 
 > **文档状态**: Draft(评审中)
-> **版本**: 0.1.0
-> **日期**: 2026-08-17
+> **版本**: 0.2.0
+> **日期**: 2026-10-03
 > **相关代码**:
 > - VS Code 侧适配层: `src/vs/platform/agentHost/node/openCode/`
-> - opencode fork(testagent-core): `/Users/findly/testagent-kilo/packages/testagent-core/`(核心代码在 `packages/opencode/src/`)
+> - opencode fork(testagent-core): `/Users/lujs/project/testagent-kilo/packages/testagent-core/`(核心代码在 `packages/opencode/src/`)
 > - 协议定义: `src/vs/platform/agentHost/common/agentService.ts`(`IAgent` / `IAgentChats`)
+> - 跨窗口会话切换方案见 **§10**(Agents 窗口 ↔ 编辑器 TestAgent 插件 handoff)
 
 ---
 
@@ -363,4 +364,128 @@ curl -N http://localhost:PORT/event
 
 ---
 
-*本文档基于 2026-08-17 的代码分析产出,协议与端点以实测为准(见 §7)。*
+## 10. 附:Agents 窗口 ↔ 编辑器 TestAgent 插件 会话切换(跨窗口 handoff)
+
+> 本节是 testagent agent-host provider 与编辑器侧 testagent 扩展插件之间的会话身份桥接,与 §1–§9 的 OpenCode HTTP 适配属不同层,但同属 agent host 生态,故附于此。
+
+### 10.1 背景与现象
+
+在 Agents 窗口(agent window)模式下新建 quick chat 后切到编辑器模式,编辑器能进入该 quick chat 的 scratch 目录 `.testagent/chats/{id}`;但从编辑器切回 Agents 窗口时,**不会自动回到刚才的会话**,而是落在一个新的/空白会话上。
+
+### 10.2 根因分析(3 个叠加缺陷)
+
+1. **client/host scheme 不匹配(致命)**:编辑器侧向 agent host 请求 `resolveBackendSessionId` 时,传入的是客户端资源 `agent-host-<provider>://<id>`;host 的 `AgentHostProviderService.getProviderForSession` 按 provider-native scheme `<provider>://<id>` 索引 provider,`agent-host-testagent` 查不到 → `resolveBackendSessionId` 返回 `undefined`,整条 handoff 静默失败。这是“目录能进、会话回不去”的直接原因,也是上一版修复不生效的原因。
+2. **`isCreated` 门槛**:新建 quick chat 在发出第一条消息前状态为 `Untitled`(`NewSession` 的 `markNew`/`markSent`,`isCreated = status !== Untitled`)。此前 handoff 全部 gate 在 `session.isCreated.get()` 上,未发送草稿被完全跳过。
+3. **无 workspace 时提前返回**:`openSessionInVSCode` 在 `!folderUris?.length` 时提前开空窗口,把已算出的 `testagentSession` 丢弃,导致未发送 quick chat 连会话 handoff 都没有。
+
+此外,未发送 quick chat 的客户端 workspace 为空(`NewSession` 不消费 eagerCreate 的 `resolvedWorkingDirectory`),所以编辑器会开成空窗口、进不了目录(见 §10.8)。
+
+### 10.3 协议改动(VS Code-only extension RPC,非生成 AHP 协议)
+
+新增两个扩展方法(定义在 `src/vs/platform/agentHost/common/agentHostExtensionProtocol.ts`),复用既有 `allowExtensionMethods` 通道,**不修改生成的 AHP 协议**:
+
+| 方法常量 | `method` | params | result |
+|---|---|---|---|
+| `ResolveBackendSessionIdExtensionMethod` | `vscode/resolveBackendSessionId` | `{ session: string }` | `{ backendSessionId?: string }` |
+| `ResolveSessionByBackendSessionIdExtensionMethod` | `vscode/resolveSessionByBackendSessionId` | `{ provider: string, backendSessionId: string }` | `{ session?: string }` |
+
+可选能力挂在如下接口:`IAgent.resolveBackendSessionId?` / `IAgent.resolveSessionUriForBackendSessionId?`;`IAgentService` / `IAgentConnection` 同名可选方法;`testagent` provider 实现(通过 `_sessionMap` / `_getTestAgentId` 维护 Agent Host sessionId ↔ backend conversation id 映射)。
+
+### 10.4 scheme 映射与数据流
+
+```
+Agents 窗口                                  编辑器(TestAgent 插件)
+  active session S (agent-host-testagent:/<rawId>)
+        │  Open in Editor
+        ▼
+  resolveBackendSessionId(S)  ──扩展RPC──▶ host provider(testagent)
+        │  (客户端 scheme → host scheme 翻译)
+        ▼
+  backendSessionId B + agentHostResource S
+        │  native: vscode:openTestAgentSession
+        ▼
+                                         testagent.new.openSession(B, dir, S)
+                                           → 聚焦插件会话
+        ┌──────────── 切回(Open in Agents) ────────────┐
+        ▼                                              │
+  testagent.new.getActiveSession → { sessionId:B, agentHostResource:S }
+        │  getTestAgentSessionHandoff 优先用 agentHostResource
+        ▼
+  OpenChatSessionInAgentsWindowAction(sessionResource=S)
+        ▼
+  host openExistingSession(S) → 重新进入该会话
+```
+
+**scheme 约定(关键)**:
+
+| 边界 | scheme 形式 | 示例 |
+|---|---|---|
+| 客户端(编辑器/窗口) | `${LOCAL_AGENT_HOST_SCHEME_PREFIX}${provider}` | `agent-host-testagent` |
+| host / 协议线上 | provider-native `<provider>` | `testagent` |
+
+跨边界必须翻译:客户端 → host 用 `session.scheme.substring(LOCAL_AGENT_HOST_SCHEME_PREFIX.length)`;host → 客户端用 `LOCAL_AGENT_HOST_SCHEME_PREFIX + provider` 重新拼装。
+
+### 10.5 核心仓库改动清单
+
+| 文件 | 改动 |
+|---|---|
+| `src/vs/platform/agentHost/common/agentHostExtensionProtocol.ts` | 新增两个 extension method + validator + command map |
+| `src/vs/platform/agentHost/common/agent.ts` | `IAgent` 可选方法 |
+| `src/vs/platform/agentHost/common/agentService.ts` | `IAgentService` / `IAgentConnection` 可选方法 |
+| `src/vs/platform/agentHost/browser/agentHostProtocolClient.ts` | 客户端实现;**客户端 scheme → host scheme 翻译修复** |
+| `src/vs/platform/agentHost/browser/nullAgentHostService.ts` | null 实现 |
+| `src/vs/platform/agentHost/electron-browser/localAgentHostService.ts` | 本地委托 |
+| `src/vs/platform/agentHost/node/agentService.ts` | host 实现(经 providerService 路由) |
+| `src/vs/platform/agentHost/node/protocolServerHandler.ts` | extension 请求 handler |
+| `src/vs/platform/agentHost/node/testagent/testagentAgent.ts` | provider 实现(映射 / 回退) |
+| `src/vs/platform/window/common/window.ts` | `IAgentsWindowTestAgentSession`;`IOpenWindowOptions.testagentSession`;`IOpenEmptyWindowOptions.testagentSession` |
+| `src/vs/platform/native/electron-main/nativeHostMainService.ts` | `doOpenWindow` / `doOpenEmptyWindow` 发送 `vscode:openTestAgentSession`(含 reload waiter) |
+| `src/vs/sessions/electron-browser/actions/vscodeActions.ts` | `getTestAgentSessionToOpenInEditor`(去掉 isCreated 门槛);无 folder 也 handoff |
+| `src/vs/workbench/contrib/chat/electron-browser/agentSessions/agentSessionsActions.ts` | `getTestAgentSessionHandoff`;标题栏/命令/OpenChatSession 三个入口;await 前需同步取 `getReuseWindowOption(accessor)`(否则触发 `local/code-no-accessor-after-await`) |
+| `src/vs/workbench/contrib/chat/electron-browser/chat.contribution.ts` | `vscode:openTestAgentSession` → 执行 `testagent.new.openSession` |
+
+### 10.6 testagent-kilo(扩展仓库)改动清单
+
+| 文件 | 改动 |
+|---|---|
+| `packages/kilo-vscode/package.json` | 注册命令 `testagent.new.openSession` / `testagent.new.getActiveSession` |
+| `packages/kilo-vscode/src/extension.ts` | 两个命令实现(openSession 先 focus 侧栏) |
+| `packages/kilo-vscode/src/KiloProvider.ts` | `openSession()` / `getActiveSessionHandoff()` / `flushPendingOpenSession()` / `handoffResources` |
+| `packages/kilo-vscode/webview-ui/src/App.tsx` | 处理 `openSession` 消息(`tabs.open` / `selectSession`) |
+| `packages/kilo-vscode/webview-ui/src/types/messages.ts` | `OpenSessionMessage` 类型 |
+
+> 两仓库必须**成对上线**:核心仓库发 `vscode:openTestAgentSession`,扩展提供 `testagent.new.openSession`;反向核心查 `testagent.new.getActiveSession`。只改一边会命令找不到、handoff 静默失败。
+
+### 10.7 验证方法(launch skill)
+
+```bash
+LAUNCH=.agents/skills/launch/scripts/launch.sh
+"$LAUNCH" --agents --repo <repo> --source-user-data-dir ~/.tscode \
+  --disable-workspace-trust --skip-prelaunch \
+  -- --extensionDevelopmentPath=/Users/lujs/project/testagent-kilo/packages/kilo-vscode
+```
+
+实测通过的关键日志链:
+
+```
+resolveBackendSessionId -> "<backendId>"                 # 修复前为 undefined
+testagentSession = { sessionId, agentHostResource }      # 修复后已计算
+[editor] received openTestAgentSession                    # IPC 到达编辑器
+[editor] openSession command result true                  # 插件命令执行成功
+```
+
+### 10.8 已知遗留问题
+
+1. **未发送 quick chat 客户端无 workspace**:`NewSession` 不消费 eagerCreate 的 `resolvedWorkingDirectory`,只有 materialize 后的 adapter 才在 `_computeWorkspace` 投影 scratch 目录。因此切到编辑器会开空窗口、进不了 `.testagent/chats/{id}`。彻底修复需在 provider 侧于 eagerCreate 后把 scratch 目录投影为 `NewSession` 的 workspace。
+2. **backend id 回退风险**:`testagent.resolveBackendSessionId` 在映射未就绪时回退为 Agent Host raw id,插件会报 `Server error: Session not found: <rawId>`。建议映射未就绪时不要回退为 raw id,或在 handoff 侧识别并重试。
+3. 受限环境(无网络 / 鉴权网关不可达)下后端会话可能未 materialize,无法端到端验证“切回自动进入会话”的最后一段;需在有后端的开发机复验。
+
+### 10.9 复用要点
+
+- 任何跨“客户端窗口 ↔ agent host provider”的会话身份查询,都要先做 scheme 翻译(§10.4),否则 host provider 查找必失败。
+- extension RPC 仅经 `allowExtensionMethods`,不影响生成的 AHP 协议;新能力优先用“可选方法 + 能力探测”的方式增量扩展。
+- 相关历史尝试在分支 `backup/session-handoff-20261003`(core 与 kilo 各一支);本方案在其基础上补齐了 scheme 翻译、未发送草稿、无 folder 三个缺口。
+
+---
+
+*本文档基于 2026-08-17 的代码分析产出,协议与端点以实测为准(见 §7);§10 于 2026-10-03 补充,基于实际运行调试。*

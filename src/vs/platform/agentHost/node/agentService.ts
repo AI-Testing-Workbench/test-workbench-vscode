@@ -3061,6 +3061,18 @@ export class AgentService extends Disposable implements IAgentService {
 		this._registryEpoch++;
 	}
 
+	// test-workbench_change start — cross-surface session identity translation.
+	async resolveBackendSessionId(session: URI): Promise<string | undefined> {
+		const provider = this._providerService.getProviderForSession(session);
+		return provider?.resolveBackendSessionId?.(session);
+	}
+
+	async resolveSessionUriForBackendSessionId(providerId: string, backendSessionId: string): Promise<URI | undefined> {
+		const provider = this._providerService.resolveProvider(providerId);
+		return provider?.resolveSessionUriForBackendSessionId?.(backendSessionId);
+	}
+	// test-workbench_change end
+
 	async listSessions(mode = this._getExternalSessionsMode()): Promise<IAgentSessionMetadata[]> {
 		const epoch = this._registryEpoch;
 		const inFlight = this._inFlightListSessions.get(mode);

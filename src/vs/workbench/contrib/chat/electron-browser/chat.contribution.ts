@@ -96,6 +96,23 @@ class ChatCommandLineHandler extends Disposable {
 		};
 		ipcRenderer.on('vscode:openChatSession', handleOpenChatSession);
 		this._register({ dispose: () => ipcRenderer.removeListener('vscode:openChatSession', handleOpenChatSession) });
+
+		// test-workbench_change start — hand the active Agents session to the
+		// editor-side TestAgent plugin, which owns its conversations by backend id.
+		const handleOpenTestAgentSession = (_: unknown, ...args: unknown[]) => {
+			const payload = args[0] as { sessionId?: unknown; directory?: unknown; agentHostResource?: unknown } | undefined;
+			if (!payload || typeof payload.sessionId !== 'string' || payload.sessionId.length === 0) {
+				return;
+			}
+			const directory = typeof payload.directory === 'string' ? payload.directory : undefined;
+			const agentHostResource = typeof payload.agentHostResource === 'string' ? payload.agentHostResource : undefined;
+			this.logService.trace('vscode:openTestAgentSession', payload.sessionId);
+			Promise.resolve(this.commandService.executeCommand('testagent.new.openSession', payload.sessionId, directory, agentHostResource))
+				.catch(err => this.logService.error('vscode:openTestAgentSession failed', err));
+		};
+		ipcRenderer.on('vscode:openTestAgentSession', handleOpenTestAgentSession);
+		this._register({ dispose: () => ipcRenderer.removeListener('vscode:openTestAgentSession', handleOpenTestAgentSession) });
+		// test-workbench_change end
 	}
 
 	private async prompt(args: typeof this.environmentService.args.chat): Promise<void> {

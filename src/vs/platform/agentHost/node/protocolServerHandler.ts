@@ -21,7 +21,7 @@ import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotificatio
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveBackendSessionIdExtensionMethod, resolveBackendSessionIdParamsValidator, ResolveSessionByBackendSessionIdExtensionMethod, resolveSessionByBackendSessionIdParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
@@ -1909,6 +1909,44 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return this._agentService.removeSessionArtifact(session, artifactId);
 	}
 
+	// test-workbench_change start — cross-surface session identity translation.
+	private _handleResolveBackendSessionIdRequest(params: unknown): Promise<unknown> | undefined {
+		if (!this._agentService.resolveBackendSessionId) {
+			return undefined;
+		}
+		const validated = resolveBackendSessionIdParamsValidator.validate(params);
+		if (validated.error) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+		}
+		let session: URI;
+		try {
+			session = URI.parse(validated.content.session, true);
+		} catch {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
+		}
+		if (!AgentSession.provider(session) || !session.path.startsWith('/') || session.path.length < 2
+			|| session.authority || session.query || session.fragment || parseChatUri(session)) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
+		}
+		return this._agentService.resolveBackendSessionId(session).then(backendSessionId => ({ backendSessionId }));
+	}
+
+	private _handleResolveSessionByBackendSessionIdRequest(params: unknown): Promise<unknown> | undefined {
+		if (!this._agentService.resolveSessionUriForBackendSessionId) {
+			return undefined;
+		}
+		const validated = resolveSessionByBackendSessionIdParamsValidator.validate(params);
+		if (validated.error) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+		}
+		const { provider, backendSessionId } = validated.content;
+		if (!provider.trim() || !backendSessionId.trim()) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'provider and backendSessionId must be non-empty strings'));
+		}
+		return this._agentService.resolveSessionUriForBackendSessionId(provider, backendSessionId).then(session => ({ session: session?.toString() }));
+	}
+	// test-workbench_change end
+
 	/**
 	 * Handle VS Code extension methods that are not yet part of the typed
 	 * protocol. Returns a Promise if the method was recognized, undefined
@@ -1932,6 +1970,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (method === RemoveSessionArtifactExtensionMethod) {
 			return this._handleRemoveSessionArtifactRequest(params);
 		}
+		// test-workbench_change start — cross-surface session identity translation.
+		if (method === ResolveBackendSessionIdExtensionMethod) {
+			return this._handleResolveBackendSessionIdRequest(params);
+		}
+		if (method === ResolveSessionByBackendSessionIdExtensionMethod) {
+			return this._handleResolveSessionByBackendSessionIdRequest(params);
+		}
+		// test-workbench_change end
 
 		if (this._config.allowExtensionMethods === false) {
 			return undefined;

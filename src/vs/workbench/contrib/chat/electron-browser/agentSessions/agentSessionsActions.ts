@@ -35,6 +35,9 @@ import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatWidget, IChatWidgetService, isIChatResourceViewContext } from '../../browser/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { isAgentHostTarget, isLocalAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
+import { IAgentHostConnectionsService, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js'; // test-workbench_change
+import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js'; // test-workbench_change
+import { TESTAGENT_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js'; // test-workbench_change
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { IChatModel } from '../../common/model/chatModel.js';
@@ -126,6 +129,49 @@ function captureDraftHandoffOptions(accessor: ServicesAccessor, widget: IChatWid
 // test-workbench_change start
 function getReuseWindowOption(accessor: ServicesAccessor): Pick<IOpenAgentsWindowOptions, 'reuseWindow'> {
 	return accessor.get(IConfigurationService).getValue<boolean>(ChatConfiguration.OpenInAgentsWindowReuseCurrentWindow) === true ? { reuseWindow: true } : {};
+}
+
+/**
+ * Ask the installed editor-side TestAgent extension for its active conversation
+ * and turn it into an Agent Host client session resource the Agents window can
+ * open through the existing `sessionResource` handoff. Returns `undefined` when
+ * the extension is absent or has no active session.
+ */
+async function getTestAgentSessionHandoff(commandService: ICommandService, connection: IAgentConnection | undefined): Promise<URI | undefined> {
+	try {
+		// Never block the window switch on the plugin: its command may need to
+		// activate the extension (or hang), which must not stall the handoff.
+		const result = await Promise.race([
+			commandService.executeCommand<{ readonly sessionId?: unknown; readonly agentHostResource?: unknown } | undefined>('testagent.new.getActiveSession'),
+			new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), 400)),
+		]);
+		if (!result || typeof result.sessionId !== 'string' || result.sessionId.length === 0) {
+			return undefined;
+		}
+		// Prefer the Agent Host session resource the plugin remembered from an
+		// earlier Agents→editor handoff.
+		if (typeof result.agentHostResource === 'string' && result.agentHostResource) {
+			try {
+				return URI.parse(result.agentHostResource);
+			} catch {
+				// fall through to resolving the backend id
+			}
+		}
+		// Translate the backend conversation id to the Agent Host session that
+		// owns it. Host-created sessions have a distinct Agent Host raw id; only
+		// externally-created sessions use the backend id as their raw id.
+		try {
+			const resolved = await connection?.resolveSessionUriForBackendSessionId?.(TESTAGENT_AGENT_PROVIDER_ID, result.sessionId);
+			if (resolved) {
+				return URI.from({ scheme: `${LOCAL_AGENT_HOST_SCHEME_PREFIX}${TESTAGENT_AGENT_PROVIDER_ID}`, path: resolved.path });
+			}
+		} catch {
+			// fall through to the backend-id form
+		}
+		return URI.from({ scheme: `${LOCAL_AGENT_HOST_SCHEME_PREFIX}${TESTAGENT_AGENT_PROVIDER_ID}`, path: `/${result.sessionId}` });
+	} catch {
+		return undefined;
+	}
 }
 // test-workbench_change end
 
@@ -224,7 +270,19 @@ export class OpenWorkspaceInAgentsWindowTitleBarAction extends Action2 {
 			return;
 		}
 
-		await accessor.get(ICommandService).executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.TitleBar });
+		// test-workbench_change start — carry the editor-side TestAgent plugin's
+		// active conversation so the Agents window lands on the same session.
+		// Capture services before awaiting: `ServicesAccessor` is only valid
+		// during the synchronous invocation of the action.
+		const commandService = accessor.get(ICommandService);
+		const agentHostConnection = accessor.get(IAgentHostConnectionsService).ambientConnection;
+		const testagentResource = await getTestAgentSessionHandoff(commandService, agentHostConnection);
+		if (testagentResource) {
+			await commandService.executeCommand(OpenChatSessionInAgentsWindowAction.ID, { agentsWindowOpenSource: AgentsWindowOpenSource.TitleBar }, testagentResource);
+			return;
+		}
+		await commandService.executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.TitleBar });
+		// test-workbench_change end
 	}
 }
 
@@ -271,12 +329,19 @@ export class OpenAgentsWindowAction extends Action2 {
 		const folderUri = !args?.folderUri && !args?.sessionResource
 			? getInvokingWorkspaceFolder(accessor) ?? (draftOptions.draft ? accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri : undefined)
 			: undefined;
+		// test-workbench_change start — prefer the plugin's active conversation when the caller named none.
+		const commandService = accessor.get(ICommandService);
+		const agentHostConnection = accessor.get(IAgentHostConnectionsService).ambientConnection;
+		const reuseWindowOption = getReuseWindowOption(accessor); // capture before await (accessor is sync-only)
+		const testagentResource = !args?.folderUri && !args?.sessionResource && !args?.draft ? await getTestAgentSessionHandoff(commandService, agentHostConnection) : undefined;
+		// test-workbench_change end
 		await nativeHostService.openAgentsWindow({
 			...args,
-			...(folderUri ? { folderUri, folderUriIsDefault: !draftOptions.draft } : undefined),
+			...(testagentResource ? { sessionResource: testagentResource.toJSON() } : undefined), // test-workbench_change
+			...(!testagentResource && folderUri ? { folderUri, folderUriIsDefault: !draftOptions.draft } : undefined), // test-workbench_change
 			...draftOptions,
 			source: args?.source ?? AgentsWindowOpenSource.CommandPalette,
-			...getReuseWindowOption(accessor), // test-workbench_change
+			...reuseWindowOption, // test-workbench_change
 		});
 	}
 }
@@ -348,12 +413,19 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		const draftOptions = getDraftHandoffOptions(accessor, sessionResource, commandOptions?.transferDraft === true, inputUri);
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource) && !draftOptions.draft;
 		const folderUri = getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri;
+		// test-workbench_change start — fall back to the editor-side TestAgent plugin's active conversation.
+		const commandService = accessor.get(ICommandService);
+		const agentHostConnection = accessor.get(IAgentHostConnectionsService).ambientConnection;
+		const reuseWindowOption = getReuseWindowOption(accessor); // capture before await (accessor is sync-only)
+		const testagentResource = !hasRealSession && !draftOptions.draft ? await getTestAgentSessionHandoff(commandService, agentHostConnection) : undefined;
+		const effectiveSessionResource = hasRealSession ? sessionResource : testagentResource;
+		// test-workbench_change end
 		await nativeHostService.openAgentsWindow({
-			folderUri: !hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined,
-			sessionResource: hasRealSession ? sessionResource?.toJSON() : undefined,
+			folderUri: !effectiveSessionResource && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined, // test-workbench_change
+			sessionResource: effectiveSessionResource?.toJSON(),
 			source,
 			...draftOptions,
-			...getReuseWindowOption(accessor), // test-workbench_change
+			...reuseWindowOption, // test-workbench_change
 		});
 	}
 }

@@ -47,6 +47,13 @@ export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAg
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
+// test-workbench_change start — cross-surface session identity translation.
+export const ResolveBackendSessionIdExtensionMethod = 'vscode/resolveBackendSessionId';
+export const ResolveSessionByBackendSessionIdExtensionMethod = 'vscode/resolveSessionByBackendSessionId';
+
+export const resolveBackendSessionIdParamsValidator = vObj({ session: vString() });
+export const resolveSessionByBackendSessionIdParamsValidator = vObj({ provider: vString(), backendSessionId: vString() });
+// test-workbench_change end
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
@@ -111,6 +118,16 @@ export interface IAgentHostExtensionCommandMap {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
 		result: void;
 	};
+	// test-workbench_change start — cross-surface session identity translation.
+	[ResolveBackendSessionIdExtensionMethod]: {
+		params: ValidatorType<typeof resolveBackendSessionIdParamsValidator>;
+		result: { backendSessionId?: string };
+	};
+	[ResolveSessionByBackendSessionIdExtensionMethod]: {
+		params: ValidatorType<typeof resolveSessionByBackendSessionIdParamsValidator>;
+		result: { session?: string };
+	};
+	// test-workbench_change end
 	'shutdown': { params: undefined; result: void };
 	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };
 	'getManagedSettingsDiagnostics': { params: undefined; result: readonly IAgentHostManagedSettingsDiagnostics[] };

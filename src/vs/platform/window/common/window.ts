@@ -77,7 +77,35 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	 * the Agents window) so the new window restores both the folder and session.
 	 */
 	readonly chatSessionToOpen?: URI;
+
+	// test-workbench_change start
+	/**
+	 * When set, the opened window is asked to focus the editor-side TestAgent
+	 * extension's chat panel on this backend (testagent-core) session once it is
+	 * ready, so switching from the Agents window lands on the same conversation.
+	 */
+	readonly testagentSession?: IAgentsWindowTestAgentSession;
+	// test-workbench_change end
 }
+
+// test-workbench_change start — editor-side TestAgent plugin session handoff.
+/**
+ * A conversation owned by the editor-side TestAgent extension, identified by
+ * the shared backend (testagent-core) session id. Carried across an editor /
+ * Agents window switch so both chat panels focus the same conversation.
+ */
+export interface IAgentsWindowTestAgentSession {
+	readonly sessionId: string;
+	/** Working directory the backend session is scoped to, when known. */
+	readonly directory?: string;
+	/**
+	 * Agent Host client session resource (e.g. `agent-host-testagent://<rawId>`)
+	 * the plugin remembers for this conversation, so switching back can reopen
+	 * the exact session via the existing session-resource handoff.
+	 */
+	readonly agentHostResource?: string;
+}
+// test-workbench_change end
 
 export interface IAddRemoveFoldersRequest {
 	readonly foldersToAdd: UriComponents[];
@@ -104,7 +132,12 @@ export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAu
 	return typeof (candidate as IOpenedAuxiliaryWindow).parentId === 'number';
 }
 
-export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
+export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
+	// test-workbench_change start
+	/** Focus the editor-side TestAgent plugin's conversation once the window is ready (no folder required). */
+	readonly testagentSession?: IAgentsWindowTestAgentSession;
+	// test-workbench_change end
+}
 
 export interface IAgentsWindowDraft {
 	readonly inputText: string;

@@ -1365,6 +1365,25 @@ export interface IAgent {
 	/** Retrieve metadata for an exact registered chat. Ambient catalogue reads never set {@link IAgentChatMetadataOptions.activation}. */
 	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined>;
 
+	// test-workbench_change start — cross-surface session identity translation.
+	/**
+	 * Resolve the provider-native (backend) session id backing an Agent Host
+	 * session. Surfaces that share the same backend (e.g. the editor-side
+	 * TestAgent extension) address conversations by this id, so the Agents
+	 * window can hand its active session to them. Returns `undefined` when the
+	 * provider has no such identity.
+	 */
+	resolveBackendSessionId?(session: URI): Promise<string | undefined>;
+
+	/**
+	 * Resolve the Agent Host session resource that owns the given provider-native
+	 * (backend) session id, so the Agents window can open the session a shared
+	 * backend surface is showing instead of the suppressed chat backing. Returns
+	 * `undefined` when no owned session matches.
+	 */
+	resolveSessionUriForBackendSessionId?(backendSessionId: string): Promise<URI | undefined>;
+	// test-workbench_change end
+
 	// ---- Authentication and diagnostics ------------------------------------
 
 	getProtectedResources(): ProtectedResourceMetadata[];

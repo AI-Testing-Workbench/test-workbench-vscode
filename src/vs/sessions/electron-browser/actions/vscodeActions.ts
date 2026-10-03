@@ -11,6 +11,8 @@ import { ServicesAccessor } from '../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../nls.js';
 import { Action2 } from '../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService } from '../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IAgentConnection } from '../../../platform/agentHost/common/agentService.js'; // test-workbench_change
+import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js'; // test-workbench_change
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -60,8 +62,9 @@ export class OpenSessionInVSCodeAction extends Action2 {
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const nativeHostService = accessor.get(INativeHostService);
+		const agentHostConnection = accessor.get(IAgentHostConnectionsService).ambientConnection; // test-workbench_change
 
-		return openSessionInVSCode(nativeHostService, sessionsService.activeSession.get(), sessionsProvidersService, remoteAgentHostService, getReuseCurrentWindow(accessor)); // test-workbench_change
+		return openSessionInVSCode(nativeHostService, sessionsService.activeSession.get(), sessionsProvidersService, remoteAgentHostService, getReuseCurrentWindow(accessor), agentHostConnection); // test-workbench_change
 	}
 }
 
@@ -77,25 +80,63 @@ export async function openSessionInVSCode(
 	sessionsProvidersService: ISessionsProvidersService,
 	remoteAgentHostService: IRemoteAgentHostService,
 	reuseWindow = false, // test-workbench_change
+	agentHostConnection?: IAgentConnection, // test-workbench_change
 ): Promise<void> {
 	const folderUris = session?.activeChat.get().workspace.get()?.folders.map(folder =>
 		resolveRemoteFolderUri(folder.workingDirectory, session.providerId, sessionsProvidersService, remoteAgentHostService)
 	);
+	// test-workbench_change start — hand the TestAgent backend conversation to the editor plugin.
+	const testagentSession = await getTestAgentSessionToOpenInEditor(session, agentHostConnection);
+	// test-workbench_change end
 	if (!folderUris?.length) {
 		// test-workbench_change start
+		// An unsent quick chat has no projected workspace yet, but its backend
+		// conversation still exists. Hand it off anyway so the editor plugin (and
+		// the return trip) can focus the same session instead of a blank window.
 		return reuseWindow
-			? nativeHostService.openWindow({ forceReuseWindow: true })
-			: nativeHostService.openWindow();
+			? nativeHostService.openWindow({ forceReuseWindow: true, testagentSession })
+			: nativeHostService.openWindow({ testagentSession });
 	}
 	// test-workbench_change end
 
 	const chatSessionToOpen = getChatSessionToOpenInEditor(session);
 	// test-workbench_change start
 	return reuseWindow
-		? nativeHostService.openWindow(folderUris.map(folderUri => ({ folderUri })), { forceReuseWindow: true, chatSessionToOpen })
-		: nativeHostService.openWindow(folderUris.map(folderUri => ({ folderUri })), { forceNewWindow: true, chatSessionToOpen });
+		? nativeHostService.openWindow(folderUris.map(folderUri => ({ folderUri })), { forceReuseWindow: true, chatSessionToOpen, testagentSession })
+		: nativeHostService.openWindow(folderUris.map(folderUri => ({ folderUri })), { forceNewWindow: true, chatSessionToOpen, testagentSession });
 	// test-workbench_change end
 }
+
+// test-workbench_change start
+/**
+ * Resolve the TestAgent backend conversation for the active Agents session so
+ * the editor-side plugin can focus the same conversation on handoff. The agent
+ * host session resource is echoed back so a later Agents-window handoff can
+ * reopen the exact session (including host-created sessions).
+ *
+ * A freshly created quick chat is still an `Untitled` draft (`isCreated` is
+ * false) but its backend conversation and scratch directory already exist from
+ * the eager create, so it must be handed off too — otherwise switching to the
+ * editor and back loses the draft. Provisional `chatSessionToOpen` sharing is
+ * still gated separately in {@link getChatSessionToOpenInEditor}.
+ */
+export async function getTestAgentSessionToOpenInEditor(session: IActiveSession | undefined, agentHostConnection: IAgentConnection | undefined): Promise<{ sessionId: string; directory?: string; agentHostResource?: string } | undefined> {
+	// Non-TestAgent providers simply return no backend id from the provider method.
+	if (!session || !agentHostConnection?.resolveBackendSessionId) {
+		return undefined;
+	}
+	try {
+		const backendSessionId = await agentHostConnection.resolveBackendSessionId(session.resource);
+		if (!backendSessionId) {
+			return undefined;
+		}
+		const directory = session.activeChat.get().workspace.get()?.folders[0]?.workingDirectory.fsPath;
+		return { sessionId: backendSessionId, directory, agentHostResource: session.resource.toString() };
+	} catch {
+		return undefined;
+	}
+}
+// test-workbench_change end
 
 /**
  * Provisional sessions remain owned by the Agents composer and may be replaced or disposed, so only materialized sessions are safe to share across windows.

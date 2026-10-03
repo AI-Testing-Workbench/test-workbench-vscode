@@ -807,6 +807,13 @@ export interface IAgentService {
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
+	// test-workbench_change start — cross-surface session identity translation.
+	/** Resolve the provider-native (backend) session id backing an Agent Host session. */
+	resolveBackendSessionId?(session: URI): Promise<string | undefined>;
+	/** Resolve the Agent Host session resource owning a provider-native (backend) session id. */
+	resolveSessionUriForBackendSessionId?(provider: string, backendSessionId: string): Promise<URI | undefined>;
+	// test-workbench_change end
+
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
@@ -1120,6 +1127,12 @@ export interface IAgentConnection {
 	reportFirstResponse?(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void>;
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
+	// test-workbench_change start — cross-surface session identity translation.
+	/** Resolve the provider-native (backend) session id backing an Agent Host session. */
+	resolveBackendSessionId?(session: URI): Promise<string | undefined>;
+	/** Resolve the Agent Host session resource owning a provider-native (backend) session id. */
+	resolveSessionUriForBackendSessionId?(provider: string, backendSessionId: string): Promise<URI | undefined>;
+	// test-workbench_change end
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;

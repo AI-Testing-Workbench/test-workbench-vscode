@@ -441,6 +441,16 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().removeSessionArtifact(session, artifactId);
 	}
 
+	// test-workbench_change start — cross-surface session identity translation.
+	resolveBackendSessionId(session: URI): Promise<string | undefined> {
+		return this._requireClient().resolveBackendSessionId(session);
+	}
+
+	resolveSessionUriForBackendSessionId(provider: string, backendSessionId: string): Promise<URI | undefined> {
+		return this._requireClient().resolveSessionUriForBackendSessionId(provider, backendSessionId);
+	}
+	// test-workbench_change end
+
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
 		return this._getManagementService().setDetachedWorktreeArchived(handle, archived);
 	}

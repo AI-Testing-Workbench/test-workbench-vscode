@@ -19,10 +19,10 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveBackendSessionIdExtensionMethod, ResolveSessionByBackendSessionIdExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostTiming } from '../common/meta/agentHostTimingMeta.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
-import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../common/agentHostConnectionsService.js'; // test-workbench_change — LOCAL_AGENT_HOST_SCHEME_PREFIX
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostUri } from '../common/agentHostUri.js';
@@ -1402,6 +1402,24 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		await this._sendExtensionRequest(RemoveSessionArtifactExtensionMethod, { session: session.toString(), artifactId });
 	}
+
+	// test-workbench_change start — cross-surface session identity translation.
+	async resolveBackendSessionId(session: URI): Promise<string | undefined> {
+		// Callers pass the client-facing resource (`agent-host-<provider>://…`), but
+		// the host keys sessions by the provider-native scheme (`<provider>://…`).
+		// Translate so the host's provider lookup matches.
+		const backendSession = session.scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX)
+			? session.with({ scheme: session.scheme.substring(LOCAL_AGENT_HOST_SCHEME_PREFIX.length) })
+			: session;
+		const result = await this._sendExtensionRequest(ResolveBackendSessionIdExtensionMethod, { session: backendSession.toString() });
+		return result?.backendSessionId;
+	}
+
+	async resolveSessionUriForBackendSessionId(provider: string, backendSessionId: string): Promise<URI | undefined> {
+		const result = await this._sendExtensionRequest(ResolveSessionByBackendSessionIdExtensionMethod, { provider, backendSessionId });
+		return result?.session ? URI.parse(result.session) : undefined;
+	}
+	// test-workbench_change end
 
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		const result = await this._sendExtensionRequest(CreateAgentHostDetachedWorktreeExtensionMethod, {

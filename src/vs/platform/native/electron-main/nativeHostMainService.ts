@@ -282,7 +282,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			// would deliver the chat session handoff to the old renderer and lose it.
 			// Only the chat session handoff needs to wait, so scope the waiter to it.
 			const chatSessionToOpen = options.chatSessionToOpen;
-			const reusedWindow = options.forceReuseWindow && chatSessionToOpen && typeof windowId === 'number'
+			const testagentSession = options.testagentSession; // test-workbench_change
+			const reusedWindow = options.forceReuseWindow && (chatSessionToOpen || testagentSession) && typeof windowId === 'number' // test-workbench_change
 				? this.windowsMainService.getWindowById(windowId)
 				: undefined;
 			const reloadWaiter = reusedWindow ? createWindowReloadWaiter(reusedWindow) : undefined;
@@ -312,9 +313,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				// folder and the session (e.g. the Agents window "Open in VS Code" flow).
 				// Only meaningful when exactly one window is opened so the session is
 				// not sent to an ambiguous target.
-				if (chatSessionToOpen && windows.length === 1) {
+				if ((chatSessionToOpen || testagentSession) && windows.length === 1) { // test-workbench_change
 					await reloadWaiter?.waitFor(windows[0]); // test-workbench_change
-					windows[0].sendWhenReady('vscode:openChatSession', CancellationToken.None, URI.revive(chatSessionToOpen).toString());
+					if (chatSessionToOpen) {
+						windows[0].sendWhenReady('vscode:openChatSession', CancellationToken.None, URI.revive(chatSessionToOpen).toString());
+					}
+					if (testagentSession) { // test-workbench_change
+						windows[0].sendWhenReady('vscode:openTestAgentSession', CancellationToken.None, testagentSession);
+					}
 				}
 			} finally {
 				reloadWaiter?.dispose(); // test-workbench_change
@@ -323,10 +329,29 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	private async doOpenEmptyWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void> {
-		await this.windowsMainService.openEmptyWindow({
-			context: OpenContext.API,
-			contextWindowId: windowId
-		}, options);
+		// test-workbench_change start
+		// Reusing a ready window reloads it asynchronously, so wait for the
+		// reloaded renderer before delivering the TestAgent session handoff.
+		const testagentSession = options?.testagentSession;
+		const reusedWindow = options?.forceReuseWindow && testagentSession && typeof windowId === 'number'
+			? this.windowsMainService.getWindowById(windowId)
+			: undefined;
+		const reloadWaiter = reusedWindow ? createWindowReloadWaiter(reusedWindow) : undefined;
+		// test-workbench_change end
+		try {
+			const windows = await this.windowsMainService.openEmptyWindow({
+				context: OpenContext.API,
+				contextWindowId: windowId
+			}, options);
+			// test-workbench_change start
+			if (testagentSession && windows.length === 1) {
+				await reloadWaiter?.waitFor(windows[0]);
+				windows[0].sendWhenReady('vscode:openTestAgentSession', CancellationToken.None, testagentSession);
+			}
+			// test-workbench_change end
+		} finally {
+			reloadWaiter?.dispose(); // test-workbench_change
+		}
 	}
 
 	async openAgentsWindow(windowId: number | undefined, options?: IOpenAgentsWindowOptions): Promise<void> {
