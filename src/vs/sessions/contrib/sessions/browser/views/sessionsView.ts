@@ -300,11 +300,11 @@ export class SessionsView extends ViewPane {
 		// Sync workspace group capped context key with persisted state
 		this.workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
 
-		// Register session type filter actions (re-register when session types change)
-		this.registerSessionTypeFilters(sessionsControl);
-		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
-			this.registerSessionTypeFilters(sessionsControl);
-		}));
+		// test-workbench_change — 去掉“按 agent(会话类型)筛选”功能,默认显示全部 agent 的会话。
+		// this.registerSessionTypeFilters(sessionsControl);
+		// this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
+		// 	this.registerSessionTypeFilters(sessionsControl);
+		// }));
 
 		// Register status filter actions (static set, registered once)
 		this.registerStatusFilters(sessionsControl);
@@ -522,46 +522,7 @@ export class SessionsView extends ViewPane {
 		}
 	}
 
-	private readonly registeredFilterTypeIds = new Set<string>();
-
 	private readonly archivedFilterRegistration = this._register(new DisposableStore());
-
-	private registerSessionTypeFilters(sessionsControl: SessionsList): void {
-		const sessionTypes = this.sessionsManagementService.getAllSessionTypes();
-		for (let i = 0; i < sessionTypes.length; i++) {
-			const type = sessionTypes[i];
-
-			// Skip if already registered (action IDs are global and can't be re-registered)
-			if (this.registeredFilterTypeIds.has(type.id)) {
-				continue;
-			}
-			this.registeredFilterTypeIds.add(type.id);
-
-			const contextKey = new RawContextKey<boolean>(`sessionsViewPane.filterType.${type.id}`, !sessionsControl.isSessionTypeExcluded(type.id));
-			const contextKeyInstance = contextKey.bindTo(this.scopedContextKeyService);
-			this.filterContextKeys.set(contextKey.key, { key: contextKeyInstance, getDefault: () => true });
-
-			this._register(registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: `sessionsViewPane.filterType.${type.id}`,
-						title: type.label,
-						toggled: ContextKeyExpr.equals(contextKey.key, true),
-						menu: [{
-							id: SessionsViewFilterOptionsSubMenu,
-							group: '1_types',
-							order: i,
-						}]
-					});
-				}
-				override run() {
-					const isExcluded = sessionsControl.isSessionTypeExcluded(type.id);
-					sessionsControl.setSessionTypeExcluded(type.id, !isExcluded);
-					contextKeyInstance.set(isExcluded); // was excluded, now included (toggle)
-				}
-			}));
-		}
-	}
 
 	private registerStatusFilters(sessionsControl: SessionsList): void {
 		const statusFilters: { status: SessionStatus; label: string }[] = [
