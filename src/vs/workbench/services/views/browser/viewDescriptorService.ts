@@ -328,7 +328,16 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private isViewContainerEnabled(viewContainer: ViewContainer): boolean {
-		return this.isEnabled(viewContainer.windowEnablement);
+		if (this.isEnabled(viewContainer.windowEnablement)) {
+			return true;
+		}
+		// test-workbench_change start — in the Agents window, surface a container that only carries
+		// views allowed in this window (e.g. an extension view added to a built-in container).
+		if (this.isSessionsWindow) {
+			return this.viewsRegistry.getViews(viewContainer).some(view => this.isViewEnabled(view));
+		}
+		// test-workbench_change end
+		return false;
 	}
 
 	private isViewEnabled(view: IViewDescriptor): boolean {
@@ -733,6 +742,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 	private getViewsByContainer(viewContainer: ViewContainer): IViewDescriptor[] {
 		const result = this.viewsRegistry.getViews(viewContainer).filter(viewDescriptor => {
+			if (!this.isViewEnabled(viewDescriptor)) {
+				return false; // test-workbench_change — only surface views allowed in this window
+			}
 			const viewDescriptorViewContainerId = this.viewDescriptorsCustomLocations.get(viewDescriptor.id) ?? viewContainer.id;
 			return viewDescriptorViewContainerId === viewContainer.id;
 		});
@@ -932,6 +944,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private addViews(container: ViewContainer, views: IViewDescriptor[], visibilityState: ViewVisibilityState = ViewVisibilityState.Default): void {
+		// test-workbench_change — only surface views allowed in this window (the Agents window
+		// filters out editor-only views, e.g. built-in views of a container surfaced only because
+		// an extension added a view to it).
+		views = views.filter(view => this.isViewEnabled(view));
 		this.contextKeyService.bufferChangeEvents(() => {
 			views.forEach(view => {
 				const isDefaultContainer = this.getDefaultContainerById(view.id) === container;

@@ -21,7 +21,7 @@ import { PaneCompositeRegistry, Extensions as ViewletExtensions } from '../../br
 import { CustomTreeView, TreeViewPane } from '../../browser/parts/views/treeView.js';
 import { ViewPaneContainer } from '../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
-import { ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../common/views.js';
+import { ICustomViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, Extensions as ViewContainerExtensions, ViewContainerLocation, WindowEnablement } from '../../common/views.js'; // test-workbench_change — WindowEnablement
 import { VIEWLET_ID as DEBUG } from '../../contrib/debug/common/debug.js';
 import { VIEWLET_ID as EXPLORER } from '../../contrib/files/common/files.js';
 import { VIEWLET_ID as REMOTE } from '../../contrib/remote/browser/remoteExplorer.js';
@@ -416,6 +416,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				hideIfEmpty: true,
 				order,
 				icon,
+				windowEnablement: WindowEnablement.Both, // test-workbench_change — surface extension containers in the Agents window auxiliary bar
 			}, location);
 
 		}
@@ -535,7 +536,8 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						hideByDefault: initialVisibility === InitialVisibility.Hidden,
 						workspace: viewContainer?.id === REMOTE ? true : undefined,
 						weight,
-						accessibilityHelpContent
+						accessibilityHelpContent,
+						windowEnablement: WindowEnablement.Both, // test-workbench_change — surface extension views in the Agents window
 					};
 
 

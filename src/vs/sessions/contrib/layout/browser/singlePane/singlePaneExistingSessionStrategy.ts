@@ -473,7 +473,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 				super({
 					id: TOGGLE_DETAILS_COMMAND_ID,
 					title: localize2('toggleDetails', "Toggle Details"),
-					icon: Codicon.folder,
+					icon: Codicon.listSelection,
 					f1: false,
 					toggled: AuxiliaryBarVisibleContext,
 					keybinding: {

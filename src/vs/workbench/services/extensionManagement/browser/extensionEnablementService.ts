@@ -25,7 +25,7 @@ import { INotificationService, NotificationPriority, Severity } from '../../../.
 import { IHostService } from '../../host/browser/host.js';
 import { IExtensionBisectService } from './extensionBisect.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IExtensionManifestPropertiesService } from '../../extensions/common/extensionManifestPropertiesService.js';
+import { EXTENSIONS_SUPPORT_AGENTS_WINDOW, IExtensionManifestPropertiesService } from '../../extensions/common/extensionManifestPropertiesService.js'; // test-workbench_change — EXTENSIONS_SUPPORT_AGENTS_WINDOW
 import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -332,7 +332,19 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				const trustState = await this.workspaceTrustRequestService.requestWorkspaceTrust();
 				result.push(trustState ?? false);
 			} else {
-				result.push(await this._setUserEnablementState(extension, newState));
+				// test-workbench_change start — Agents window: enabling a user extension that the
+				// sessions window blocks records a per-window opt-in; disabling an opted-in extension
+				// removes it. This keeps the toggle scoped to the Agents window instead of the
+				// globally shared enablement storage.
+				const wantsEnabled = this.isEnabledEnablementState(newState);
+				if (wantsEnabled && this._isSessionsWindowUserChangeable(extension)) {
+					result.push(await this._enableInSessionsWindow(extension));
+				} else if (!wantsEnabled && this.environmentService.isSessionsWindow && this._isSessionsWindowOptedIn(extension)) {
+					result.push(await this._disableInSessionsWindow(extension));
+				} else {
+					result.push(await this._setUserEnablementState(extension, newState));
+				}
+				// test-workbench_change end
 			}
 		}
 
@@ -441,7 +453,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	isDisabledGlobally(extension: IExtension): boolean {
-		return this._isDisabledGlobally(extension.identifier);
+		// test-workbench_change — surface Agents-window-blocked user extensions as disabled so the
+		// standard "Enable" action appears in the Extensions view.
+		return this._isSessionsWindowUserChangeable(extension) || this._isDisabledGlobally(extension.identifier);
 	}
 
 	private _computeEnablementState(extension: IExtension, extensions: ReadonlyArray<IExtension>, workspaceType: WorkspaceType, computedEnablementStates?: Map<IExtension, EnablementState>): EnablementState {
@@ -494,7 +508,12 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 
 		else if (this._isDisabledBySessionsWindow(extension)) {
-			enablementState = EnablementState.DisabledByEnvironment;
+			// test-workbench_change start — user extensions blocked in the Agents window are shown
+			// as user-disablable (not environment-disabled) so the Extensions view offers "Enable".
+			enablementState = this._isSessionsWindowUserChangeable(extension)
+				? EnablementState.DisabledGlobally
+				: EnablementState.DisabledByEnvironment;
+			// test-workbench_change end
 		}
 
 		else if (isEnabled && this._isDisabledByExtensionDependency(extension, extensions, workspaceType, computedEnablementStates)) {
@@ -690,6 +709,61 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		return !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(extension.manifest);
 	}
+
+	// test-workbench_change start
+	// In the Agents window, user (non-builtin) extensions are disabled by default. Expose them as
+	// user-disablable so the standard Extensions view shows a working "Enable" action, and persist
+	// an explicit opt-in (reusing `extensions.supportAgentsWindow`) when the user enables one. This
+	// avoids writing to the globally shared enablement storage, so the editor window is unaffected.
+	private _isSessionsWindowUserChangeable(extension: IExtension): boolean {
+		return !extension.isBuiltin && this._isDisabledBySessionsWindow(extension);
+	}
+
+	private _getSessionsWindowOptInMap(): { [key: string]: boolean } {
+		const value = this.configurationService.getValue<{ [key: string]: boolean }>(EXTENSIONS_SUPPORT_AGENTS_WINDOW);
+		return value && typeof value === 'object' && !Array.isArray(value) ? { ...value } : {};
+	}
+
+	private _findSessionsWindowOptInKey(map: { [key: string]: boolean }, id: string): string | undefined {
+		const lower = id.toLowerCase();
+		return Object.keys(map).find(key => key.toLowerCase() === lower);
+	}
+
+	private _isSessionsWindowOptedIn(extension: IExtension): boolean {
+		const map = this._getSessionsWindowOptInMap();
+		const key = this._findSessionsWindowOptInKey(map, extension.identifier.id);
+		return key !== undefined && map[key] === true;
+	}
+
+	private async _setSessionsWindowOptIn(extension: IExtension, enabled: boolean): Promise<void> {
+		const map = this._getSessionsWindowOptInMap();
+		const key = this._findSessionsWindowOptInKey(map, extension.identifier.id);
+		if (enabled) {
+			if (key !== undefined && map[key] === true) {
+				return;
+			}
+			map[key ?? extension.identifier.id] = true;
+		} else {
+			if (key === undefined) {
+				return;
+			}
+			delete map[key];
+		}
+		await this.configurationService.updateValue(EXTENSIONS_SUPPORT_AGENTS_WINDOW, map);
+	}
+
+	private async _enableInSessionsWindow(extension: IExtension): Promise<boolean> {
+		await this._setSessionsWindowOptIn(extension, true);
+		// Also ensure the extension is globally enabled (it may have been disabled before).
+		await this._setUserEnablementState(extension, EnablementState.EnabledGlobally);
+		return true;
+	}
+
+	private async _disableInSessionsWindow(extension: IExtension): Promise<boolean> {
+		await this._setSessionsWindowOptIn(extension, false);
+		return true;
+	}
+	// test-workbench_change end
 
 	private _enableExtension(identifier: IExtensionIdentifier): Promise<boolean> {
 		this._removeFromWorkspaceDisabledExtensions(identifier);

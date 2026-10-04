@@ -11,8 +11,9 @@
 // persisted so it never leaks into the editor window, which shares the same profile storage.
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../workbench/common/views.js';
+import { Extensions as ViewExtensions, ICustomViewDescriptor, IViewDescriptorService, IViewContainersRegistry, IViewsRegistry, ViewContainer, ViewContainerLocation, WindowEnablement } from '../../../../workbench/common/views.js';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from '../../../../workbench/contrib/extensions/common/extensions.js';
 import { VIEWLET_ID as SCM_VIEWLET_ID } from '../../../../workbench/contrib/scm/common/scm.js';
 
@@ -21,6 +22,9 @@ const RELOCATED_TOOL_CONTAINER_IDS: readonly string[] = [
 	SCM_VIEWLET_ID,
 	EXTENSIONS_VIEWLET_ID,
 ];
+
+const isSessionsAllowed = (enablement: WindowEnablement | undefined): boolean =>
+	enablement === WindowEnablement.Sessions || enablement === WindowEnablement.Both; // test-workbench_change
 
 class AuxiliaryBarToolViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -31,16 +35,44 @@ class AuxiliaryBarToolViewsContribution extends Disposable implements IWorkbench
 	) {
 		super();
 
-		for (const containerId of RELOCATED_TOOL_CONTAINER_IDS) {
-			const container = viewDescriptorService.getViewContainerById(containerId);
-			if (!container) {
-				continue;
-			}
+		const relocate = (container: ViewContainer): void => {
 			if (viewDescriptorService.getViewContainerLocation(container) === ViewContainerLocation.AuxiliaryBar) {
-				continue;
+				return;
 			}
 			viewDescriptorService.moveViewContainerToLocationForWindow(container, ViewContainerLocation.AuxiliaryBar, AuxiliaryBarToolViewsContribution.ID);
+		};
+
+		for (const containerId of RELOCATED_TOOL_CONTAINER_IDS) {
+			const container = viewDescriptorService.getViewContainerById(containerId);
+			if (container) {
+				relocate(container);
+			}
 		}
+
+		// test-workbench_change start — surface extension UI in the auxiliary bar tool strip:
+		//  - containers contributed by an extension (allowed here via `WindowEnablement.Both`);
+		//  - built-in containers that only carry views allowed in this window because an extension
+		//    added its view to them (e.g. an extension view in Explorer).
+		// Both register dynamically, so relocate existing ones and listen for later registrations.
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		const hasExtensionViewAllowedHere = (container: ViewContainer): boolean =>
+			(container.extensionId !== undefined && isSessionsAllowed(container.windowEnablement))
+			|| viewsRegistry.getViews(container).some(view => !!(view as ICustomViewDescriptor).extensionId && isSessionsAllowed(view.windowEnablement));
+		const relocateToolContainer = (container: ViewContainer): void => {
+			if (viewDescriptorService.getViewContainerLocation(container) !== ViewContainerLocation.Sidebar) {
+				return;
+			}
+			if (hasExtensionViewAllowedHere(container)) {
+				relocate(container);
+			}
+		};
+		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
+		for (const container of viewContainersRegistry.all) {
+			relocateToolContainer(container);
+		}
+		this._register(viewContainersRegistry.onDidRegister(({ viewContainer }) => relocateToolContainer(viewContainer)));
+		this._register(viewsRegistry.onViewsRegistered(entries => entries.forEach(({ viewContainer }) => relocateToolContainer(viewContainer))));
+		// test-workbench_change end
 	}
 }
 

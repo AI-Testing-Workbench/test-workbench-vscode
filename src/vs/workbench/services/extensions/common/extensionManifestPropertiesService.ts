@@ -92,6 +92,16 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 				this._productExtensionWorkspaceTrustRequestMap.set(id, productService.extensionUntrustedWorkspaceSupport[id]);
 			}
 		}
+
+		// test-workbench_change start — `extensions.supportAgentsWindow` is applied live. The
+		// sessions-window support map above is cached, so invalidate it when the setting changes
+		// (enabling an extension from the Agents window writes this setting).
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW)) {
+				this._configuredSessionsWindowSupportMap = null;
+			}
+		}));
+		// test-workbench_change end
 	}
 
 	canExecuteOnSessionsWindow(manifest: IExtensionManifest): boolean {

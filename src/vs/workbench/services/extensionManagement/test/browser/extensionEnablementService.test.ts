@@ -15,7 +15,7 @@ import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } 
 import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { isUndefinedOrNull } from '../../../../../base/common/types.js';
 import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -1271,9 +1271,9 @@ suite('ExtensionEnablementService Test', () => {
 			EnablementState.EnabledGlobally,
 			EnablementState.EnabledGlobally,
 			EnablementState.EnabledGlobally,
-			EnablementState.DisabledByEnvironment,
-			EnablementState.DisabledByEnvironment,
-			EnablementState.DisabledByEnvironment,
+			EnablementState.DisabledGlobally, // test-workbench_change — user extensions blocked in the Agents window are user-disablable
+			EnablementState.DisabledGlobally, // test-workbench_change
+			EnablementState.DisabledGlobally, // test-workbench_change
 			EnablementState.EnabledGlobally,
 		]);
 	});
@@ -1290,7 +1290,7 @@ suite('ExtensionEnablementService Test', () => {
 		assert.deepStrictEqual([withMain, nonThemeContrib, withBrowser].map(ext => testObject.getEnablementState(ext)), [
 			EnablementState.EnabledGlobally,
 			EnablementState.EnabledGlobally,
-			EnablementState.DisabledByEnvironment,
+			EnablementState.DisabledGlobally, // test-workbench_change
 		]);
 	});
 
@@ -1305,10 +1305,41 @@ suite('ExtensionEnablementService Test', () => {
 
 		assert.deepStrictEqual([supported, unsupported, unsupportedWithoutProposal].map(ext => testObject.getEnablementState(ext)), [
 			EnablementState.EnabledGlobally,
-			EnablementState.DisabledByEnvironment,
-			EnablementState.DisabledByEnvironment,
+			EnablementState.DisabledGlobally, // test-workbench_change
+			EnablementState.DisabledGlobally, // test-workbench_change
 		]);
 	});
+
+	// test-workbench_change start — user extensions blocked in the Agents window can be toggled
+	// from the Extensions view; enabling persists an opt-in and disabling removes it.
+	test('test user extension blocked in sessions window can be enabled and records an opt-in', async () => {
+		class UpdatingTestConfigurationService extends TestConfigurationService {
+			override async updateValue(key: string, value: unknown): Promise<void> {
+				await this.setUserConfiguration(key, value);
+				this.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (k: string) => k === key } as IConfigurationChangeEvent);
+			}
+		}
+		const configService = new UpdatingTestConfigurationService();
+		instantiationService.stub(IConfigurationService, configService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+
+		const extension = aLocalExtension2('pub.withMain', { main: 'main.js' });
+
+		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.DisabledGlobally);
+		assert.strictEqual(testObject.isDisabledGlobally(extension), true);
+		assert.strictEqual(testObject.canChangeEnablement(extension), true);
+
+		assert.deepStrictEqual(await testObject.setEnablement([extension], EnablementState.EnabledGlobally), [true]);
+		assert.strictEqual(configService.getValue<Record<string, boolean>>(EXTENSIONS_SUPPORT_AGENTS_WINDOW)?.['pub.withMain'], true);
+		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
+		assert.ok(testObject.isEnabled(extension));
+
+		assert.deepStrictEqual(await testObject.setEnablement([extension], EnablementState.DisabledGlobally), [true]);
+		assert.strictEqual(configService.getValue<Record<string, boolean>>(EXTENSIONS_SUPPORT_AGENTS_WINDOW)?.['pub.withMain'], undefined);
+		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.DisabledGlobally);
+	});
+	// test-workbench_change end
 
 	test('test extensions are not disabled in non-sessions window', () => {
 		const withMain = aLocalExtension2('pub.withMain', { main: 'main.js' });

@@ -8,7 +8,7 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
+import { ViewContainerLocation, IViewDescriptorService } from '../../../../../workbench/common/views.js';
 import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -48,6 +48,7 @@ export class SinglePaneDetailPanelCoordinator extends Disposable {
 		@IPaneCompositePartService paneCompositePartService: IPaneCompositePartService,
 		@ISessionsService sessionsService: ISessionsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService, // test-workbench_change
 	) {
 		super();
 		this._hasDockedDetailsContext = HasDockedDetailsContext.bindTo(contextKeyService);
@@ -60,7 +61,8 @@ export class SinglePaneDetailPanelCoordinator extends Disposable {
 		this._register(paneCompositePartService.onDidPaneCompositeOpen(({ composite, viewContainerLocation }) => {
 			if (viewContainerLocation === ViewContainerLocation.AuxiliaryBar) {
 				const id = composite.getId();
-				if (SESSIONS_FILES_TOOL_CONTAINER_IDS.includes(id)) {
+				// test-workbench_change — also remember extension-contributed containers.
+				if (SESSIONS_FILES_TOOL_CONTAINER_IDS.includes(id) || !!this._viewDescriptorService.getViewContainerById(id)?.extensionId) {
 					this._preferredFilesToolContainerId = id;
 				}
 			}
