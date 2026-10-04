@@ -53,6 +53,7 @@ class SessionsEditorEmptyStateController extends Disposable {
 		// Hosted on the group container itself; the companion CSS shows it only while
 		// the container carries the `empty` class (i.e. no tab is open).
 		const container = append(group.element, $('.sessions-editor-empty-state'));
+		append(container, $('.sessions-editor-empty-state-logo'));
 		const actions = append(container, $('.sessions-editor-empty-state-actions'));
 
 		for (const item of EMPTY_STATE_ITEMS) {

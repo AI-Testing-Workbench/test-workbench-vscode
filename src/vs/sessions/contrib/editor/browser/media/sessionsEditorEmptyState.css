@@ -33,9 +33,34 @@
 	position: absolute;
 	inset: 0;
 	display: flex;
+	flex-direction: column;
+	gap: 32px;
 	align-items: center;
 	justify-content: center;
 	pointer-events: none;
+}
+
+/* tscode logo above the shortcut cards; mirrors the stock watermark theme variants. */
+.monaco-workbench.agent-sessions-workbench .part.editor > .content .editor-group-container > .sessions-editor-empty-state > .sessions-editor-empty-state-logo {
+	width: 160px;
+	max-width: 45%;
+	aspect-ratio: 1 / 1;
+	background-image: url('../../../../../workbench/browser/parts/editor/media/letterpress-light.svg');
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.monaco-workbench.agent-sessions-workbench.vs-dark .part.editor > .content .editor-group-container > .sessions-editor-empty-state > .sessions-editor-empty-state-logo {
+	background-image: url('../../../../../workbench/browser/parts/editor/media/letterpress-dark.svg');
+}
+
+.monaco-workbench.agent-sessions-workbench.hc-light .part.editor > .content .editor-group-container > .sessions-editor-empty-state > .sessions-editor-empty-state-logo {
+	background-image: url('../../../../../workbench/browser/parts/editor/media/letterpress-hcLight.svg');
+}
+
+.monaco-workbench.agent-sessions-workbench.hc-black .part.editor > .content .editor-group-container > .sessions-editor-empty-state > .sessions-editor-empty-state-logo {
+	background-image: url('../../../../../workbench/browser/parts/editor/media/letterpress-hcDark.svg');
 }
 
 .monaco-workbench.agent-sessions-workbench .part.editor > .content .sessions-editor-empty-state > .sessions-editor-empty-state-actions {
