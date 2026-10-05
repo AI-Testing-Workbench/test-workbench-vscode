@@ -159,6 +159,24 @@ MenuRegistry.appendMenuItem(Menus.PanelTitle, {
 	order: 2
 });
 
+// test-workbench_change start — the editor window exposes Account + Manage (Settings,
+// theme, command palette, extensions, keyboard shortcuts, ...) at the bottom-left of the
+// activity bar. The Agents window title bar had no equivalent, so surface the same Manage
+// menu (with all of its items and submenus) here.
+MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
+	submenu: MenuId.GlobalActivity,
+	title: localize('manage', "Manage"),
+	icon: Codicon.settingsGear,
+	when: ContextKeyExpr.and(
+		IsAuxiliaryWindowContext.toNegated(),
+		SessionsWelcomeVisibleContext.toNegated(),
+		IsPhoneLayoutContext.negate(),
+	),
+	group: 'navigation',
+	order: 110
+});
+// test-workbench_change end
+
 // Floating window controls: always-on-top
 MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
 	command: {

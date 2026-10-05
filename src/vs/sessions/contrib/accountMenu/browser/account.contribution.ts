@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { IObservable, runOnChange } from '../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2, IMenuService } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -34,12 +34,10 @@ import { ChatEntitlement, ChatEntitlementService, getChatPlanName, getQuotaReset
 import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
+import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarState } from '../../../browser/accountTitleBarState.js';
 import { observeAllowSignedOutWhenUsable } from '../../../browser/sessionsAuthGate.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
-import { IAuthenticationUsageService } from '../../../../workbench/services/authentication/browser/authenticationUsageService.js';
 import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatDashboardService } from '../../../browser/chatDashboardService.js';
@@ -54,8 +52,8 @@ import { fromNow, safeIntl } from '../../../../base/common/date.js';
 import { language } from '../../../../base/common/platform.js';
 import { AgentHostCodexAgentEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
-import { CHAT_SETUP_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { ITsCodeAuthService, ITsCodeTokenStore } from '../../../../workbench/contrib/tsCodeAuth/common/tsCodeAuth.js'; // test-workbench_change
 import { SessionsChatPetAchievementBadges } from './chatPetAchievementBadges.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 
@@ -68,12 +66,38 @@ const PERSONALIZE_ACTION_IDS: readonly string[] = [
 	'workbench.action.openSettings',
 ];
 const SIGN_OUT_ACTION_ID = 'workbench.action.agenticSignOut';
+// test-workbench_change: the Agents window account entry is TestAgent (tsCode OAuth) based,
+// so the GitHub Copilot / ChatGPT account sections in the hover panel are suppressed.
+const USE_TEST_AGENT_ACCOUNT = true;
 const accountDateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric' });
 const accountTimeFormatter = safeIntl.DateTimeFormat(language, { hour: 'numeric', minute: 'numeric' });
 
 export function shouldShowAccountPanelSummary(state: Pick<IAccountTitleBarState, 'source' | 'kind'>, hasCopilotDashboard: boolean, isAccountLoading: boolean): boolean {
 	return !hasCopilotDashboard && !isAccountLoading && !(state.source === 'copilot' && state.kind === 'prominent');
 }
+
+// test-workbench_change start — the Agents window account entry reflects the TestAgent
+// (tsCode OAuth) session instead of the GitHub Copilot default account.
+export const TsCodeSignedInContext = new RawContextKey<boolean>('tscodeAuth.signedIn', false);
+
+class TsCodeAccountContextContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.tsCodeAccountContext';
+
+	constructor(
+		@ITsCodeAuthService authService: ITsCodeAuthService,
+		@ITsCodeTokenStore tokenStore: ITsCodeTokenStore,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super();
+		const key = TsCodeSignedInContext.bindTo(contextKeyService);
+		const update = async () => key.set((await tokenStore.getToken()) !== undefined);
+		this._register(authService.onDidLogin(() => void update()));
+		this._register(authService.onDidLogout(() => key.set(false)));
+		void update();
+	}
+}
+registerWorkbenchContribution2(TsCodeAccountContextContribution.ID, TsCodeAccountContextContribution, WorkbenchPhase.BlockRestore);
+// test-workbench_change end
 
 // Register the shared VS Code update entry in the Agents left titlebar actions.
 registerUpdateTitleBarMenuPlacement(Menus.TitleBarLeftLayout, {
@@ -85,27 +109,29 @@ registerUpdateTitleBarMenuPlacement(Menus.TitleBarLeftLayout, {
 	),
 });
 
-// Sign In (shown when signed out)
+// Sign In (shown when signed out of TestAgent) — test-workbench_change: uses the
+// TestAgent (tsCode OAuth) flow instead of the GitHub Copilot chat setup flow.
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: AGENTIC_SIGN_IN_COMMAND_ID,
-			title: localize2('signIn', "Sign in to use GitHub Copilot"),
+			title: localize2('signIn', "Sign in with TestAgent"),
 			icon: Codicon.signIn,
 			menu: {
 				id: AccountMenu,
-				when: ContextKeyExpr.notEquals('defaultAccountStatus', 'available'),
+				when: TsCodeSignedInContext.negate(),
 				group: '1_account',
 				order: 1,
 			}
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(ICommandService).executeCommand(CHAT_SETUP_ACTION_ID);
+		await accessor.get(ITsCodeAuthService).startOAuthFlow();
 	}
 });
 
-// Sign Out (shown when signed in)
+// Sign Out (shown when signed in to TestAgent) — test-workbench_change: signs out of
+// the TestAgent (tsCode OAuth) session instead of a GitHub Copilot account.
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -114,29 +140,19 @@ registerAction2(class extends Action2 {
 			icon: Codicon.signOut,
 			menu: {
 				id: AccountMenu,
-				when: ContextKeyExpr.equals('defaultAccountStatus', 'available'),
+				when: TsCodeSignedInContext,
 				group: '1_account',
 				order: 1,
 			}
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const defaultAccountService = accessor.get(IDefaultAccountService);
 		const dialogService = accessor.get(IDialogService);
-		const authenticationService = accessor.get(IAuthenticationService);
-		const authenticationUsageService = accessor.get(IAuthenticationUsageService);
-		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
-		const defaultAccount = await defaultAccountService.getDefaultAccount();
-		if (!defaultAccount) {
-			return;
-		}
-
-		const providerId = defaultAccount.authenticationProvider.id;
-		const accountLabel = defaultAccount.accountName;
+		const tsCodeAuthService = accessor.get(ITsCodeAuthService);
 		const { confirmed } = await dialogService.confirm({
 			type: Severity.Info,
 			message: localize('agenticSignOutMessage', "Sign out of the Agents window?"),
-			detail: localize('agenticSignOutDetail', "This will sign out '{0}' from the Agents window.", accountLabel),
+			detail: localize('agenticSignOutDetailTestAgent', "This will sign out of TestAgent in the Agents window."),
 			primaryButton: localize({ key: 'agenticSignOutButton', comment: ['&& denotes a mnemonic'] }, "&&Sign Out")
 		});
 
@@ -144,11 +160,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const allSessions = await authenticationService.getSessions(providerId);
-		const sessions = allSessions.filter(session => session.account.label === accountLabel);
-		await Promise.all(sessions.map(session => authenticationService.removeSession(providerId, session.id)));
-		authenticationUsageService.removeAccountUsage(providerId, accountLabel);
-		authenticationAccessService.removeAllowedExtensions(providerId, accountLabel);
+		await tsCodeAuthService.signOut();
 	}
 });
 
@@ -199,6 +211,9 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private readonly codexAvatarLoadDisposable = this._register(new MutableDisposable());
 	/** Whether the conditional-auth opt-in permits signed-out operation. */
 	private readonly allowSignedOutWhenUsable: IObservable<boolean>;
+	// test-workbench_change start — TestAgent (tsCode OAuth) drives the account entry.
+	private tscodeSignedIn = false;
+	// test-workbench_change end
 
 	constructor(
 		action: IAction,
@@ -213,6 +228,8 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		@ICodexAccountService private readonly codexAccountService: ICodexAccountService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ITsCodeAuthService private readonly tsCodeAuthService: ITsCodeAuthService, // test-workbench_change
+		@ITsCodeTokenStore private readonly tsCodeTokenStore: ITsCodeTokenStore, // test-workbench_change
 	) {
 		super(undefined, action, options);
 		this.lastCodexAccount = this.codexAccountService.account;
@@ -253,6 +270,10 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		// in is optional) or a prominent "Agents Signed Out". Re-render so toggling the
 		// setting switches between them while the window is open.
 		this._register(runOnChange(this.allowSignedOutWhenUsable, () => this.renderState()));
+		// test-workbench_change start — refresh the account entry on TestAgent login/logout.
+		this._register(this.tsCodeAuthService.onDidLogin(() => void this.refreshAccount()));
+		this._register(this.tsCodeAuthService.onDidLogout(() => void this.refreshAccount()));
+		// test-workbench_change end
 		this.refreshAccount();
 		this.refreshCodexAvatar();
 	}
@@ -293,39 +314,72 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.isAccountLoading = true;
 		this.renderState();
 
-		const info = await resolveAccountInfo(this.defaultAccountService, this.authenticationService);
+		// test-workbench_change start — resolve the TestAgent (tsCode OAuth) account.
+		const token = await this.tsCodeTokenStore.getToken();
 		if (requestId !== this.accountRequestCounter || this._store.isDisposed) {
 			return;
 		}
 
-		this.accountName = info?.accountName;
-		this.accountProviderId = info?.accountProviderId;
-		this.accountProviderLabel = info?.accountProviderLabel;
-		this.accountIcon = info?.accountIcon;
+		this.tscodeSignedIn = !!token;
+		if (token) {
+			this.accountName = token.userName ?? token.employeeId ?? localize('testAgentUser', "TestAgent User");
+			this.accountProviderId = 'tscode-oauth';
+			this.accountProviderLabel = 'TestAgent';
+			this.accountIcon = undefined;
+		} else {
+			this.accountName = undefined;
+			this.accountProviderId = undefined;
+			this.accountProviderLabel = undefined;
+			this.accountIcon = undefined;
+		}
+		// test-workbench_change end
 		this.isAccountLoading = false;
 		this.refreshAvatar();
 		this.renderState();
 	}
+
+	// test-workbench_change start
+	private getTestAgentTitleBarState(): IAccountTitleBarState {
+		if (this.isAccountLoading) {
+			return {
+				source: 'account',
+				kind: 'default',
+				icon: ThemeIcon.modify(Codicon.loading, 'spin'),
+				label: localize('loadingAccount', "Loading Account..."),
+				ariaLabel: localize('loadingAccountAria', "Loading account"),
+				revealLabelOnHover: true,
+			};
+		}
+
+		if (this.tscodeSignedIn && this.accountName) {
+			return {
+				source: 'account',
+				kind: 'default',
+				icon: Codicon.account,
+				label: this.accountName,
+				revealLabelOnHover: true,
+				ariaLabel: localize('accountSignedInTestAgentAria', "Signed in as {0} with {1}", this.accountName, this.accountProviderLabel ?? 'TestAgent'),
+			};
+		}
+
+		return {
+			source: 'account',
+			kind: 'prominent',
+			icon: Codicon.account,
+			label: localize('signInLabel', "Sign In"),
+			ariaLabel: localize('signInTestAgentAria', "Sign in with TestAgent"),
+		};
+	}
+	// test-workbench_change end
 
 	private renderState(): void {
 		if (!this.container || !this.avatarElement || !this.iconElement || !this.labelElement || !this.badgeElement) {
 			return;
 		}
 
-		// When we have a session but entitlement hasn't resolved yet,
-		// treat as Unresolved to avoid showing "Agents Signed Out".
-		const entitlement = this.accountName && this.chatEntitlementService.entitlement === ChatEntitlement.Unknown
-			? ChatEntitlement.Unresolved
-			: this.chatEntitlementService.entitlement;
-		const state = getAccountTitleBarState({
-			isAccountLoading: this.isAccountLoading,
-			accountName: this.accountName,
-			accountProviderLabel: this.accountProviderLabel,
-			entitlement,
-			sentiment: this.chatEntitlementService.sentiment,
-			quotas: this.chatEntitlementService.quotas,
-			allowSignedOutWhenUsable: this.allowSignedOutWhenUsable.get(),
-		});
+		// test-workbench_change — the Agents window account entry reflects the TestAgent
+		// (tsCode OAuth) session, not the GitHub Copilot entitlement.
+		const state = this.getTestAgentTitleBarState();
 		this.lastState = state;
 
 		this.container.classList.remove('kind-default', 'kind-accent', 'kind-warning', 'kind-prominent');
@@ -574,9 +628,13 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		const partitioned = this.partitionMenuActions(rawActions);
 
 		const identities = append(panel, $('.sessions-account-titlebar-panel-identities'));
+		const accountSectionLabel = USE_TEST_AGENT_ACCOUNT
+			? localize('testAgentAccountSectionLabel', "TestAgent account")
+			: localize('copilotAccountSectionLabel', "Copilot account");
+		const accountSectionIcon = USE_TEST_AGENT_ACCOUNT ? Codicon.account : Codicon.github;
 		if (this.accountName || this.isAccountLoading) {
 			const copilotAccount = append(identities, $('section.sessions-account-titlebar-panel-provider-account', {
-				'aria-label': localize('copilotAccountSectionLabel', "Copilot account")
+				'aria-label': accountSectionLabel
 			}));
 			const copilotIdentity = append(copilotAccount, $('.sessions-account-titlebar-panel-provider-identity'));
 			const loadedAvatarUrl = !this.isAccountLoading ? this.loadedAvatarUrl : undefined;
@@ -590,7 +648,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				avatar.referrerPolicy = 'no-referrer';
 			} else {
 				const accountIcon = append(copilotIdentity, $('span.sessions-account-titlebar-panel-provider-icon', { 'aria-hidden': 'true' }));
-				accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.github));
+				accountIcon.classList.add(...ThemeIcon.asClassNameArray(accountSectionIcon));
 			}
 			const title = append(copilotIdentity, $('div.sessions-account-titlebar-panel-provider-name'));
 			title.textContent = this.getPanelHeaderLabel();
@@ -600,34 +658,39 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
 			}));
-			copilotActionBar.push(panelStore.add(new Action(
-				'copilot.manageModels',
-				localize('manageCopilotModels', "Manage Copilot Models"),
-				ThemeIcon.asClassName(Codicon.copilot),
-				true,
-				() => this.commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, '@provider:"Copilot"'),
-			)), { icon: true, label: false });
-			copilotActionBar.push(panelStore.add(new Action(
-				'copilot.openAgentCustomizations',
-				localize('openCopilotAgentCustomizations', "Agent Customizations for Copilot"),
-				ThemeIcon.asClassName(Codicon.settingsGear),
-				true,
-				() => this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
-					sessionType: SessionType.AgentHostCopilot,
-					section: AICustomizationManagementSection.Agents,
-				}),
-			)), { icon: true, label: false });
+			// test-workbench_change: Copilot-only actions/usage are suppressed for TestAgent.
+			if (!USE_TEST_AGENT_ACCOUNT) {
+				copilotActionBar.push(panelStore.add(new Action(
+					'copilot.manageModels',
+					localize('manageCopilotModels', "Manage Copilot Models"),
+					ThemeIcon.asClassName(Codicon.copilot),
+					true,
+					() => this.commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, '@provider:"Copilot"'),
+				)), { icon: true, label: false });
+				copilotActionBar.push(panelStore.add(new Action(
+					'copilot.openAgentCustomizations',
+					localize('openCopilotAgentCustomizations', "Agent Customizations for Copilot"),
+					ThemeIcon.asClassName(Codicon.settingsGear),
+					true,
+					() => this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
+						sessionType: SessionType.AgentHostCopilot,
+						section: AICustomizationManagementSection.Agents,
+					}),
+				)), { icon: true, label: false });
+			}
 			if (partitioned.signOut) {
 				copilotActionBar.push(partitioned.signOut, { icon: true, label: false });
 			}
-			this.appendCopilotUsage(copilotAccount, panelStore);
+			if (!USE_TEST_AGENT_ACCOUNT) {
+				this.appendCopilotUsage(copilotAccount, panelStore);
+			}
 		} else if (partitioned.signIn) {
 			const copilotAccount = append(identities, $('section.sessions-account-titlebar-panel-provider-account.signed-out', {
-				'aria-label': localize('copilotAccountSectionLabel', "Copilot account")
+				'aria-label': accountSectionLabel
 			}));
 			const copilotIdentity = append(copilotAccount, $('.sessions-account-titlebar-panel-provider-identity'));
 			const accountIcon = append(copilotIdentity, $('span.sessions-account-titlebar-panel-provider-icon', { 'aria-hidden': 'true' }));
-			accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.github));
+			accountIcon.classList.add(...ThemeIcon.asClassNameArray(accountSectionIcon));
 			const signInActions = append(copilotIdentity, $('.sessions-account-titlebar-panel-provider-sign-in-actions'));
 			const signInActionBar = panelStore.add(new ActionBar(signInActions));
 			panelStore.add(signInActionBar.onWillRun(() => {
@@ -637,7 +700,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			signInActionBar.push(partitioned.signIn, { icon: false, label: true });
 		}
 
-		if (hasSignedInCodexChatGPTAccount(codexAccount, codexAccountVisible)) {
+		if (!USE_TEST_AGENT_ACCOUNT && hasSignedInCodexChatGPTAccount(codexAccount, codexAccountVisible)) {
 			const accountSection = append(identities, $('section.sessions-account-titlebar-panel-provider-account', {
 				'aria-label': localize('chatGPTAccountSectionLabel', "ChatGPT account")
 			}));
@@ -694,7 +757,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				() => this.codexAccountService.signOut(),
 			)), { icon: true, label: false });
 			this.appendChatGPTUsage(accountSection);
-		} else {
+		} else if (!USE_TEST_AGENT_ACCOUNT) {
 			const codexAccountActions = createCodexAccountMenuActions(this.codexAccountService, codexAccountVisible);
 			if (codexAccountActions.length) {
 				const accountSection = append(identities, $('section.sessions-account-titlebar-panel-provider-account.signed-out', {
@@ -721,7 +784,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			void this.commandService.executeCommand(CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID);
 		}));
 
-		if (this.shouldShowCopilotDashboardHover()) {
+		if (!USE_TEST_AGENT_ACCOUNT && this.shouldShowCopilotDashboardHover()) {
 			const footer = append(panel, $('section.sessions-account-titlebar-panel-footer', {
 				'aria-label': localize('sessionsAccountStatusSectionLabel', "Account status")
 			}));
@@ -752,7 +815,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			}
 		}
 
-		if (shouldShowAccountPanelSummary(this.lastState, this.shouldShowCopilotDashboardHover(), this.isAccountLoading)) {
+		if (shouldShowAccountPanelSummary(this.lastState, USE_TEST_AGENT_ACCOUNT ? false : this.shouldShowCopilotDashboardHover(), this.isAccountLoading)) {
 			const contentSection = append(panel, $('.sessions-account-titlebar-panel-content'));
 			const summary = append(contentSection, $('.sessions-account-titlebar-panel-summary'));
 			summary.textContent = this.lastState.ariaLabel;
@@ -1016,15 +1079,15 @@ registerAction2(class extends Action2 {
 		super({
 			id: SessionsTitleBarAccountWidgetAction,
 			title: localize2('agentsAccountStatusTitleBar', "Agents Account and Status"),
-			// test-workbench_change start
-			// 屏蔽 Agents 窗口右上角的账号 / "Sign in to use GitHub Copilot" 按钮。
-			// 不注册到 Menus.TitleBarRightLayout，因此标题栏不再渲染该 widget。
-			// menu: {
-			// 	id: Menus.TitleBarRightLayout,
-			// 	group: 'navigation',
-			// 	order: 100,
-			// 	when: IsAuxiliaryWindowContext.toNegated(),
-			// }
+			// test-workbench_change start — re-enabled so the Agents window title bar exposes
+			// the Account entry (with its full AccountMenu: Settings, sign in/out, updates,
+			// model management, ...), matching the editor window's activity-bar account entry.
+			menu: {
+				id: Menus.TitleBarRightLayout,
+				group: 'navigation',
+				order: 100,
+				when: IsAuxiliaryWindowContext.toNegated(),
+			}
 			// test-workbench_change end
 		});
 	}

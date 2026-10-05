@@ -204,6 +204,9 @@ registerSingleton(ISessionsSetUpService, SessionsSetUpService, InstantiationType
 // Default Account
 import '../workbench/services/accounts/browser/defaultAccount.js';
 
+// test-workbench_change - TestAgent (tsCode OAuth) auth for the Agents window account entry
+import './contrib/accountMenu/browser/sessionsTsCodeAuth.contribution.js';
+
 // Telemetry
 import '../workbench/contrib/telemetry/browser/telemetry.contribution.js';
 
