@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { dirname, join } from '../../../../base/common/path.js'; // test-workbench_change
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js'; // test-workbench_change — toDisposable/IDisposable
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -37,6 +37,7 @@ import {
 	// test-workbench_change — 外部会话发现 / 注册迁移契约
 	type IAgentDiscoveredChat,
 	type IAgentKnownSessionsFilter,
+	type IAgentChatHistoryChange,
 	AgentChatMigrationDeferred,
 } from '../../common/agent.js';
 // test-workbench_change end
@@ -255,6 +256,20 @@ export class TestAgent extends Disposable implements IAgent {
 	private _backendActivated = false;
 	private _chatDiscoveryDone = false;
 	private _chatDiscoveryRequested = false;
+	// test-workbench_change — SSE 活动刷新 recency 的去抖计时器/上次时间戳
+	private _discoveryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+	private _lastDiscoveryRefreshMs = 0;
+	// test-workbench_change end
+
+	// test-workbench_change start — 外部(插件侧创建)会话被 Agents 窗口订阅时,host 用
+	// watchChatHistory 观察其 transcript(不接管 turn 所有权):轮询后端已落盘消息,变化即推
+	// onDidChangeChatHistory,host 在无 activeTurn 时应用。解决“插件在跑、Agents 窗口停住/反复刷新”。
+	// 仅对 external backing(canonicalId === AH sessionId)生效,避免干扰 host 自建 live turn。
+	private readonly _onDidChangeChatHistory = this._register(new Emitter<IAgentChatHistoryChange>());
+	readonly onDidChangeChatHistory = this._onDidChangeChatHistory.event;
+	private readonly _externalSessionIds = new Set<string>();
+	private readonly _chatHistoryWatches = new Map<string, { readonly timer: ReturnType<typeof setInterval>; dispose(): void }>();
+	private readonly _chatHistorySnapshots = new Map<string, string>();
 	// test-workbench_change end
 
 	private readonly _onDidRequireAuth = this._register(new Emitter<Omit<AuthRequiredParams, 'channel'>>());
@@ -401,6 +416,10 @@ export class TestAgent extends Disposable implements IAgent {
 		if (this._customizationsDebounce !== undefined) {
 			clearTimeout(this._customizationsDebounce);
 			this._customizationsDebounce = undefined;
+		}
+		if (this._discoveryRefreshTimer !== undefined) { // test-workbench_change
+			clearTimeout(this._discoveryRefreshTimer);
+			this._discoveryRefreshTimer = undefined;
 		}
 		for (const [, w] of this._customizationWatchers) {
 			try { w.close(); } catch { /* ignore */ }
@@ -715,6 +734,61 @@ export class TestAgent extends Disposable implements IAgent {
 		return session.getMessages();
 	}
 
+	// test-workbench_change start — 观察外部会话 transcript:轮询后端已落盘消息,变化即推给 host。
+	watchChatHistory(chat: URI): IDisposable {
+		const key = chat.toString();
+		const sessionId = AgentSession.id(TestAgent._hostSessionUri(chat));
+		// 只观察外部 backing:host 自建 live turn 由 SSE 路径负责,不在此重复刷新。
+		if (!this._externalSessionIds.has(sessionId)) {
+			return Disposable.None;
+		}
+		this._logService.info(`[TestAgent] watchChatHistory subscribed: ${key} (session=${sessionId})`);
+		// test-workbench_change — 此刻 host 已注册该 chat,标记 ready 并认领进行中的轮
+		// (在此之前的动作会被 host 当 unknown chat 丢弃)。
+		const session = this._resolveSession(chat);
+		if (session) {
+			session.markObservedReady();
+			void session.adoptObservedRunningTurnIfNeeded();
+		}
+		const timer = setInterval(() => { void this._refreshObservedChatHistory(chat, sessionId); }, 1500);
+		const watch = { timer, dispose: () => clearInterval(timer) };
+		this._chatHistoryWatches.set(key, watch);
+		void this._refreshObservedChatHistory(chat, sessionId);
+		return toDisposable(() => {
+			if (this._chatHistoryWatches.get(key) === watch) {
+				this._chatHistoryWatches.delete(key);
+				watch.dispose();
+			}
+			this._chatHistorySnapshots.delete(key);
+		});
+	}
+
+	private async _refreshObservedChatHistory(chat: URI, sessionId: string): Promise<void> {
+		const key = chat.toString();
+		if (!this._chatHistoryWatches.has(key)) { return; }
+		const session = this._resolveSession(chat);
+		if (!session) {
+			this._logService.info(`[TestAgent] watchChatHistory: no session backing for ${key} (session=${sessionId})`);
+			return;
+		}
+		// host 发起的 live turn(或认领的观察轮)进行中时让位 live 路径(host 侧同样会 defer)。
+		if (session.hasActiveTurn || session.currentTurnId !== undefined) { return; }
+		let turns: readonly Turn[];
+		try {
+			turns = await session.getMessages();
+		} catch (err) {
+			this._logService.warn(`[TestAgent] watchChatHistory refresh failed for ${key}: ${err}`);
+			return;
+		}
+		if (!this._chatHistoryWatches.has(key)) { return; }
+		const serialized = JSON.stringify(turns);
+		if (this._chatHistorySnapshots.get(key) === serialized) { return; }
+		this._chatHistorySnapshots.set(key, serialized);
+		this._logService.info(`[TestAgent] watchChatHistory emitted: ${key} turns=${turns.length} len=${serialized.length}`);
+		this._onDidChangeChatHistory.fire({ chat, turns });
+	}
+	// test-workbench_change end
+
 	async disposeSession(sessionUri: URI): Promise<void> {
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
@@ -744,6 +818,7 @@ export class TestAgent extends Disposable implements IAgent {
 		}
 		// test-workbench_change end
 		this._forgetTestAgentId(sessionId); // 同步清掉持久化映射,避免恢复时重挂已删会话
+		this._externalSessionIds.delete(sessionId); // test-workbench_change — 清理外部观察登记
 		if (usesScratchDir) { // test-workbench_change — 清理 ~/.testagent/chats/<id>
 			try {
 				fs.rmSync(scratchDir.fsPath, { recursive: true, force: true });
@@ -811,6 +886,13 @@ export class TestAgent extends Disposable implements IAgent {
 			const canonicalId = info.id ?? testagentId;
 			const workingDirectory = info.directory ? URI.file(info.directory) : undefined;
 			if (info.directory) { this._rememberSessionDirectory(canonicalId, info.directory); }
+			// test-workbench_change — external backing:AH session id 即后端会话 id(host 自建会话的
+			// AH id 是生成 uuid ≠ 后端 id)。记录后由 watchChatHistory 观察其 transcript。
+			const isExternalBacking = isDefault && canonicalId === sessionId;
+			if (isDefault) {
+				if (isExternalBacking) { this._externalSessionIds.add(sessionId); }
+				else { this._externalSessionIds.delete(sessionId); }
+			}
 			const backingId = isDefault ? sessionId : sessionId + '-fork-' + generateUuid().slice(0, 8);
 			const session = new TestAgentSession(
 				backingId, sessionUri,
@@ -820,6 +902,8 @@ export class TestAgent extends Disposable implements IAgent {
 				chat,
 			);
 			session.testagentSessionId = canonicalId;
+			// test-workbench_change — external backing 用稳定 turn id 镜像历史,避免全量重渲染。
+			if (isExternalBacking) { session.markObservedExternal(); }
 			// 先落工作目录,后续 getMessages / abort / fork 等会话级请求才会带对目录。
 			if (workingDirectory) { session.setWorkingDirectory(workingDirectory); }
 			this._sessions.set(backingId, session);
@@ -974,6 +1058,22 @@ export class TestAgent extends Disposable implements IAgent {
 			this._logService.warn(`[TestAgent] failed to emit discovered chats: ${err}`);
 		}
 	}
+
+	// test-workbench_change start — SSE 活动刷新 recency:外部会话被继续使用时,后端 time.updated
+	// 会前进;去抖重跑一次 discovery,让 agent host 刷新该会话 modifiedTime,避免“正在用的会话”
+	// 被 showExternalSessions=recent 当旧的过滤掉。限流:~10s 一次,避免高频流式期间反复全量列举。
+	private _scheduleChatDiscoveryRefresh(): void {
+		if (!this._chatDiscoveryDone || this._discoveryRefreshTimer) { return; }
+		const sinceLast = Date.now() - this._lastDiscoveryRefreshMs;
+		const delay = Math.max(2_000, 10_000 - sinceLast);
+		this._discoveryRefreshTimer = setTimeout(() => {
+			this._discoveryRefreshTimer = undefined;
+			if (!this._chatDiscoveryDone) { return; }
+			this._lastDiscoveryRefreshMs = Date.now();
+			void this._emitTestAgentChats().catch(err => this._logService.warn(`[TestAgent] discovery recency refresh failed: ${err}`));
+		}, delay);
+	}
+	// test-workbench_change end
 
 	async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
 		// 后端从未启动:Deferred(不得以空 catalog 推进迁移标记),等首次使用触发。
@@ -1543,6 +1643,7 @@ export class TestAgent extends Disposable implements IAgent {
 				if (session) {
 					session.handleEvent(event);
 				}
+				this._scheduleChatDiscoveryRefresh(); // test-workbench_change — 活动刷新 recency
 			},
 			this._logService,
 		);

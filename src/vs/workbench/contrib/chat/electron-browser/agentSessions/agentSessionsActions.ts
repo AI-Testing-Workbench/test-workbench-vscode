@@ -278,11 +278,18 @@ export class OpenWorkspaceInAgentsWindowTitleBarAction extends Action2 {
 		const agentHostConnection = accessor.get(IAgentHostConnectionsService).ambientConnection;
 		const testagentResource = await getTestAgentSessionHandoff(commandService, agentHostConnection);
 		if (testagentResource) {
-			await commandService.executeCommand(OpenChatSessionInAgentsWindowAction.ID, { agentsWindowOpenSource: AgentsWindowOpenSource.TitleBar }, testagentResource);
+			await commandService.executeCommand(
+				OpenChatSessionInAgentsWindowAction.ID,
+				{ agentsWindowOpenSource: AgentsWindowOpenSource.TitleBar },
+				testagentResource,
+			);
 			return;
 		}
-		await commandService.executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.TitleBar });
 		// test-workbench_change end
+
+		await commandService.executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, {
+			source: AgentsWindowOpenSource.TitleBar,
+		});
 	}
 }
 
@@ -421,7 +428,11 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		const effectiveSessionResource = hasRealSession ? sessionResource : testagentResource;
 		// test-workbench_change end
 		await nativeHostService.openAgentsWindow({
-			folderUri: !effectiveSessionResource && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined, // test-workbench_change
+			// test-workbench_change — always forward the workspace folder when we
+			// have one, so the Agents window can fall back to selecting it if the
+			// session resource cannot be resolved (e.g. an externally-created
+			// session that is not (yet) in the providers' session list).
+			folderUri: (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined,
 			sessionResource: effectiveSessionResource?.toJSON(),
 			source,
 			...draftOptions,

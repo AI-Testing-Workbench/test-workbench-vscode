@@ -168,8 +168,15 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		// the folder selection is only needed for the folder-only handoff (no
 		// session to restore).
 		if (sessionResource) {
-			await this.openExistingSession(sessionResource, token);
-			return;
+			const opened = await this.openExistingSession(sessionResource, token);
+			if (opened) {
+				return;
+			}
+			// test-workbench_change — the target session never appeared in the
+			// providers (e.g. an externally-created TestAgent session that is not
+			// listed yet). Fall back to selecting the workspace so the Agents
+			// window still lands on the project instead of a blank state.
+			this.logService.warn('[AgentsHandoff] session handoff unresolved; falling back to workspace selection');
 		}
 		const resolved = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
 		const folderUri = resolved.folderUri ?? (draft ? workspaceUri : undefined);
@@ -178,40 +185,46 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		}
 	}
 
-	private async openExistingSession(sessionResource: URI, token: CancellationToken): Promise<void> {
+	private async openExistingSession(sessionResource: URI, token: CancellationToken): Promise<boolean> {
 		this.logService.info(`[AgentsHandoff] openExistingSession: target=${sessionResource.toString()}`);
 
 		// Wait until initial restore has started so opening the target can cancel it,
 		// without delaying the handoff until the intentionally deferred Eventually phase.
 		await raceCancellation(this.lifecycleService.when(LifecyclePhase.Restored), token);
 		if (token.isCancellationRequested) {
-			return;
+			return false;
 		}
 		this.logService.info('[AgentsHandoff] reached LifecyclePhase.Restored');
 
+		let opened = false;
 		const backendSession = parseOpenSessionLinkUri(sessionResource);
 		if (backendSession) {
-			await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSessionLink(sessionResource, backendSession, token));
-			return;
+			await this.sessionsPartService.getProgressIndicator().showWhile((async () => {
+				opened = await this.resolveAndOpenSessionLink(sessionResource, backendSession, token);
+			})());
+			return opened;
 		}
 
 		// Fast path — already on the target session.
 		const current = this.sessionsService.activeSession.get();
 		if (current && current.resource.toString() === sessionResource.toString()) {
 			this.logService.info('[AgentsHandoff] already on target session');
-			return;
+			return true;
 		}
 
 		// Show the sessions part's progress bar while we wait for the session to
 		// appear in the providers and open it, so the window doesn't just sit on
 		// its restored state until the target session pops in.
-		await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSession(sessionResource, token));
+		await this.sessionsPartService.getProgressIndicator().showWhile((async () => {
+			opened = await this.resolveAndOpenSession(sessionResource, token);
+		})());
+		return opened;
 	}
 
-	private async resolveAndOpenSessionLink(sessionLink: URI, backendSession: URI, token: CancellationToken): Promise<void> {
+	private async resolveAndOpenSessionLink(sessionLink: URI, backendSession: URI, token: CancellationToken): Promise<boolean> {
 		const session = await this.waitForSessionLinkAvailable(backendSession, token);
 		if (token.isCancellationRequested) {
-			return;
+			return false;
 		}
 		if (!session) {
 			this.logService.warn('[AgentsHandoff] linked session never appeared in providers; aborting');
@@ -222,7 +235,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 				parseOpenSessionLinkTurnId(sessionLink),
 			);
 			this.notificationService.error(localize('agentsHandoff.sessionNotFound', "The linked session could not be found: {0}", externalLink));
-			return;
+			return false;
 		}
 
 		const provider = this.sessionsProvidersService.getProvider(session.providerId);
@@ -238,10 +251,11 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		const chatId = parseOpenSessionLinkChatId(sessionLink);
 		const chatResource = chatId ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
 		if (token.isCancellationRequested) {
-			return;
+			return false;
 		}
 		this.logService.info(`[AgentsHandoff] linked session available; opening ${chatResource.toString()}`);
 		await this.sessionsService.openChat(session, chatResource, { source: 'link' });
+		return true;
 	}
 
 	private waitForSessionLinkAvailable(backendSession: URI, token: CancellationToken, timeoutMs = 15_000): Promise<ReturnType<typeof findSessionForOpenSessionLink>> {
@@ -275,23 +289,31 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		});
 	}
 
-	private async resolveAndOpenSession(sessionResource: URI, token: CancellationToken): Promise<void> {
+	private async resolveAndOpenSession(sessionResource: URI, token: CancellationToken): Promise<boolean> {
 		// The Copilot Chat Sessions Provider lists sessions asynchronously
 		// via an RPC; the target session may not yet be in the providers'
 		// `getSessions()` map. Poll until it shows up.
-		const found = await this.waitForSessionAvailable(sessionResource, token);
+		// Bounded wait: if the session is not in the providers shortly, fall back
+		// to workspace selection instead of spinning the progress bar.
+		const found = await this.waitForSessionAvailable(sessionResource, token, 6_000);
 		if (token.isCancellationRequested) {
-			return;
+			return false;
 		}
 		if (!found) {
-			this.logService.warn(`[AgentsHandoff] target session never appeared in providers; aborting`);
-			return;
+			// test-workbench_change — diagnostic: dump the agent-host sessions the providers actually expose
+			// so a resource mismatch (e.g. an external `ses_*` id vs a host-minted uuid) is visible.
+			const visible = this.sessionsManagementService.getSessions()
+				.map(s => s.resource.toString())
+				.filter(r => r.includes('testagent') || r.includes('opencode'));
+			this.logService.warn(`[AgentsHandoff] target session never appeared in providers; aborting. visible testagent/opencode (${visible.length}): ${visible.slice(0, 60).join(', ')}`);
+			return false;
 		}
 		this.logService.info('[AgentsHandoff] target session available; opening');
 
 		// `openSession` cancels any in-flight restore before activating the
 		// target, so a single call wins the race — no retry/verify needed.
 		await this.sessionsService.openSession(sessionResource, { source: 'chat' });
+		return true;
 	}
 
 	private async waitForSessionAvailable(sessionResource: URI, token: CancellationToken, timeoutMs = 15_000): Promise<boolean> {

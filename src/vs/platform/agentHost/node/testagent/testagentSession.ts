@@ -95,6 +95,12 @@ export interface ITestAgentSession {
 	unregisterServerToolMcp(name: string, workingDirectory?: URI): Promise<void>;
 	abort(): void;
 	getMessages(): Promise<readonly Turn[]>;
+	// test-workbench_change start — 认领外部会话进行中的一轮为 live activeTurn(SSE 流式 + 可停止)
+	readonly currentTurnId: string | undefined;
+	adoptObservedRunningTurnIfNeeded(): Promise<void>;
+	/** host 已注册该 chat(收到订阅)→ 之后才允许认领 */
+	markObservedReady(): void;
+	// test-workbench_change end
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
 	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void;
 	handleEvent(event: import('./testagentEventStream.js').ITestAgentEvent): void;
@@ -142,12 +148,18 @@ interface ForkPart {
  * `Turn.id` 取该回合最后一条后端消息 id,作为截断/fork 的锚点,与 live 的
  * `_hostTurnAnchors` 锚点语义一致(live host turnId → 本轮最后一条消息)。 // test-workbench_change
  */
-function forkMessagesToTurns(records: ReadonlyArray<{ info: ForkMessageInfo; parts?: ForkPart[] }>): Turn[] {
+function forkMessagesToTurns(records: ReadonlyArray<{ info: ForkMessageInfo; parts?: ForkPart[] }>, options?: { stableTurnIds?: boolean }): Turn[] {
+	// test-workbench_change — observed (external) history is mirrored read-only: the anchor advances to
+	// the last message id as the backend appends, so keying the turn by it made every poll look like a
+	// brand-new turn to the host → full re-render/duplication. Use the first (user) message id there.
+	const stableTurnIds = options?.stableTurnIds === true;
 	const turns: Turn[] = [];
 	let pending: {
 		message: Message;
 		responseParts: ResponsePart[];
 		usage: Turn['usage'];
+		/** 稳定 id:该回合第一条(user)消息 id */
+		turnId: string;
 		/** 该回合锚点:最后一条后端消息 id(无 assistant 时回落 user id) */
 		anchorId: string;
 		startedAt: string | undefined;
@@ -156,7 +168,7 @@ function forkMessagesToTurns(records: ReadonlyArray<{ info: ForkMessageInfo; par
 	const flush = (): void => {
 		if (!pending) { return; }
 		turns.push({
-			id: pending.anchorId,
+			id: stableTurnIds ? pending.turnId : pending.anchorId,
 			startedAt: pending.startedAt,
 			message: pending.message,
 			responseParts: pending.responseParts,
@@ -176,6 +188,7 @@ function forkMessagesToTurns(records: ReadonlyArray<{ info: ForkMessageInfo; par
 				message: { text, origin: { kind: MessageKind.User } },
 				responseParts: [],
 				usage: undefined,
+				turnId: info.id,
 				anchorId: info.id,
 				startedAt: info.time?.created ? new Date(info.time.created).toISOString() : undefined,
 			};
@@ -188,8 +201,11 @@ function forkMessagesToTurns(records: ReadonlyArray<{ info: ForkMessageInfo; par
 			continue;
 		}
 
-		for (const part of parts) {
-			const partId = part.id ?? generateUuid();
+		for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+			const part = parts[partIndex];
+			// test-workbench_change — deterministic fallback id: a random uuid here made every
+			// observed-history snapshot differ, forcing a spurious refresh on every poll.
+			const partId = part.id ?? `${info.id}:${partIndex}`;
 			if (part.type === 'text' && typeof part.text === 'string' && !part.synthetic) {
 				pending.responseParts.push({ kind: ResponsePartKind.Markdown, id: partId, content: part.text });
 			} else if (part.type === 'reasoning' && typeof part.text === 'string') {
@@ -225,6 +241,26 @@ function forkMessagesToTurns(records: ReadonlyArray<{ info: ForkMessageInfo; par
 
 	flush();
 	return turns;
+}
+
+/**
+ * test-workbench_change — 找到“仍在进行中”的尾回合的 user 记录下标(没有则 -1)。
+ * 判定:最后一条 user 之后,最后一条 assistant 若带终态 finish 则回合已结束;否则进行中。
+ */
+function findTrailingInProgressTurnStart(records: ReadonlyArray<{ info: ForkMessageInfo; parts?: ForkPart[] }>): number {
+	let lastUser = -1;
+	for (let i = records.length - 1; i >= 0; i--) {
+		if (records[i].info.role === 'user') { lastUser = i; break; }
+	}
+	if (lastUser === -1) { return -1; }
+	for (let i = records.length - 1; i > lastUser; i--) {
+		const info = records[i].info;
+		if (info.role === 'assistant') {
+			const terminal = !!info.finish && info.finish !== 'unknown' && info.finish !== 'tool-calls';
+			return terminal ? -1 : lastUser;
+		}
+	}
+	return lastUser; // 尚无 assistant 记录 → 进行中
 }
 
 /**
@@ -370,6 +406,30 @@ export class TestAgentSession extends Disposable implements ITestAgentSession {
 	activateSubagentTurn(): void {
 		if (this._currentTurnId === undefined) { this._currentTurnId = this.sessionId; }
 	}
+
+	// test-workbench_change start — 外部(插件侧创建)会话以“观察式历史”镜像:turn 用稳定 id、
+	// 未结束的 turn 标 InProgress,避免 host 每次刷新都当成新 turn 而全量重渲染。
+	private _observedExternal = false;
+
+	markObservedExternal(): void {
+		this._observedExternal = true;
+	}
+
+	// test-workbench_change start — 认领外部会话“进行中”的一轮为 live activeTurn:发 ChatTurnStarted +
+	// 补发已产生的 parts,之后 SSE delta 逐段追加(真正流式,且可 abort),取代轮询镜像。
+	// `_observedReady` 表示 host 已注册该 chat(收到订阅/watchChatHistory),此前发动作会被当作
+	// “unknown chat” 丢弃,故认领必须等 ready 之后再触发。
+	private _adoptedObservedTurn = false;
+	private _observedReady = false;
+
+	markObservedReady(): void {
+		this._observedReady = true;
+	}
+
+	get currentTurnId(): string | undefined {
+		return this._currentTurnId;
+	}
+	// test-workbench_change end
 
 	/** 一次模型响应完成(provider 计时/用量关联)。子会话经 parentToolCallId 走 host remap 到子 chat。 */
 	private _fireModelCallCompleted(turnId: string, modelCallId: string): void {
@@ -757,6 +817,12 @@ export class TestAgentSession extends Disposable implements ITestAgentSession {
 	// ── Abort ──────────────────────────────────────────────────────────────
 
 	abort(): void {
+		// test-workbench_change start — 认领的观察轮无 _abortController,需补发 ChatTurnCancelled
+		// 让 host 关闭 activeTurn(否则窗口一直显示“运行中”)。
+		const adoptedTurnId = this._adoptedObservedTurn ? this._currentTurnId : undefined;
+		const adoptedDuration = this._turnElapsedMs();
+		this._adoptedObservedTurn = false;
+		// test-workbench_change end
 		if (this._abortController) {
 			this._abortController.abort();
 			this._abortController = undefined;
@@ -768,6 +834,10 @@ export class TestAgentSession extends Disposable implements ITestAgentSession {
 			}).catch(() => { /* abort 失败忽略 */ });
 		}
 		this._resetStreamingState();
+		// test-workbench_change — 补发取消,关闭认领的 activeTurn
+		if (adoptedTurnId) {
+			this._fireAction(ActionType.ChatTurnCancelled, { turnId: adoptedTurnId, duration: adoptedDuration });
+		}
 	}
 
 	// ── Messages ──────────────────────────────────────────────────────────
@@ -781,12 +851,79 @@ export class TestAgentSession extends Disposable implements ITestAgentSession {
 			const records = await this._request<Array<{ info: ForkMessageInfo; parts?: ForkPart[] }>>(
 				'GET', `/session/${this.testagentSessionId}/message`,
 			);
-			return forkMessagesToTurns(records);
+			// test-workbench_change start — 观察模式下,进行中的尾回合交给认领的 activeTurn 渲染,
+			// 历史里先剔除,避免同一轮重复出现。
+			if (this._observedExternal && !this._adoptedObservedTurn) {
+				const start = findTrailingInProgressTurnStart(records);
+				if (start >= 0) {
+					return forkMessagesToTurns(records.slice(0, start), { stableTurnIds: true });
+				}
+			}
+			// test-workbench_change end
+			return forkMessagesToTurns(records, { stableTurnIds: this._observedExternal });
 		} catch (err) {
 			this._logService.warn(`[TestAgent] getMessages failed: ${err}`);
 			return [];
 		}
 	}
+
+	// test-workbench_change start — 认领外部会话进行中的一轮,让 SSE 走 live 路径(流式 + 可停止)。
+	async adoptObservedRunningTurnIfNeeded(): Promise<void> {
+		if (!this._observedExternal || this._adoptedObservedTurn || this._currentTurnId !== undefined || !this.testagentSessionId) { return; }
+		let records: Array<{ info: ForkMessageInfo; parts?: ForkPart[] }>;
+		try {
+			records = await this._request<Array<{ info: ForkMessageInfo; parts?: ForkPart[] }>>(
+				'GET', `/session/${this.testagentSessionId}/message`,
+			);
+		} catch { return; }
+		// SSE 可能在 fetch 期间已抢先建立 live turn → 放弃认领
+		if (this._currentTurnId !== undefined || this._adoptedObservedTurn) { return; }
+		const start = findTrailingInProgressTurnStart(records);
+		if (start < 0) { return; }
+		const userRecord = records[start];
+		const turnId = userRecord.info.id;
+		if (!turnId) { return; }
+		const userParts = userRecord.parts ?? [];
+		const userText = userRecord.info.text ?? userParts.filter(p => p.type === 'text' && typeof p.text === 'string' && !p.synthetic).map(p => p.text).join('\n');
+		// 角色表:后续 user part 事件需被 _isForeignPart 过滤
+		for (const r of records) { if (r.info.id && r.info.role) { this._messageRoles.set(r.info.id, r.info.role); } }
+		this._adoptedObservedTurn = true;
+		this._currentTurnId = turnId;
+		this._currentPrompt = userText;
+		this._currentTurnStartMs = userRecord.info.time?.created ?? Date.now();
+		this._fireAction(ActionType.ChatTurnStarted, {
+			turnId,
+			startedAt: new Date(this._currentTurnStartMs).toISOString(),
+			message: { text: userText, origin: { kind: MessageKind.User } },
+		});
+		// 补发当前已产生的 parts,随后 SSE delta 续写同一 part
+		for (let i = start + 1; i < records.length; i++) {
+			if (records[i].info.role !== 'assistant') { continue; }
+			for (const part of records[i].parts ?? []) {
+				this._seedObservedPart(turnId, part);
+			}
+		}
+		this._logService.info(`[TestAgent] adopted observed running turn ${turnId} for ${this.sessionId}`);
+	}
+
+	/** 把历史里已有的 part 补进 live turn(并种下累加器,保证后续 delta 续写正确)。 */
+	private _seedObservedPart(turnId: string, part: ForkPart): void {
+		const partID = part.id ?? '';
+		if (part.type === 'tool') {
+			this._partTypes.set(partID, 'tool');
+			this._renderPart(turnId, part as unknown as Record<string, unknown>);
+		} else if (part.type === 'text' && typeof part.text === 'string') {
+			if (part.synthetic === true) { this._syntheticPartIds.add(partID); return; }
+			this._partTypes.set(partID, 'text');
+			this._partText.set(partID, part.text);
+			this._emitText(turnId, partID, part.text);
+		} else if (part.type === 'reasoning' && typeof part.text === 'string') {
+			this._partTypes.set(partID, 'reasoning');
+			this._partReasoning.set(partID, part.text);
+			this._emitReasoning(turnId, partID, part.text);
+		}
+	}
+	// test-workbench_change end
 
 	// ── Truncation / permission rules ─────────────────────────────────────
 
@@ -1304,6 +1441,14 @@ export class TestAgentSession extends Disposable implements ITestAgentSession {
 		// test-workbench_change — 报真实 elapsed:reload 后步骤头 "in Xs" 依赖 duration
 		// (此前恒 0 → "in Xs" 在 reload 后消失)。live 时 renderer 有本地兜底,不影响实时观感。
 		this._fireAction(ActionType.ChatTurnComplete, { turnId, duration: this._turnElapsedMs() });
+		// test-workbench_change start — 认领的观察轮结束:复位,让观察轮询恢复(下一轮)
+		if (this._adoptedObservedTurn && this._currentTurnId === turnId) {
+			this._adoptedObservedTurn = false;
+			this._currentTurnId = undefined;
+			this._currentTurnStartMs = 0;
+			this._sseHeard = false;
+		}
+		// test-workbench_change end
 	}
 
 	/** 当前 turn 已耗时(ms);无起点(abort 后已 reset)返回 0。 */
@@ -1392,6 +1537,13 @@ export class TestAgentSession extends Disposable implements ITestAgentSession {
 		// abort/reset 后 _currentTurnId 可能为空:补占位 turnId,真实 turn 由 host remap。
 		if (!turnId && this._subagentContext) {
 			turnId = this._currentTurnId = this.sessionId;
+		}
+		// test-workbench_change end
+		// test-workbench_change start — 外部观察会话:chat 已 ready 且尚无 live turn 时,收到首条
+		// turn 级事件就触发认领(从 transcript 恢复 user 消息与已产生 parts),本条事件交由后续 delta。
+		if (!turnId && this._observedExternal && this._observedReady && !this._adoptedObservedTurn) {
+			void this.adoptObservedRunningTurnIfNeeded();
+			return;
 		}
 		// test-workbench_change end
 		if (!turnId) { return; }
