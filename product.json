@@ -33,10 +33,10 @@
 			"clsid": "{D1ACE434-89C5-48D1-88D3-E2991DF85475}"
 		}
 	},
-	"darwinBundleIdentifier": "com.teststudio.code",
+	"darwinBundleIdentifier": "com.testagent.tscode",
 	"darwinProfileUUID": "47827DD9-4734-49A0-AF80-7E19B11495CC",
 	"darwinProfilePayloadUUID": "CF808BE7-53F3-46C6-A7E2-7EDB98A5E959",
-	"linuxDesktopName": "com.visualstudio.CodeOSS",
+	"linuxDesktopName": "com.testagent.tscode",
 	"linuxIconName": "tscode",
 	"licenseFileName": "LICENSE.txt",
 	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
@@ -46,7 +46,7 @@
 	"enableTelemetry": true,
 	"updateUrl": "aHR0cDovL3RzY29kZS11cGRhdGUtc2VydmljZS5wYWFzdWF0LmNtYmNoaW5hLmNu",
 	"quality": "stable",
-	"version": "1.137.0",
+	"version": "1.139.0",
 	"aiConfig": {
 		"ariaKey": "tscode-telemetry-key"
 	},
@@ -282,9 +282,17 @@
 	"tsCodeGatewayBaseUrl": "aHR0cHM6Ly90ZXN0aHViLWdhdGV3YXkucGFhcy5jbWJjaGluYS5jbg==",
 	"defaultColorTheme": "Light 2026",
 	"defaultIconTheme": "office-material-icon-theme",
-	"gitVersion": "1.4.6",
+	"gitVersion": "2.0.0",
 	"commit": "12934b91e86ec2d0537879d544ee923f6a8e1b75",
 	"date": "2026-05-08T15:23:12+08:00",
+	"extensionsGallery": {
+		"serviceUrl": "aHR0cHM6Ly90c2NvZGUtdnN4LXJlZ2lzdHJ5LnBhYXN1YXQuY21iY2hpbmEuY24vdnNjb2RlL2dhbGxlcnk=",
+		"itemUrl": "aHR0cHM6Ly90c2NvZGUtdnN4LXJlZ2lzdHJ5LnBhYXN1YXQuY21iY2hpbmEuY24vdnNjb2RlL2l0ZW0=",
+		"resourceUrlTemplate": "aHR0cHM6Ly90c2NvZGUtdnN4LXJlZ2lzdHJ5LnBhYXN1YXQuY21iY2hpbmEuY24vdnNjb2RlL3VucGtnL3twdWJsaXNoZXJ9L3tuYW1lfS97dmVyc2lvbn0ve3BhdGh9",
+		"controlUrl": "",
+		"nlsBaseUrl": "",
+		"publisherUrl": "aHR0cHM6Ly90c2NvZGUtdnN4LXJlZ2lzdHJ5LnBhYXN1YXQuY21iY2hpbmEuY24vdnNjb2RlL3B1Ymxpc2hlcg=="
+	},
 	"releaseNotesUrl": "aHR0cHM6Ly90c2NvZGUtZ2F0ZXdheS5wYWFzdWF0LmNtYmNoaW5hLmNuL3JlbGVhc2Utbm90ZXM=",
 	"releaseNotesApiUrl": "aHR0cHM6Ly90c2NvZGUtZ2F0ZXdheS5wYWFzdWF0LmNtYmNoaW5hLmNuL3JlbGVhc2U=",
 	"extensionsAutoInstallUrl": "aHR0cHM6Ly90c2NvZGUtZ2F0ZXdheS5wYWFzdWF0LmNtYmNoaW5hLmNuL2F1dG8taW5zdGFsbC1leHRlbnNpb25z",
