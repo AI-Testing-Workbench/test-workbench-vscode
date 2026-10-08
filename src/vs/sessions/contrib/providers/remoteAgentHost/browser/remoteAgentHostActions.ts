@@ -1122,11 +1122,13 @@ registerAction2(class extends Action2 {
 			f1: true,
 			icon: Codicon.cloud,
 			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
-			menu: {
-				id: Menus.SessionWorkspaceManage,
-				order: 10,
-				when: SessionWorkspacePickerGroupContext.isEqualTo(SESSION_WORKSPACE_GROUP_REMOTE),
-			},
+			// test-workbench_change start — hide the Dev Tunnel entry from the workspace picker's Remote group.
+			// menu: {
+			// 	id: Menus.SessionWorkspaceManage,
+			// 	order: 10,
+			// 	when: SessionWorkspacePickerGroupContext.isEqualTo(SESSION_WORKSPACE_GROUP_REMOTE),
+			// },
+			// test-workbench_change end
 		});
 	}
 

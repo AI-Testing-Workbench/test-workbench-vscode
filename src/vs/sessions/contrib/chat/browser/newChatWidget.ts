@@ -200,6 +200,7 @@ export class NewChatWidget extends Disposable {
 				const result = await this._pendingWorkspaceCreation;
 				return !!result?.session && this._session.get()?.sessionId === result.session.sessionId;
 			},
+			excludedWorkspaceGroups: [SESSION_WORKSPACE_GROUP_GITHUB], // test-workbench_change — drop the GitHub group from the picker
 			getWorkspaceGroupAction: group => {
 				if (group === SESSION_WORKSPACE_GROUP_GITHUB && shouldShowGitHubWorkspaceGroupSignIn(
 					this.defaultAccountService.currentDefaultAccount !== null,

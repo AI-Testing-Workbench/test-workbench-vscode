@@ -107,6 +107,8 @@ export interface IWorkspacePickerOptions {
 	readonly sessionWorkspaceProviderFilter?: (providerId: string) => boolean;
 	readonly getWorkspaceGroupAction?: (group: string | undefined) => IWorkspacePickerGroupAction | undefined;
 	readonly getNoWorkspaceOption?: () => IWorkspacePickerNoWorkspaceOption | undefined;
+	/** test-workbench_change — workspace groups that must not be offered by the picker at all. */
+	readonly excludedWorkspaceGroups?: readonly string[];
 }
 
 export interface IWorkspacePickerGroupAction {
@@ -797,6 +799,9 @@ export class WorkspacePicker extends Disposable {
 				if (action.group === SESSION_WORKSPACE_GROUP_REMOTE && !remoteAgentHostsEnabled) {
 					continue;
 				}
+				if (this._isGroupExcluded(action.group)) { // test-workbench_change
+					continue;
+				}
 				const group = this._getTabGroup(action.group);
 				if (group && !byLabel.has(group)) {
 					byLabel.set(group, { id: group });
@@ -1412,9 +1417,17 @@ export class WorkspacePicker extends Disposable {
 			all.unshift(this._localBrowseAction);
 		}
 		return all.filter(a =>
-			(!this._isTabFiltered() || this._isGroupInActiveTab(a.group))
+			!this._isGroupExcluded(a.group) // test-workbench_change
+			&& (!this._isTabFiltered() || this._isGroupInActiveTab(a.group))
 			&& (this._directPickerAttachesContext === undefined || Boolean(a.attachesContext) === this._directPickerAttachesContext)
 		);
+	}
+
+	/**
+	 * test-workbench_change — whether a workspace group is disabled for this picker.
+	 */
+	private _isGroupExcluded(group: string | undefined): boolean {
+		return group !== undefined && (this.options.excludedWorkspaceGroups?.includes(group) ?? false);
 	}
 
 	protected _useConsolidatedRemoteWorkspaces(): boolean {
@@ -1505,13 +1518,13 @@ export class WorkspacePicker extends Disposable {
 		const providerIds = new Set(allProviders.map(p => p.id));
 		const availableTabs = this._getAvailableTabs();
 		const activeGroup = this._activeTab ?? (availableTabs.length === 1 ? availableTabs[0].id : undefined);
-		let workspaceGroupAction = this.options.getWorkspaceGroupAction?.(activeGroup);
+		let workspaceGroupAction = this._isGroupExcluded(activeGroup) ? undefined : this.options.getWorkspaceGroupAction?.(activeGroup); // test-workbench_change
 		let workspaceGroupActionGroup = activeGroup;
-		if (!workspaceGroupAction && activeGroup === undefined) {
+		if (!workspaceGroupAction && activeGroup === undefined && !this._isGroupExcluded(SESSION_WORKSPACE_GROUP_GITHUB)) { // test-workbench_change
 			workspaceGroupAction = this.options.getWorkspaceGroupAction?.(SESSION_WORKSPACE_GROUP_GITHUB);
 			workspaceGroupActionGroup = workspaceGroupAction ? SESSION_WORKSPACE_GROUP_GITHUB : undefined;
 		}
-		if (!workspaceGroupAction && activeGroup === SESSION_WORKSPACE_GROUP_REMOTE && this._useConsolidatedRemoteWorkspaces()) {
+		if (!workspaceGroupAction && activeGroup === SESSION_WORKSPACE_GROUP_REMOTE && this._useConsolidatedRemoteWorkspaces() && !this._isGroupExcluded(SESSION_WORKSPACE_GROUP_GITHUB)) { // test-workbench_change
 			const gitHubGroupAction = this.options.getWorkspaceGroupAction?.(SESSION_WORKSPACE_GROUP_GITHUB);
 			workspaceGroupAction = gitHubGroupAction ? { ...gitHubGroupAction, hideWorkspaceItems: false } : undefined;
 			workspaceGroupActionGroup = workspaceGroupAction ? SESSION_WORKSPACE_GROUP_GITHUB : undefined;
@@ -1562,6 +1575,7 @@ export class WorkspacePicker extends Disposable {
 			? []
 			: this._getRecentWorkspaces()
 				.filter(w => providerIds.has(w.providerId))
+				.filter(w => !this._isGroupExcluded(w.workspace.group)) // test-workbench_change
 				.filter(w => !tabFilter || tabFilter(w))
 				.filter(w => !workspaceGroupAction?.hideWorkspaceItems || w.workspace.group !== workspaceGroupActionGroup);
 		const localRepositoryIds = this._useConsolidatedRemoteWorkspaces()

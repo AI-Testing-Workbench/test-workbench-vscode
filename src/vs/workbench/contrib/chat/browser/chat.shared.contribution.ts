@@ -611,7 +611,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
 			description: nls.localize('chat.tips.enabled', "Controls whether tips are shown above user messages in chat. New tips are added frequently, so this is a helpful way to stay up to date with the latest features."),
-			default: true,
+			default: false, // test-workbench_change: keep chat tips off by default
 		},
 		'chat.upvoteAnimation': {
 			type: 'string',

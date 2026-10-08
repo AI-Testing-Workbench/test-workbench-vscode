@@ -182,8 +182,9 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		const isConsolidatedWorkspacePicker = this._useConsolidatedRemoteWorkspaces()
 			&& this._directPickerGroup === undefined
 			&& this._directPickerAttachesContext !== true;
-		const includeGitHub = !!scoped.sessionCreationProviderId || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB || isConsolidatedWorkspacePicker;
-		const gitHubGroupAction = isConsolidatedWorkspacePicker && !scoped.sessionCreationProviderId
+		const excludeGitHub = this.options.excludedWorkspaceGroups?.includes(SESSION_WORKSPACE_GROUP_GITHUB) ?? false; // test-workbench_change
+		const includeGitHub = !excludeGitHub && (!!scoped.sessionCreationProviderId || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB || isConsolidatedWorkspacePicker);
+		const gitHubGroupAction = !excludeGitHub && isConsolidatedWorkspacePicker && !scoped.sessionCreationProviderId
 			? this.options.getWorkspaceGroupAction?.(SESSION_WORKSPACE_GROUP_GITHUB)
 			: undefined;
 		const recents = this._getRecentWorkspaces().filter(w =>
