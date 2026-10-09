@@ -108,29 +108,50 @@
 	align-self: center;
 }
 
-/* test-workbench_change start — TestAgent brand mark in the top-left corner of
- * the new-chat composer stack (`.new-chat-widget-content.chat-input-stack`) in
- * the Agents window. Rendered as a DOM node (see NewChatWidget.render) so it can
- * reuse the TSCode welcome page mascot faces with random switching. */
+/* test-workbench_change start — Centered TestAgent brand mark above the
+ * new-chat composer stack (`.new-chat-widget-content.chat-input-stack`) in the
+ * Agents window, with the "Work With TestAgent" slogan beside the mascot.
+ * Rendered as DOM nodes (see NewChatWidget.render) so it can reuse the TSCode
+ * welcome page mascot faces with random switching. */
+.new-chat-brand {
+	display: none;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .sessions-chat-widget .new-chat-brand {
+	display: inline-flex;
+	/* The workspace picker container is re-parented/prepended into the composer at
+	 * runtime (non-experimental) or moved above the bottom controls (experimental),
+	 * so keep the brand row first with an explicit flex order instead of DOM order. */
+	order: -1;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	align-self: center;
+	margin-bottom: 16px;
+}
+
 .new-chat-brand-icon {
 	display: none;
 }
 
 .agent-sessions-workbench:not(.phone-layout) .sessions-chat-widget .new-chat-brand-icon {
 	display: inline-flex;
-	/* The workspace picker container is re-parented/prepended into the composer at
-	 * runtime (non-experimental) or moved above the bottom controls (experimental),
-	 * so keep the mascot first with an explicit flex order instead of DOM order. */
-	order: -1;
 	align-items: center;
 	justify-content: center;
-	align-self: flex-start;
 	width: 80px;
 	height: 80px;
-	margin-bottom: 16px;
 	cursor: pointer;
 	user-select: none;
 	animation: tscode-brand-float 3.2s ease-in-out infinite;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .sessions-chat-widget .new-chat-brand-slogan {
+	font-size: 32px;
+	font-weight: 600;
+	letter-spacing: 0.3px;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+	user-select: none;
 }
 
 @keyframes tscode-brand-float {

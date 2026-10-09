@@ -491,7 +491,8 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderTestAgentBrandIcon(container: HTMLElement): void {
-		const iconWrapper = dom.append(container, dom.$('.new-chat-brand-icon'));
+		const brandRow = dom.append(container, dom.$('.new-chat-brand'));
+		const iconWrapper = dom.append(brandRow, dom.$('.new-chat-brand-icon'));
 		let faceType = pickRandomTscodeFaceType();
 		const renderFace = () => {
 			dom.clearNode(iconWrapper);
@@ -511,6 +512,11 @@ export class NewChatWidget extends Disposable {
 			faceType = TSCODE_FACE_TYPES[(TSCODE_FACE_TYPES.indexOf(faceType) + 1) % TSCODE_FACE_TYPES.length];
 			renderFace();
 		}));
+		// test-workbench_change start - slogan shown side by side with the mascot,
+		// directly above the composer on the blank new-session page.
+		const slogan = dom.append(brandRow, dom.$('.new-chat-brand-slogan'));
+		slogan.textContent = localize('newChatBrandSlogan', "Work With TestAgent");
+		// test-workbench_change end
 	}
 	// test-workbench_change end
 
