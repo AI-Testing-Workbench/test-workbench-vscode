@@ -7,13 +7,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' file: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' file: data:; object-src 'self' file:; frame-src 'self' file:; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
 <style>
 	* { margin: 0; padding: 0; box-sizing: border-box; }
 	html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
 	#pet { position: absolute; inset: 0; overflow: hidden; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
 	#pet.dragging { cursor: grabbing; }
-	#pet img { position: absolute; pointer-events: none; -webkit-user-drag: none; }
+	#pet img, #pet object { position: absolute; pointer-events: none; -webkit-user-drag: none; border: 0; outline: none; }
 </style>
 <title>TestAgent Pet</title>
 </head>
@@ -45,7 +45,17 @@
 			clickRight: { file: 'react-right.svg', duration: 2500 },
 			double: { files: ['react-double.svg'], duration: 3500 }
 		},
-		objectScale: { widthRatio: 1.9, heightRatio: 1.3, offsetX: -0.45, offsetY: -0.25 }
+		objectScale: { widthRatio: 1.9, heightRatio: 1.3, offsetX: -0.45, offsetY: -0.25 },
+		// Pupil tracking. Files listed here are rendered through the <object>
+		// channel (instead of <img>) so their SVG DOM is reachable and the
+		// renderer can transform #eyes-js / #body-js / #shadow-js toward the
+		// cursor. Ported from the reference project's renderer.js.
+		eyeTracking: {
+			files: ['idle-follow.svg'],
+			bodyScale: 0.33,
+			shadowStretch: 0.15,
+			shadowShift: 0.3
+		}
 	};
 
 	var ipc = window.desktopPetIpc;
@@ -82,10 +92,104 @@
 		img.style.bottom = bottomPct + '%';
 	}
 
+	// Eye-tracking files must go through the <object> channel so the SVG's
+	// internal DOM (contentDocument) is reachable for pupil tracking.
+	function needsObjectChannel(file) {
+		var et = THEME.eyeTracking;
+		return !!(et && et.files && et.files.indexOf(file) !== -1);
+	}
+
+	// <object> does not derive its height from the SVG's intrinsic ratio, so
+	// size it explicitly. The idle viewBox is square (45x45), hence height
+	// mirrors width.
+	function applyObjectScale(el) {
+		var os = THEME.objectScale;
+		var widthPct = (os.imgWidthRatio != null ? os.imgWidthRatio : os.widthRatio) * 100;
+		var leftPct = (os.imgOffsetX != null ? os.imgOffsetX : os.offsetX) * 100;
+		var bottomPct = (os.imgBottom != null ? os.imgBottom : 0.05) * 100;
+		el.style.width = widthPct + '%';
+		el.style.height = widthPct + '%';
+		el.style.left = leftPct + '%';
+		el.style.top = 'auto';
+		el.style.bottom = bottomPct + '%';
+	}
+
 	function release(el) {
 		if (!el) return;
-		try { el.removeAttribute('src'); } catch (e) { }
+		try {
+			if (el.tagName === 'OBJECT') el.removeAttribute('data');
+			else el.removeAttribute('src');
+		} catch (e) { }
 		if (el.parentNode) el.parentNode.removeChild(el);
+	}
+
+	// ── Eye tracking (idle only) ──
+	// The eyes/body/shadow groups live inside the idle SVG and are moved with
+	// SVG transforms; the SVG's own CSS transition smooths the motion. Mirrors
+	// the reference project's applyEyeMove().
+	var eyeTarget = null;
+	var bodyTarget = null;
+	var shadowTarget = null;
+	var lastEyeDx = 0;
+	var lastEyeDy = 0;
+	var eyeAttachToken = 0;
+
+	function applyEyeMove(dx, dy) {
+		if (eyeTarget) {
+			eyeTarget.setAttribute('transform', 'translate(' + dx + ', ' + dy + ')');
+		}
+		if (bodyTarget || shadowTarget) {
+			var et = THEME.eyeTracking || {};
+			var bodyScale = et.bodyScale != null ? et.bodyScale : 0.33;
+			var shadowStretch = et.shadowStretch != null ? et.shadowStretch : 0.15;
+			var shadowShift = et.shadowShift != null ? et.shadowShift : 0.3;
+			var bdx = Math.round(dx * bodyScale * 2) / 2;
+			var bdy = Math.round(dy * bodyScale * 2) / 2;
+			if (bodyTarget) bodyTarget.setAttribute('transform', 'translate(' + bdx + ', ' + bdy + ')');
+			if (shadowTarget) {
+				var scaleX = 1 + Math.abs(bdx) * shadowStretch;
+				var shiftX = Math.round(bdx * shadowShift * 2) / 2;
+				shadowTarget.setAttribute('transform', 'translate(' + shiftX + ', 0) scale(' + scaleX + ', 1)');
+			}
+		}
+	}
+
+	function attachEyeTracking(el) {
+		var myToken = ++eyeAttachToken;
+		var attempt = 0;
+		(function tryAttach() {
+			if (myToken !== eyeAttachToken || current !== el) return;
+			var eyes = null;
+			try {
+				var doc = el.contentDocument;
+				eyes = doc && doc.getElementById('eyes-js');
+			} catch (e) { }
+			if (!eyes) {
+				if (attempt++ < 60) setTimeout(tryAttach, 16);
+				return;
+			}
+			eyeTarget = eyes;
+			try {
+				bodyTarget = el.contentDocument.getElementById('body-js');
+				shadowTarget = el.contentDocument.getElementById('shadow-js');
+			} catch (e) { }
+			applyEyeMove(lastEyeDx, lastEyeDy);
+		})();
+	}
+
+	function detachEyeTracking() {
+		eyeAttachToken++;
+		eyeTarget = null;
+		bodyTarget = null;
+		shadowTarget = null;
+	}
+
+	if (ipc && ipc.on) {
+		ipc.on('desktopPet:eye', function (dx, dy) {
+			lastEyeDx = dx;
+			lastEyeDy = dy;
+			applyEyeMove(dx, dy);
+		});
 	}
 
 	function show(file, options) {
@@ -98,37 +202,78 @@
 		var myToken = ++token;
 		if (pending) { release(pending); pending = null; }
 
-		var img = document.createElement('img');
-		img.setAttribute('data-file', file);
-		img.draggable = false;
-		img.style.opacity = '0';
-		applyScale(img);
+		displayMedia(file, myToken, fadeMs, needsObjectChannel(file), true);
+	}
+
+	function displayMedia(file, myToken, fadeMs, useObject, allowObjectFallback) {
+		var el = document.createElement(useObject ? 'object' : 'img');
+		el.setAttribute('data-file', file);
+		el.draggable = false;
+		el.style.opacity = '0';
+		if (useObject) {
+			el.setAttribute('type', 'image/svg+xml');
+			applyObjectScale(el);
+		} else {
+			applyScale(el);
+		}
 
 		var swap = function () {
-			if (myToken !== token || pending !== img) return;
+			if (myToken !== token || pending !== el) return;
 			var previous = current;
 			if (fadeMs > 0) {
-				img.style.transition = 'opacity ' + fadeMs + 'ms ease-in';
-				void img.offsetHeight;
+				el.style.transition = 'opacity ' + fadeMs + 'ms ease-in';
+				void el.offsetHeight;
 			} else {
-				img.style.transition = 'none';
+				el.style.transition = 'none';
 			}
-			img.style.opacity = '1';
-			if (previous && previous !== img) {
+			el.style.opacity = '1';
+			if (previous && previous !== el) {
 				previous.style.transition = 'opacity ' + fadeMs + 'ms ease-out';
 				previous.style.opacity = '0';
 				setTimeout(function () { release(previous); }, fadeMs);
 			}
 			pending = null;
-			current = img;
+			current = el;
 			displayedFile = file;
+			if (el.tagName === 'OBJECT') attachEyeTracking(el);
+			else detachEyeTracking();
 		};
 
-		img.addEventListener('load', swap, { once: true });
-		img.src = assetUrl(file) + '?_t=' + Date.now() + '-' + (++cacheSeq);
-		pet.appendChild(img);
-		pending = img;
-		setTimeout(function () { if (pending === img && myToken === token) swap(); }, SWAP_LOAD_FALLBACK_MS);
+		// The <object> channel can be blocked by CSP or fail to expose a
+		// document; fall back to the plain <img> channel so the pet still shows.
+		var objectUsable = function () {
+			if (!useObject) return true;
+			try { return !!el.contentDocument; } catch (e) { return false; }
+		};
+
+		el.addEventListener('load', function () {
+			if (myToken !== token || pending !== el) return;
+			if (!objectUsable()) {
+				if (allowObjectFallback) fallbackToImage(file, myToken, fadeMs);
+				return;
+			}
+			swap();
+		}, { once: true });
+
+		if (useObject) el.data = assetUrl(file) + '?_t=' + Date.now() + '-' + (++cacheSeq);
+		else el.src = assetUrl(file) + '?_t=' + Date.now() + '-' + (++cacheSeq);
+		pet.appendChild(el);
+		pending = el;
+
+		setTimeout(function () {
+			if (pending !== el || myToken !== token) return;
+			if (!objectUsable()) {
+				if (allowObjectFallback) fallbackToImage(file, myToken, fadeMs);
+				return;
+			}
+			swap();
+		}, SWAP_LOAD_FALLBACK_MS);
+	}
+
+	function fallbackToImage(file, myToken, fadeMs) {
+		if (myToken !== token) return;
+		if (pending) { release(pending); pending = null; }
+		displayMedia(file, myToken, fadeMs, false, false);
 	}
 
 	function showIdle(fadeMs) {

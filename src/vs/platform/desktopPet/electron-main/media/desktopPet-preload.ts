@@ -20,7 +20,9 @@
 		'desktopPet:drag-end'
 	]);
 
-	const ALLOWED_ON = new Set<string>([]);
+	const ALLOWED_ON = new Set<string>([
+		'desktopPet:eye'
+	]);
 
 	contextBridge.exposeInMainWorld('desktopPetIpc', {
 		isMacintosh: process.platform === 'darwin',

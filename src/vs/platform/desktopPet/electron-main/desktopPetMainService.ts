@@ -40,6 +40,14 @@ const HIT_CENTER_X_RATIO = 0.5;
 const HIT_CENTER_Y_RATIO = 0.44;
 const HIT_RADIUS_RATIO = 0.2;
 
+// Eye tracking: the pupils drift toward the cursor. Offsets are expressed in
+// the idle SVG's own user units (its viewBox is 45x45, so 3 units is ~6.7% of
+// the face) and mirror the reference TestAgent-on-Desk renderer.
+const EYE_MAX_OFFSET = 3;
+const EYE_RANGE_PX = 300;
+const EYE_X_CLAMP_RATIO = 0.85;
+const EYE_Y_CLAMP_RATIO = 0.5;
+
 const STORAGE_ENABLED = 'desktopPet.enabled';
 const STORAGE_POSITION = 'desktopPet.position';
 
@@ -62,6 +70,8 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 	private _dragging = false;
 	private _dragOffset: IPetPosition | undefined;
 	private _cursorTimer: ReturnType<typeof setInterval> | undefined;
+	private _lastEyeDx = 0;
+	private _lastEyeDy = 0;
 
 	private readonly _onDragStart = (event: IpcMainEvent) => {
 		if (!this._isPetSender(event)) {
@@ -147,6 +157,9 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		} catch (err) {
 			this.logService.error('[desktopPet] showInactive failed', err);
 		}
+		// Force the first eye-move to be pushed after (re)showing.
+		this._lastEyeDx = 0;
+		this._lastEyeDy = 0;
 		this._startCursorTracking();
 	}
 
@@ -314,11 +327,46 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		const bounds = win.getContentBounds();
 		const localX = point.x - bounds.x;
 		const localY = point.y - bounds.y;
+
+		// Eyes follow the cursor regardless of the click-through state.
+		this._sendEyeMove(win, point, bounds);
+
 		const hit = this._hitTest(localX, localY, bounds.width, bounds.height);
 		if (hit === !this._ignoring) {
 			return;
 		}
 		this._applyClickThrough(win, !hit);
+	}
+
+	private _sendEyeMove(win: BrowserWindow, point: { x: number; y: number }, bounds: { x: number; y: number; width: number; height: number }): void {
+		if (win.webContents.isDestroyed()) {
+			return;
+		}
+		// Gaze is anchored at the face center (same point the hit test uses).
+		const eyeX = bounds.x + bounds.width * HIT_CENTER_X_RATIO;
+		const eyeY = bounds.y + bounds.height * HIT_CENTER_Y_RATIO;
+		const relX = point.x - eyeX;
+		const relY = point.y - eyeY;
+		const dist = Math.sqrt(relX * relX + relY * relY);
+
+		let dx = 0;
+		let dy = 0;
+		if (dist > 1) {
+			const scale = Math.min(1, dist / EYE_RANGE_PX);
+			dx = (relX / dist) * EYE_MAX_OFFSET * scale;
+			dy = (relY / dist) * EYE_MAX_OFFSET * scale;
+		}
+		const xClamp = EYE_MAX_OFFSET * EYE_X_CLAMP_RATIO;
+		const yClamp = EYE_MAX_OFFSET * EYE_Y_CLAMP_RATIO;
+		dx = Math.max(-xClamp, Math.min(xClamp, Math.round(dx * 2) / 2));
+		dy = Math.max(-yClamp, Math.min(yClamp, Math.round(dy * 2) / 2));
+
+		if (dx === this._lastEyeDx && dy === this._lastEyeDy) {
+			return;
+		}
+		this._lastEyeDx = dx;
+		this._lastEyeDy = dy;
+		win.webContents.send('desktopPet:eye', dx, dy);
 	}
 
 	private _hitTest(localX: number, localY: number, width: number, height: number): boolean {
