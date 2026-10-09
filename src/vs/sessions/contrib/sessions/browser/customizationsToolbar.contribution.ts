@@ -5,8 +5,13 @@
 
 import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
+import { VSBuffer } from '../../../../base/common/buffer.js'; // test-workbench_change — TestAgent 配置文件模板
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { dirname, joinPath } from '../../../../base/common/resources.js'; // test-workbench_change — TestAgent 配置路径
+import { URI } from '../../../../base/common/uri.js'; // test-workbench_change
+import { IFileService } from '../../../../platform/files/common/files.js'; // test-workbench_change
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js'; // test-workbench_change
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -28,6 +33,8 @@ import { autorun, IReader } from '../../../../base/common/observable.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IPathService } from '../../../../workbench/services/path/common/pathService.js'; // test-workbench_change — 全局配置根目录
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js'; // test-workbench_change — 项目配置根目录
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
@@ -148,6 +155,77 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		section: AICustomizationManagementSection.HarnessSettings,
 	},
 ];
+
+// test-workbench_change start - TestAgent 配置文件入口:项目级/全局级
+// 对齐 kilo-vscode Settings 的"项目配置/全局配置"(openConfigFile):点击直接打开
+// (或创建) testagent 后端实际读取的配置文件,而不进 customizations 管理编辑器。
+export const TESTAGENT_PROJECT_CONFIG_ID = 'sessions.testagent.openProjectConfig';
+export const TESTAGENT_GLOBAL_CONFIG_ID = 'sessions.testagent.openGlobalConfig';
+
+const TESTAGENT_CONFIG_ITEMS: ICustomizationItemConfig[] = [
+	{
+		id: TESTAGENT_PROJECT_CONFIG_ID,
+		label: localize('testagent.projectConfig', "项目配置"),
+		icon: Codicon.folderOpened,
+	},
+	{
+		id: TESTAGENT_GLOBAL_CONFIG_ID,
+		label: localize('testagent.globalConfig', "全局配置"),
+		icon: Codicon.globe,
+	},
+];
+
+/** 新建配置文件时的默认模板(与 kilo-vscode handleOpenConfigFile 保持一致)。 */
+const TESTAGENT_CONFIG_TEMPLATE = `{
+  // TestAgent 配置
+  // 更多配置选项请参考: https://opencode.ai/docs/config/
+  "$schema": "https://opencode.ai/config.json"
+}
+`;
+
+/** 全局配置候选(与后端 config.ts loadGlobal 的加载顺序一致,高优先级在前)。 */
+const TESTAGENT_GLOBAL_CONFIG_CANDIDATES = ['testagent.jsonc', 'testagent.json', 'opencode.jsonc', 'opencode.json', 'config.json'];
+
+async function openOrCreateTestAgentConfig(accessor: ServicesAccessor, scope: 'local' | 'global'): Promise<void> {
+	const editorService = accessor.get(IEditorService);
+	const fileService = accessor.get(IFileService);
+	const notificationService = accessor.get(INotificationService);
+
+	if (scope === 'local') {
+		const folders = accessor.get(IWorkspaceContextService).getWorkspace().folders;
+		if (folders.length === 0) {
+			notificationService.notify({
+				severity: Severity.Warning,
+				message: localize('testagent.openConfig.noWorkspace', "打开工作区文件夹以编辑项目 TestAgent 配置文件"),
+			});
+			return;
+		}
+		const configFile = joinPath(folders[0].uri, '.testagent', 'testagent.jsonc');
+		await openOrCreateConfigFile(editorService, fileService, configFile);
+		return;
+	}
+
+	// Global scope: 与后端 global.ts 约定一致($XDG_CONFIG_HOME ?? ~/.config + testagent)。
+	const userHome = await accessor.get(IPathService).userHome({ preferLocal: true });
+	const configDir = joinPath(userHome, '.config', 'testagent');
+	for (const name of TESTAGENT_GLOBAL_CONFIG_CANDIDATES) {
+		const candidate = joinPath(configDir, name);
+		if (await fileService.exists(candidate)) {
+			await editorService.openEditor({ resource: candidate, options: { pinned: true } });
+			return;
+		}
+	}
+	await openOrCreateConfigFile(editorService, fileService, joinPath(configDir, 'testagent.jsonc'));
+}
+
+async function openOrCreateConfigFile(editorService: IEditorService, fileService: IFileService, file: URI): Promise<void> {
+	if (!(await fileService.exists(file))) {
+		await fileService.createFolder(dirname(file));
+		await fileService.createFile(file, VSBuffer.fromString(TESTAGENT_CONFIG_TEMPLATE));
+	}
+	await editorService.openEditor({ resource: file, options: { pinned: true } });
+}
+// test-workbench_change end
 
 async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
 	const session = sessionsService.activeSession.get();
@@ -386,6 +464,35 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				}
 			}));
 		}
+
+		// test-workbench_change start - TestAgent 配置文件入口
+		// 项目级/全局级两个配置按钮,始终显示(与 active harness 无关)。
+		for (const [index, config] of TESTAGENT_CONFIG_ITEMS.entries()) {
+			this._register(actionViewItemService.register(Menus.SidebarCustomizations, config.id, (action, options) => {
+				return instantiationService.createInstance(CustomizationLinkViewItem, action, options, config);
+			}, undefined));
+
+			const scope = config.id === TESTAGENT_PROJECT_CONFIG_ID ? 'local' : 'global';
+			this._register(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: config.id,
+						title: config.label,
+						icon: config.icon,
+						menu: {
+							id: Menus.SidebarCustomizations,
+							group: 'navigation',
+							order: 20 + index,
+							when: ChatContextKeys.enabled,
+						}
+					});
+				}
+				async run(accessor: ServicesAccessor): Promise<void> {
+					await openOrCreateTestAgentConfig(accessor, scope);
+				}
+			}));
+		}
+		// test-workbench_change end
 	}
 }
 
