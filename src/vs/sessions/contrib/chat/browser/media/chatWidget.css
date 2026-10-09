@@ -473,6 +473,11 @@
 	margin-left: auto;
 }
 
+/* test-workbench_change: this branch ships a single agent, so hide the harness/agent picker. */
+.new-chat-widget-content .sessions-chat-session-type-picker {
+	display: none;
+}
+
 .new-chat-repository-controls-host {
 	display: contents;
 }
