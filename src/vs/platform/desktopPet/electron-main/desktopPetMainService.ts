@@ -9,10 +9,11 @@
 // always on top, click-through outside the pet pixels) — same technique the
 // Trae CN "traebao" pet uses.
 
-import { BrowserWindow, BrowserWindowConstructorOptions, IpcMainEvent, ipcMain, screen } from 'electron';
+import { BrowserWindow, BrowserWindowConstructorOptions, IpcMainEvent, ipcMain, Menu, screen } from 'electron';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../base/common/network.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
@@ -33,20 +34,45 @@ export interface IDesktopPetMainService {
 const PET_SIZE = 200;
 const SCREEN_MARGIN = 24;
 const CURSOR_POLL_MS = 60;
+const POINTER_EPSILON = 1;
 
-// Click-through hit region: a circle over the pet's face (see the theme's
-// bottom-anchored objectScale). Everything outside stays click-through.
-const HIT_CENTER_X_RATIO = 0.5;
-const HIT_CENTER_Y_RATIO = 0.44;
-const HIT_RADIUS_RATIO = 0.2;
+// test-workbench_change start
+// Cloudling layout. The reference "Cloudling" theme renders its 88x72 viewBox
+// through a normalized layout anchored to a 24x24 content box near the window
+// baseline. These constants mirror desktopPet.html (and the reference
+// hit-geometry.js) so the main-process hit region tracks the rendered face
+// exactly.
+const VIEW_BOX = { x: -32, y: -24, width: 88, height: 72 };
+const LAYOUT_CONTENT_BOX_HEIGHT = 24;
+const LAYOUT_CENTER_X = 12;
+const LAYOUT_CENTER_X_RATIO = 0.5;
+const LAYOUT_BASELINE_Y = 24;
+const LAYOUT_BASELINE_BOTTOM_RATIO = 0.05;
+const LAYOUT_VISIBLE_HEIGHT_RATIO = 0.41;
+const FACE_CENTER = { x: 12, y: 12 };
+const FACE_RADIUS = 13;
 
-// Eye tracking: the pupils drift toward the cursor. Offsets are expressed in
-// the idle SVG's own user units (its viewBox is 45x45, so 3 units is ~6.7% of
-// the face) and mirror the reference TestAgent-on-Desk renderer.
-const EYE_MAX_OFFSET = 3;
-const EYE_RANGE_PX = 300;
-const EYE_X_CLAMP_RATIO = 0.85;
-const EYE_Y_CLAMP_RATIO = 0.5;
+interface IArtRect {
+	readonly left: number;
+	readonly top: number;
+	readonly width: number;
+	readonly height: number;
+}
+
+function computeArtRect(windowWidth: number, windowHeight: number): IArtRect {
+	const unitRatio = LAYOUT_VISIBLE_HEIGHT_RATIO / LAYOUT_CONTENT_BOX_HEIGHT;
+	const width = windowWidth * VIEW_BOX.width * unitRatio;
+	const height = windowHeight * VIEW_BOX.height * unitRatio;
+	const leftRatio = LAYOUT_CENTER_X_RATIO - (LAYOUT_CENTER_X - VIEW_BOX.x) * unitRatio;
+	const bottomRatio = LAYOUT_BASELINE_BOTTOM_RATIO - (VIEW_BOX.y + VIEW_BOX.height - LAYOUT_BASELINE_Y) * unitRatio;
+	return {
+		left: windowWidth * leftRatio,
+		top: windowHeight - height - windowHeight * bottomRatio,
+		width,
+		height
+	};
+}
+// test-workbench_change end
 
 const STORAGE_ENABLED = 'desktopPet.enabled';
 const STORAGE_POSITION = 'desktopPet.position';
@@ -70,8 +96,9 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 	private _dragging = false;
 	private _dragOffset: IPetPosition | undefined;
 	private _cursorTimer: ReturnType<typeof setInterval> | undefined;
-	private _lastEyeDx = 0;
-	private _lastEyeDy = 0;
+	private _lastPointerX = Number.NaN;
+	private _lastPointerY = Number.NaN;
+	private _lastPointerOver = false;
 
 	private readonly _onDragStart = (event: IpcMainEvent) => {
 		if (!this._isPetSender(event)) {
@@ -103,6 +130,27 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		this._dragging = false;
 		this._dragOffset = undefined;
 		this._savePosition();
+	};
+
+	private readonly _onContextMenu = (event: IpcMainEvent) => {
+		if (!this._isPetSender(event)) {
+			return;
+		}
+		const win = this._window;
+		if (!win || win.isDestroyed()) {
+			return;
+		}
+		const menu = Menu.buildFromTemplate([
+			{
+				label: localize('desktopPet.hide', "Hide Desktop Pet"),
+				click: () => {
+					this._enabled = false;
+					this._storeEnabled(false);
+					this.hide();
+				}
+			}
+		]);
+		menu.popup({ window: win });
 	};
 
 	constructor(
@@ -157,9 +205,10 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		} catch (err) {
 			this.logService.error('[desktopPet] showInactive failed', err);
 		}
-		// Force the first eye-move to be pushed after (re)showing.
-		this._lastEyeDx = 0;
-		this._lastEyeDy = 0;
+		// Force the first pointer push after (re)showing.
+		this._lastPointerX = Number.NaN;
+		this._lastPointerY = Number.NaN;
+		this._lastPointerOver = false;
 		this._startCursorTracking();
 	}
 
@@ -328,51 +377,42 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		const localX = point.x - bounds.x;
 		const localY = point.y - bounds.y;
 
-		// Eyes follow the cursor regardless of the click-through state.
-		this._sendEyeMove(win, point, bounds);
-
 		const hit = this._hitTest(localX, localY, bounds.width, bounds.height);
+
+		// The renderer converts these window-local pixels into the SVG's own
+		// user units and forwards them to the Cloudling pointer bridge.
+		this._sendPointer(win, localX, localY, hit);
+
 		if (hit === !this._ignoring) {
 			return;
 		}
 		this._applyClickThrough(win, !hit);
 	}
 
-	private _sendEyeMove(win: BrowserWindow, point: { x: number; y: number }, bounds: { x: number; y: number; width: number; height: number }): void {
+	private _sendPointer(win: BrowserWindow, localX: number, localY: number, over: boolean): void {
 		if (win.webContents.isDestroyed()) {
 			return;
 		}
-		// Gaze is anchored at the face center (same point the hit test uses).
-		const eyeX = bounds.x + bounds.width * HIT_CENTER_X_RATIO;
-		const eyeY = bounds.y + bounds.height * HIT_CENTER_Y_RATIO;
-		const relX = point.x - eyeX;
-		const relY = point.y - eyeY;
-		const dist = Math.sqrt(relX * relX + relY * relY);
-
-		let dx = 0;
-		let dy = 0;
-		if (dist > 1) {
-			const scale = Math.min(1, dist / EYE_RANGE_PX);
-			dx = (relX / dist) * EYE_MAX_OFFSET * scale;
-			dy = (relY / dist) * EYE_MAX_OFFSET * scale;
-		}
-		const xClamp = EYE_MAX_OFFSET * EYE_X_CLAMP_RATIO;
-		const yClamp = EYE_MAX_OFFSET * EYE_Y_CLAMP_RATIO;
-		dx = Math.max(-xClamp, Math.min(xClamp, Math.round(dx * 2) / 2));
-		dy = Math.max(-yClamp, Math.min(yClamp, Math.round(dy * 2) / 2));
-
-		if (dx === this._lastEyeDx && dy === this._lastEyeDy) {
+		const x = Math.round(localX);
+		const y = Math.round(localY);
+		if (over === this._lastPointerOver
+			&& Number.isFinite(this._lastPointerX)
+			&& Math.abs(x - this._lastPointerX) < POINTER_EPSILON
+			&& Math.abs(y - this._lastPointerY) < POINTER_EPSILON) {
 			return;
 		}
-		this._lastEyeDx = dx;
-		this._lastEyeDy = dy;
-		win.webContents.send('desktopPet:eye', dx, dy);
+		this._lastPointerX = x;
+		this._lastPointerY = y;
+		this._lastPointerOver = over;
+		win.webContents.send('desktopPet:pointer', x, y, over);
 	}
 
 	private _hitTest(localX: number, localY: number, width: number, height: number): boolean {
-		const cx = width * HIT_CENTER_X_RATIO;
-		const cy = height * HIT_CENTER_Y_RATIO;
-		const r = width * HIT_RADIUS_RATIO;
+		const art = computeArtRect(width, height);
+		const scale = art.width / VIEW_BOX.width;
+		const cx = art.left + (FACE_CENTER.x - VIEW_BOX.x) * scale;
+		const cy = art.top + (FACE_CENTER.y - VIEW_BOX.y) * scale;
+		const r = FACE_RADIUS * scale;
 		const dx = localX - cx;
 		const dy = localY - cy;
 		return dx * dx + dy * dy <= r * r;
@@ -382,12 +422,14 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		ipcMain.on('desktopPet:drag-start', this._onDragStart);
 		ipcMain.on('desktopPet:drag-move', this._onDragMove);
 		ipcMain.on('desktopPet:drag-end', this._onDragEnd);
+		ipcMain.on('desktopPet:context-menu', this._onContextMenu);
 	}
 
 	private _removeIpc(): void {
 		ipcMain.removeListener('desktopPet:drag-start', this._onDragStart);
 		ipcMain.removeListener('desktopPet:drag-move', this._onDragMove);
 		ipcMain.removeListener('desktopPet:drag-end', this._onDragEnd);
+		ipcMain.removeListener('desktopPet:context-menu', this._onContextMenu);
 	}
 
 	private _isPetSender(event: IpcMainEvent): boolean {

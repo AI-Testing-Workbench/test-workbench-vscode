@@ -17,11 +17,12 @@
 	const ALLOWED_SEND = new Set<string>([
 		'desktopPet:drag-start',
 		'desktopPet:drag-move',
-		'desktopPet:drag-end'
+		'desktopPet:drag-end',
+		'desktopPet:context-menu'
 	]);
 
 	const ALLOWED_ON = new Set<string>([
-		'desktopPet:eye'
+		'desktopPet:pointer'
 	]);
 
 	contextBridge.exposeInMainWorld('desktopPetIpc', {

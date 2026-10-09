@@ -22,39 +22,94 @@
 <script>
 	'use strict';
 
-	// ── TestAgent theme (ported from the reference project's "Kiro Face") ──
+	// ── TestAgent "Cloudling" theme (ported from the reference project's built-in
+	//    Cloudling theme). Every asset is a self-animating scripted SVG that must
+	//    be rendered through the <object> channel so its inline animation runs.
+	//    The idle SVG additionally exposes window.__cloudlingSetPointer() so the
+	//    renderer can drive its eye-follow / breath / blink loop. ──
+
+	// Cloudling geometry: an 88x72 viewBox rendered through a normalized layout
+	// anchored to a 24x24 content box near the window baseline. These values
+	// mirror hit-geometry.js + the Cloudling theme.json (and the main process,
+	// which uses the same maths for its click-through hit test).
+	var VIEW_BOX = { x: -32, y: -24, width: 88, height: 72 };
+	var LAYOUT = {
+		contentBoxHeight: 24,
+		centerX: 12,
+		centerXRatio: 0.5,
+		baselineY: 24,
+		baselineBottomRatio: 0.05,
+		visibleHeightRatio: 0.41
+	};
+	// Where the Cloudling body sits in its own viewBox; used to anchor files
+	// that use a different viewBox (e.g. the legacy react-drag icon) so the
+	// icon stays centered and the same size as the Cloudling states.
+	var FACE = { x: 12, y: 12 };
+
+	// Per-file layout override. The drag reaction reuses the legacy
+	// react-drag.svg (45x45 viewBox, ~8.1u body), so it needs its own viewBox,
+	// an anchor point and a scale that makes its body match the Cloudling body
+	// (20u) on screen.
+	var FILE_LAYOUT = {
+		'react-drag.svg': {
+			viewBox: { x: -15, y: -25, width: 45, height: 45 },
+			anchor: { x: 7.5, y: 8 },
+			// (Cloudling body 20u / react-drag body 8.1u)
+			scale: 20 / 8.1
+		}
+	};
+
 	var THEME = {
-		name: 'TestAgent',
+		name: 'TestAgent Cloudling',
 		states: {
-			idle: ['idle-follow.svg'],
-			thinking: ['thinking.svg'],
-			working: ['typing.svg'],
-			error: ['error.svg'],
-			attention: ['happy.svg'],
-			notification: ['notification.svg'],
-			sleeping: ['sleeping.svg'],
-			waking: ['waking.svg'],
-			yawning: ['yawning.svg'],
-			sweeping: ['sweeping.svg'],
-			carrying: ['carrying.svg']
+			idle: ['testagent-idle.svg'],
+			yawning: ['testagent-idle-to-dozing.svg'],
+			sleeping: ['testagent-idle-to-sleeping.svg'],
+			working: ['testagent-building.svg'],
+			juggling: ['testagent-juggling.svg'],
+			conducting: ['testagent-conducting.svg'],
+			attention: ['testagent-attention.svg'],
+			notification: ['testagent-notification.svg']
 		},
-		idleAnimations: [{ file: 'idle-look.svg', duration: 3000 }],
+		// Every Cloudling asset is scripted and therefore needs the <object>
+		// channel (an <img> would only paint the first frame).
+		scriptedFiles: [
+			'testagent-idle.svg',
+			'testagent-idle-reading.svg',
+			'testagent-idle-to-dozing.svg',
+			'testagent-idle-to-sleeping.svg',
+			'testagent-building.svg',
+			'testagent-juggling.svg',
+			'testagent-conducting.svg',
+			'testagent-attention.svg',
+			'testagent-notification.svg'
+		],
+		idleAnimations: [
+			{ file: 'testagent-idle-reading.svg', duration: 14000 },
+			{ file: 'testagent-building.svg', duration: 10800 }
+		],
 		reactions: {
-			drag: { file: 'react-drag.svg' },
-			clickLeft: { file: 'react-left.svg', duration: 2500 },
-			clickRight: { file: 'react-right.svg', duration: 2500 },
-			double: { files: ['react-double.svg'], duration: 3500 }
+			drag: { file: 'react-drag.svg', duration: 500 }
 		},
-		objectScale: { widthRatio: 1.9, heightRatio: 1.3, offsetX: -0.45, offsetY: -0.25 },
-		// Pupil tracking. Files listed here are rendered through the <object>
-		// channel (instead of <img>) so their SVG DOM is reachable and the
-		// renderer can transform #eyes-js / #body-js / #shadow-js toward the
-		// cursor. Ported from the reference project's renderer.js.
-		eyeTracking: {
-			files: ['idle-follow.svg'],
-			bodyScale: 0.33,
-			shadowStretch: 0.15,
-			shadowShift: 0.3
+		// Each click advances to the next animation in this list (round-robin).
+		clickAnimations: [
+			'testagent-attention.svg',
+			'testagent-notification.svg',
+			'testagent-building.svg',
+			'testagent-juggling.svg',
+			'testagent-conducting.svg',
+			'testagent-idle.svg',
+			'testagent-idle-reading.svg',
+			'testagent-idle-to-dozing.svg',
+			'testagent-idle-to-sleeping.svg'
+		],
+		timings: {
+			// Idle → yawn (idle-to-dozing) → hold doze pose.
+			dozeTimeout: 20000,
+			// Then → deep sleep (idle-to-sleeping) → hold sleep pose.
+			sleepTimeout: 60000,
+			idleAnimMinMs: 14000,
+			idleAnimMaxMs: 26000
 		}
 	};
 
@@ -62,56 +117,77 @@
 	var pet = document.getElementById('pet');
 
 	var SWAP_LOAD_FALLBACK_MS = 3000;
-	var IDLE_MIN_MS = 12000;
-	var IDLE_MAX_MS = 24000;
 	var DRAG_THRESHOLD = 3;
-	var CLICK_WINDOW_MS = 400;
+	var ACTIVITY_THROTTLE_MS = 2000;
 
+	// ── Cloudling layout maths (see VIEW_BOX / LAYOUT above) ──
+	function unitRatio() { return LAYOUT.visibleHeightRatio / LAYOUT.contentBoxHeight; }
+
+	function baseArtRect() {
+		var W = window.innerWidth || 200;
+		var H = window.innerHeight || 200;
+		var u = unitRatio();
+		var width = W * VIEW_BOX.width * u;
+		var height = H * VIEW_BOX.height * u;
+		var leftRatio = LAYOUT.centerXRatio - (LAYOUT.centerX - VIEW_BOX.x) * u;
+		var bottomRatio = LAYOUT.baselineBottomRatio - (VIEW_BOX.y + VIEW_BOX.height - LAYOUT.baselineY) * u;
+		return { left: W * leftRatio, top: H - height - H * bottomRatio, width: width, height: height };
+	}
+
+	// Resolve the art rect for a file. Files with a different viewBox
+	// (FILE_LAYOUT) are anchored so their body lands exactly where the Cloudling
+	// body sits, and scaled so the body size matches on screen.
+	function artRect(file) {
+		var override = file && FILE_LAYOUT[file];
+		if (!override) return baseArtRect();
+		var W = window.innerWidth || 200;
+		var u = unitRatio();
+		var px = W * u * override.scale;
+		var vb = override.viewBox;
+		var base = baseArtRect();
+		var baseScale = base.width / VIEW_BOX.width;
+		var anchorX = base.left + (FACE.x - VIEW_BOX.x) * baseScale;
+		var anchorY = base.top + (FACE.y - VIEW_BOX.y) * baseScale;
+		return {
+			left: anchorX - (override.anchor.x - vb.x) * px,
+			top: anchorY - (override.anchor.y - vb.y) * px,
+			width: vb.width * px,
+			height: vb.height * px
+		};
+	}
+
+	function applyArtRect(el, file) {
+		var r = artRect(file);
+		el.style.left = r.left + 'px';
+		el.style.top = r.top + 'px';
+		el.style.width = r.width + 'px';
+		el.style.height = r.height + 'px';
+		el.style.right = 'auto';
+		el.style.bottom = 'auto';
+	}
+
+	// Convert window-local pixels into the Cloudling SVG's own user units.
+	function pointerToViewBox(px, py) {
+		var r = baseArtRect();
+		if (r.width <= 0 || r.height <= 0) return { x: VIEW_BOX.x, y: VIEW_BOX.y };
+		return {
+			x: VIEW_BOX.x + ((px - r.left) / r.width) * VIEW_BOX.width,
+			y: VIEW_BOX.y + ((py - r.top) / r.height) * VIEW_BOX.height
+		};
+	}
+
+	function idleFile() { return THEME.states.idle[0]; }
+	function assetUrl(file) { return 'icons/' + file; }
+
+	// ── Media display ──
 	var current = null;
 	var pending = null;
 	var displayedFile = null;
 	var token = 0;
 	var cacheSeq = 0;
-	var idleNextTimer = null;
-	var idleReturnTimer = null;
-	var reacting = false;
-	var reactTimer = null;
 
-	function idleFile() { return THEME.states.idle[0]; }
-	function assetUrl(file) { return 'icons/' + file; }
-
-	function applyScale(img) {
-		var os = THEME.objectScale;
-		var widthPct = (os.imgWidthRatio != null ? os.imgWidthRatio : os.widthRatio) * 100;
-		var leftPct = (os.imgOffsetX != null ? os.imgOffsetX : os.offsetX) * 100;
-		var bottomPct = (os.imgBottom != null ? os.imgBottom : 0.05) * 100;
-		img.style.width = widthPct + '%';
-		img.style.height = 'auto';
-		img.style.left = leftPct + '%';
-		img.style.top = 'auto';
-		img.style.bottom = bottomPct + '%';
-	}
-
-	// Eye-tracking files must go through the <object> channel so the SVG's
-	// internal DOM (contentDocument) is reachable for pupil tracking.
 	function needsObjectChannel(file) {
-		var et = THEME.eyeTracking;
-		return !!(et && et.files && et.files.indexOf(file) !== -1);
-	}
-
-	// <object> does not derive its height from the SVG's intrinsic ratio, so
-	// size it explicitly. The idle viewBox is square (45x45), hence height
-	// mirrors width.
-	function applyObjectScale(el) {
-		var os = THEME.objectScale;
-		var widthPct = (os.imgWidthRatio != null ? os.imgWidthRatio : os.widthRatio) * 100;
-		var leftPct = (os.imgOffsetX != null ? os.imgOffsetX : os.offsetX) * 100;
-		var bottomPct = (os.imgBottom != null ? os.imgBottom : 0.05) * 100;
-		el.style.width = widthPct + '%';
-		el.style.height = widthPct + '%';
-		el.style.left = leftPct + '%';
-		el.style.top = 'auto';
-		el.style.bottom = bottomPct + '%';
+		return THEME.scriptedFiles.indexOf(file) !== -1;
 	}
 
 	function release(el) {
@@ -121,75 +197,6 @@
 			else el.removeAttribute('src');
 		} catch (e) { }
 		if (el.parentNode) el.parentNode.removeChild(el);
-	}
-
-	// ── Eye tracking (idle only) ──
-	// The eyes/body/shadow groups live inside the idle SVG and are moved with
-	// SVG transforms; the SVG's own CSS transition smooths the motion. Mirrors
-	// the reference project's applyEyeMove().
-	var eyeTarget = null;
-	var bodyTarget = null;
-	var shadowTarget = null;
-	var lastEyeDx = 0;
-	var lastEyeDy = 0;
-	var eyeAttachToken = 0;
-
-	function applyEyeMove(dx, dy) {
-		if (eyeTarget) {
-			eyeTarget.setAttribute('transform', 'translate(' + dx + ', ' + dy + ')');
-		}
-		if (bodyTarget || shadowTarget) {
-			var et = THEME.eyeTracking || {};
-			var bodyScale = et.bodyScale != null ? et.bodyScale : 0.33;
-			var shadowStretch = et.shadowStretch != null ? et.shadowStretch : 0.15;
-			var shadowShift = et.shadowShift != null ? et.shadowShift : 0.3;
-			var bdx = Math.round(dx * bodyScale * 2) / 2;
-			var bdy = Math.round(dy * bodyScale * 2) / 2;
-			if (bodyTarget) bodyTarget.setAttribute('transform', 'translate(' + bdx + ', ' + bdy + ')');
-			if (shadowTarget) {
-				var scaleX = 1 + Math.abs(bdx) * shadowStretch;
-				var shiftX = Math.round(bdx * shadowShift * 2) / 2;
-				shadowTarget.setAttribute('transform', 'translate(' + shiftX + ', 0) scale(' + scaleX + ', 1)');
-			}
-		}
-	}
-
-	function attachEyeTracking(el) {
-		var myToken = ++eyeAttachToken;
-		var attempt = 0;
-		(function tryAttach() {
-			if (myToken !== eyeAttachToken || current !== el) return;
-			var eyes = null;
-			try {
-				var doc = el.contentDocument;
-				eyes = doc && doc.getElementById('eyes-js');
-			} catch (e) { }
-			if (!eyes) {
-				if (attempt++ < 60) setTimeout(tryAttach, 16);
-				return;
-			}
-			eyeTarget = eyes;
-			try {
-				bodyTarget = el.contentDocument.getElementById('body-js');
-				shadowTarget = el.contentDocument.getElementById('shadow-js');
-			} catch (e) { }
-			applyEyeMove(lastEyeDx, lastEyeDy);
-		})();
-	}
-
-	function detachEyeTracking() {
-		eyeAttachToken++;
-		eyeTarget = null;
-		bodyTarget = null;
-		shadowTarget = null;
-	}
-
-	if (ipc && ipc.on) {
-		ipc.on('desktopPet:eye', function (dx, dy) {
-			lastEyeDx = dx;
-			lastEyeDy = dy;
-			applyEyeMove(dx, dy);
-		});
 	}
 
 	function show(file, options) {
@@ -210,12 +217,8 @@
 		el.setAttribute('data-file', file);
 		el.draggable = false;
 		el.style.opacity = '0';
-		if (useObject) {
-			el.setAttribute('type', 'image/svg+xml');
-			applyObjectScale(el);
-		} else {
-			applyScale(el);
-		}
+		if (useObject) el.setAttribute('type', 'image/svg+xml');
+		applyArtRect(el, file);
 
 		var swap = function () {
 			if (myToken !== token || pending !== el) return;
@@ -235,8 +238,7 @@
 			pending = null;
 			current = el;
 			displayedFile = file;
-			if (el.tagName === 'OBJECT') attachEyeTracking(el);
-			else detachEyeTracking();
+			if (el.tagName === 'OBJECT') attachObjectChannels(el);
 		};
 
 		// The <object> channel can be blocked by CSP or fail to expose a
@@ -280,52 +282,228 @@
 		show(idleFile(), { fadeMs: fadeMs == null ? 120 : fadeMs, force: true });
 	}
 
-	// ── Idle loop ──
-	function scheduleIdleNext() {
-		clearIdleNext();
+	// ── Cloudling object-channel bridges ──
+	// The idle SVG exposes __cloudlingSetPointer (eye-follow) and
+	// __clawdSetLowPowerPaused (stop/restart its RAF while the pet is hidden).
+	var bridgeToken = 0;
+
+	function callBridge(fnName, arg) {
+		if (!current || current.tagName !== 'OBJECT') return false;
+		try {
+			var win = current.contentWindow;
+			if (win && typeof win[fnName] === 'function') {
+				win[fnName](arg);
+				return true;
+			}
+		} catch (e) { }
+		return false;
+	}
+
+	function attachObjectChannels(el) {
+		var myToken = ++bridgeToken;
+		var attempt = 0;
+		(function tryAttach() {
+			if (myToken !== bridgeToken || current !== el) return;
+			var ready = false;
+			try { ready = !!el.contentWindow; } catch (e) { ready = false; }
+			if (!ready) {
+				if (attempt++ < 60) setTimeout(tryAttach, 16);
+				return;
+			}
+			callBridge('__clawdSetLowPowerPaused', !!document.hidden);
+			pushPointer();
+		})();
+	}
+
+	// ── Pointer bridge ──
+	var lastPx = 0;
+	var lastPy = 0;
+	var lastOver = false;
+
+	function updatePointer(px, py, over) {
+		if (!Number.isFinite(px) || !Number.isFinite(py)) return;
+		lastPx = px;
+		lastPy = py;
+		lastOver = !!over;
+		pushPointer();
+		if (lastOver) noteActivity();
+	}
+
+	function pushPointer() {
+		// The reference always reports "inside" (the cursor is polled globally)
+		// so the pet keeps following even when the cursor is off the art.
+		var vb = pointerToViewBox(lastPx, lastPy);
+		callBridge('__cloudlingSetPointer', { x: vb.x, y: vb.y, inside: true });
+	}
+
+	if (ipc && ipc.on) {
+		ipc.on('desktopPet:pointer', function (px, py, over) {
+			updatePointer(px, py, over);
+		});
+	}
+
+	// Pause the scripted SVG loops while the pet window is hidden.
+	document.addEventListener('visibilitychange', function () {
+		callBridge('__clawdSetLowPowerPaused', !!document.hidden);
+	});
+
+	// ── Self-running lifecycle ──
+	// idle (continuous) → occasional idle animation (idle-reading) → after
+	// inactivity: yawn (idle-to-dozing, holds doze) → deep sleep
+	// (idle-to-sleeping, holds sleep) → any activity wakes back to idle.
+	var awake = true;
+	var reacting = false;
+	var reactTimer = null;
+	var idleAnimTimer = null;
+	var idleAnimReturnTimer = null;
+	var dozeTimer = null;
+	var sleepTimer = null;
+	var lastActivityAt = Date.now();
+	var idleAnimActive = false;
+	var sleepPending = false;
+
+	// Full playback period of each scripted animation (mirrors the reference
+	// theme's trustedRuntime.scriptedSvgCycleMs). Used to hold a looping
+	// animation for whole cycles so it is never cut off mid-motion.
+	var ANIM_PERIOD_MS = {
+		'testagent-idle.svg': 5000,
+		'testagent-idle-reading.svg': 7200,
+		'testagent-idle-to-dozing.svg': 9030,
+		'testagent-idle-to-sleeping.svg': 4850,
+		'testagent-building.svg': 5400,
+		'testagent-juggling.svg': 5200,
+		'testagent-conducting.svg': 12000,
+		'testagent-attention.svg': 3660,
+		'testagent-notification.svg': 2600
+	};
+	function alignToCycles(file, ms) {
+		var period = ANIM_PERIOD_MS[file];
+		if (!period) return ms;
+		return Math.max(period, Math.ceil(ms / period) * period);
+	}
+
+	function clearIdleAnim() {
+		if (idleAnimTimer) { clearTimeout(idleAnimTimer); idleAnimTimer = null; }
+		if (idleAnimReturnTimer) { clearTimeout(idleAnimReturnTimer); idleAnimReturnTimer = null; }
+	}
+	function clearSleepTimers() {
+		if (dozeTimer) { clearTimeout(dozeTimer); dozeTimer = null; }
+		if (sleepTimer) { clearTimeout(sleepTimer); sleepTimer = null; }
+	}
+
+	function scheduleIdleAnim() {
+		clearIdleAnim();
+		if (!awake || reacting) return;
 		var anims = THEME.idleAnimations || [];
 		if (!anims.length) return;
-		var delay = IDLE_MIN_MS + Math.random() * (IDLE_MAX_MS - IDLE_MIN_MS);
-		idleNextTimer = setTimeout(function () {
-			idleNextTimer = null;
+		var t = THEME.timings;
+		var delay = t.idleAnimMinMs + Math.random() * Math.max(t.idleAnimMaxMs - t.idleAnimMinMs, 0);
+		idleAnimTimer = setTimeout(function () {
+			idleAnimTimer = null;
+			if (!awake || reacting) return;
 			var anim = anims[Math.floor(Math.random() * anims.length)];
-			if (!anim) { scheduleIdleNext(); return; }
+			if (!anim) { scheduleIdleAnim(); return; }
+			// Hold the animation for whole cycles so it finishes cleanly.
+			var holdMs = alignToCycles(anim.file, anim.duration || 6000);
+			idleAnimActive = true;
 			show(anim.file, { fadeMs: 200, force: true });
-			idleReturnTimer = setTimeout(function () {
-				idleReturnTimer = null;
+			idleAnimReturnTimer = setTimeout(function () {
+				idleAnimReturnTimer = null;
+				idleAnimActive = false;
+				if (!awake || reacting) return;
+				// If sleep became due while this animation was playing, run the
+				// sleep sequence now instead of interrupting it earlier.
+				if (sleepPending) { sleepPending = false; startDoze(); return; }
 				showIdle(200);
-				scheduleIdleNext();
-			}, anim.duration || 3000);
+				scheduleIdleAnim();
+			}, holdMs);
 		}, delay);
 	}
-	function clearIdleNext() { if (idleNextTimer) { clearTimeout(idleNextTimer); idleNextTimer = null; } }
-	function clearIdleReturn() { if (idleReturnTimer) { clearTimeout(idleReturnTimer); idleReturnTimer = null; } }
+
+	// Inactivity → yawn → doze → deep sleep.
+	function armSleep() {
+		clearSleepTimers();
+		sleepPending = false;
+		if (!awake || reacting) return;
+		var t = THEME.timings;
+		dozeTimer = setTimeout(function () {
+			dozeTimer = null;
+			if (!awake || reacting) return;
+			// Never cut off an idle animation that is still playing; defer the
+			// sleep sequence until it completes.
+			if (idleAnimActive) { sleepPending = true; return; }
+			startDoze();
+		}, t.dozeTimeout);
+	}
+
+	function startDoze() {
+		// Entering sleep: stop idle animation churn and hold the doze pose.
+		awake = false;
+		idleAnimActive = false;
+		sleepPending = false;
+		clearIdleAnim();
+		show(THEME.states.yawning[0], { fadeMs: 300, force: true });
+		var t = THEME.timings;
+		var deepDelay = Math.max(t.sleepTimeout - t.dozeTimeout, 1000);
+		sleepTimer = setTimeout(function () {
+			sleepTimer = null;
+			if (awake || reacting) return;
+			show(THEME.states.sleeping[0], { fadeMs: 600, force: true });
+		}, deepDelay);
+	}
+
+	function noteActivity() {
+		var now = Date.now();
+		if (!awake) {
+			wakeUp();
+			return;
+		}
+		if (reacting) return;
+		if (now - lastActivityAt < ACTIVITY_THROTTLE_MS) return;
+		lastActivityAt = now;
+		armSleep();
+	}
+
+	function wakeUp() {
+		awake = true;
+		idleAnimActive = false;
+		sleepPending = false;
+		clearSleepTimers();
+		clearIdleAnim();
+		showIdle(400);
+		lastActivityAt = Date.now();
+		scheduleIdleAnim();
+		armSleep();
+	}
 
 	// ── Reactions ──
 	function playReaction(reaction) {
 		if (!reaction || !reaction.file) return;
 		reacting = true;
-		clearIdleNext();
-		clearIdleReturn();
+		awake = true;
+		idleAnimActive = false;
+		sleepPending = false;
+		clearIdleAnim();
+		clearSleepTimers();
 		show(reaction.file, { fadeMs: 100, force: true });
 		if (reactTimer) clearTimeout(reactTimer);
+		// Hold for whole animation cycles so the reaction finishes cleanly.
+		var holdMs = alignToCycles(reaction.file, reaction.duration || 3000);
 		reactTimer = setTimeout(function () {
 			reactTimer = null;
 			reacting = false;
 			showIdle(120);
-			scheduleIdleNext();
-		}, reaction.duration || 2500);
+			lastActivityAt = Date.now();
+			scheduleIdleAnim();
+			armSleep();
+		}, holdMs);
 	}
 
 	// ── Drag + click ──
 	var pressed = false;
 	var didDrag = false;
 	var startX = 0, startY = 0, lastX = 0, lastY = 0;
-	var clickCount = 0;
-	var clickTimer = null;
-	var firstFromLeft = true;
-
-	function clearClickTimer() { if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; } }
+	var clickIndex = 0;
 
 	pet.addEventListener('pointerdown', function (e) {
 		if (e.button !== 0) return;
@@ -343,8 +521,11 @@
 			if (Math.abs(e.screenX - startX) > DRAG_THRESHOLD || Math.abs(e.screenY - startY) > DRAG_THRESHOLD) {
 				didDrag = true;
 				if (ipc) ipc.send('desktopPet:drag-start');
-				clearIdleNext();
-				clearIdleReturn();
+				awake = true;
+				idleAnimActive = false;
+				sleepPending = false;
+				clearIdleAnim();
+				clearSleepTimers();
 				if (THEME.reactions.drag && THEME.reactions.drag.file) {
 					show(THEME.reactions.drag.file, { fadeMs: 80, force: true });
 				}
@@ -364,7 +545,9 @@
 		if (wasDrag) {
 			if (ipc) ipc.send('desktopPet:drag-end');
 			showIdle(120);
-			scheduleIdleNext();
+			lastActivityAt = Date.now();
+			scheduleIdleAnim();
+			armSleep();
 		}
 		return wasDrag;
 	}
@@ -378,55 +561,31 @@
 	pet.addEventListener('lostpointercapture', function () { if (pressed) stopDrag(); });
 	window.addEventListener('blur', function () { if (pressed) stopDrag(); });
 
-	function pickFile(reaction) {
-		if (reaction.files && reaction.files.length) {
-			return reaction.files[Math.floor(Math.random() * reaction.files.length)];
-		}
-		return reaction.file;
-	}
+	// Right-click opens the native pet context menu (Hide Desktop Pet).
+	pet.addEventListener('contextmenu', function (e) {
+		e.preventDefault();
+		if (ipc) ipc.send('desktopPet:context-menu');
+	});
 
-	function handleClick(e) {
-		if (reacting) return;
-		var rect = pet.getBoundingClientRect();
-		var fromLeft = (e.clientX - rect.left) < rect.width / 2;
-		clickCount++;
-		if (clickCount === 1) firstFromLeft = fromLeft;
-		clearClickTimer();
-
-		var dbl = THEME.reactions.double;
-		var leftR = THEME.reactions.clickLeft;
-		var rightR = THEME.reactions.clickRight;
-
-		if (clickCount >= 4 && dbl) {
-			clickCount = 0;
-			var file = pickFile(dbl);
-			if (file) playReaction({ file: file, duration: dbl.duration });
-			return;
-		}
-		if (clickCount >= 2) {
-			clickTimer = setTimeout(function () {
-				clickTimer = null;
-				clickCount = 0;
-				var reaction = firstFromLeft ? leftR : rightR;
-				if (reaction) {
-					var f = pickFile(reaction);
-					if (f) playReaction({ file: f, duration: reaction.duration });
-				}
-			}, CLICK_WINDOW_MS);
-			return;
-		}
-		clickTimer = setTimeout(function () { clickTimer = null; clickCount = 0; }, CLICK_WINDOW_MS);
+	// Each click advances to the next animation in the round-robin list and
+	// plays it immediately (further clicks keep advancing).
+	function handleClick() {
+		var list = THEME.clickAnimations || [];
+		if (!list.length) return;
+		var file = list[clickIndex % list.length];
+		clickIndex = (clickIndex + 1) % list.length;
+		playReaction({ file: file, duration: ANIM_PERIOD_MS[file] || 3000 });
 	}
 
 	window.addEventListener('beforeunload', function () {
-		clearIdleNext();
-		clearIdleReturn();
-		clearClickTimer();
+		clearIdleAnim();
+		clearSleepTimers();
 	});
 
-	// Initial frame + start idle loop.
+	// Initial frame + start the self-running lifecycle.
 	showIdle(0);
-	scheduleIdleNext();
+	scheduleIdleAnim();
+	armSleep();
 </script>
 </body>
 </html>

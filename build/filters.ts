@@ -74,6 +74,10 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
 
+	// test-workbench_change - Desktop pet SVG assets are ported from the
+	// reference theme and legitimately contain CJK debug labels/comments.
+	'!src/vs/platform/desktopPet/**/*.svg',
+
 	// Files with licences
 	'!src/vs/platform/endpoint/common/licenseAgreement.ts',
 ]);
