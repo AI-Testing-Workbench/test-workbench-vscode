@@ -77,6 +77,10 @@ const desktopResourcePatterns = [
 	// Sessions - built-in prompts and skills
 	'vs/sessions/prompts/*.prompt.md',
 	'vs/sessions/skills/**/SKILL.md',
+
+	// Desktop pet
+	'vs/platform/desktopPet/electron-main/media/*.html',
+	'vs/platform/desktopPet/electron-main/media/icons/*.svg',
 ];
 
 // Resources for server target (minimal - no UI)
