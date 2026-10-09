@@ -1,0 +1,29 @@
+<svg viewBox="-15 -25 45 45" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4fc3f7"/>
+      <stop offset="50%" stop-color="#2979ff"/>
+      <stop offset="100%" stop-color="#69f0ae"/>
+    </linearGradient>
+    <style>
+      @keyframes bounce-jump {
+        0%   { transform: translateY(0px) scaleX(1) scaleY(1); }
+        15%  { transform: translateY(-2.4px) scaleX(0.95) scaleY(1.05); }
+        30%  { transform: translateY(0px) scaleX(1.05) scaleY(0.95); }
+        45%  { transform: translateY(-1.2px) scaleX(0.98) scaleY(1.02); }
+        60%  { transform: translateY(0px) scaleX(1.02) scaleY(0.98); }
+        75%  { transform: translateY(-0.6px) scaleX(1) scaleY(1); }
+        100% { transform: translateY(0px) scaleX(1) scaleY(1); }
+      }
+      .happy-face { animation: bounce-jump 1.2s cubic-bezier(.36,.07,.19,.97) 1 forwards; transform-origin: 7.5px 12px; }
+    </style>
+  </defs>
+  
+  <g class="happy-face">
+    <circle cx="7.5" cy="8" r="3.9" fill="#e8f4ff"/>
+    <circle cx="7.5" cy="8" r="4.05" fill="none" stroke="url(#borderGrad)" stroke-width="0.6"/>
+    <!-- Happy curved eyes ^_^ -->
+    <path d="M5.85 7.65 Q6.3 6.75 6.75 7.65" stroke="#2979ff" stroke-width="0.42" fill="none" stroke-linecap="round"/>
+    <path d="M8.25 7.65 Q8.7 6.75 9.15 7.65" stroke="#2979ff" stroke-width="0.42" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>

@@ -1,0 +1,37 @@
+<svg viewBox="-15 -25 45 45" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4fc3f7"/>
+      <stop offset="50%" stop-color="#2979ff"/>
+      <stop offset="100%" stop-color="#69f0ae"/>
+    </linearGradient>
+    <style>
+      @keyframes breathe {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+      }
+      @keyframes zzz-float {
+        0% { transform: translate(0, 0); opacity: 0; }
+        20% { opacity: 1; }
+        100% { transform: translate(0.6px, -3px); opacity: 0; }
+      }
+      .sleeping-body { animation: breathe 3s ease-in-out infinite; transform-origin: 7.5px 8px; }
+      .zzz-1 { animation: zzz-float 3s ease-out infinite; }
+      .zzz-2 { animation: zzz-float 3s ease-out infinite 1s; }
+      .zzz-3 { animation: zzz-float 3s ease-out infinite 2s; }
+    </style>
+  </defs>
+  
+  <g class="sleeping-body">
+    <circle cx="7.5" cy="8" r="3.9" fill="#e8f4ff"/>
+    <circle cx="7.5" cy="8" r="4.05" fill="none" stroke="url(#borderGrad)" stroke-width="0.6"/>
+    <!-- Closed eyes (horizontal lines) -->
+    <line x1="6.0" y1="7.2" x2="6.6" y2="7.2" stroke="#2979ff" stroke-width="0.6" stroke-linecap="round"/>
+    <line x1="8.4" y1="7.2" x2="9.0" y2="7.2" stroke="#2979ff" stroke-width="0.6" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Z Z Z -->
+  <text class="zzz-1" x="10.5" y="6" fill="#2979ff" font-size="1.5" font-family="sans-serif" font-weight="bold">Z</text>
+  <text class="zzz-2" x="11.4" y="5" fill="#2979ff" font-size="1.2" font-family="sans-serif" font-weight="bold">Z</text>
+  <text class="zzz-3" x="12.3" y="4" fill="#2979ff" font-size="0.9" font-family="sans-serif" font-weight="bold">Z</text>
+</svg>

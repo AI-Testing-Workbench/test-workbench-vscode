@@ -16,6 +16,7 @@ const desktopStandaloneFiles = [
 	'vs/base/parts/sandbox/electron-browser/preload.ts',
 	'vs/base/parts/sandbox/electron-browser/preload-aux.ts',
 	'vs/platform/browserView/electron-browser/preload-browserView.ts',
+	'vs/platform/desktopPet/electron-main/media/desktopPet-preload.ts', // test-workbench_change - desktop pet preload
 ];
 
 export async function compileStandaloneFiles(srcDir: string, outDir: string, target: BuildTarget, minify: boolean, sourceMapBaseUrl?: string): Promise<void> {

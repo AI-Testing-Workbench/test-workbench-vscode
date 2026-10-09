@@ -213,6 +213,7 @@ export class TestNativeHostService implements INativeHostService {
 	async startPowerSaveBlocker(type: PowerSaveBlockerType): Promise<number> { return -1; }
 	async stopPowerSaveBlocker(id: number): Promise<boolean> { return false; }
 	async isPowerSaveBlockerStarted(id: number): Promise<boolean> { return false; }
+	async toggleDesktopPet(): Promise<boolean> { return false; } // test-workbench_change
 }
 
 export class TestExtensionTipsService extends AbstractNativeExtensionTipsService {

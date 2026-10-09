@@ -1,0 +1,46 @@
+<svg viewBox="-15 -25 45 45" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4fc3f7"/>
+      <stop offset="50%" stop-color="#2979ff"/>
+      <stop offset="100%" stop-color="#69f0ae"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="0.3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <style>
+      @keyframes eye-shift {
+        0%   { transform: translateX(-0.9px); }
+        30%  { transform: translateX(-0.9px); }
+        50%  { transform: translateX(0.9px); }
+        80%  { transform: translateX(0.9px); }
+        100% { transform: translateX(-0.9px); }
+      }
+      @keyframes ring-pulse {
+        0%, 100% { r: 4.05; opacity: 0.6; stroke-width: 0.6; }
+        50%       { r: 4.2;  opacity: 1;   stroke-width: 0.6; }
+      }
+      @keyframes ring-pulse-bg {
+        0%, 100% { r: 4.05; opacity: 0.2; stroke-width: 1.2; }
+        50%       { r: 4.35; opacity: 0.5; stroke-width: 1.2; }
+      }
+      .thinking-eye  { animation: eye-shift 2.0s ease-in-out infinite; }
+      .glow-ring     { animation: ring-pulse 2.0s ease-in-out infinite; filter: url(#glow); }
+      .glow-ring-bg  { animation: ring-pulse-bg 2.0s ease-in-out infinite; }
+    </style>
+  </defs>
+  
+  <circle cx="7.5" cy="8" r="3.9" fill="#e8f4ff"/>
+  <circle cx="7.5" cy="8" r="4.05" fill="none" stroke="url(#borderGrad)" stroke-width="0.6"/>
+  <circle class="glow-ring-bg" cx="7.5" cy="8" r="4.05" fill="none" stroke="url(#borderGrad)" stroke-width="1.2" opacity="0.2"/>
+  <circle class="glow-ring" cx="7.5" cy="8" r="4.05" fill="none" stroke="url(#borderGrad)" stroke-width="0.6"/>
+  
+  <g class="thinking-eye">
+    <ellipse cx="6.3" cy="7.2" rx="0.54" ry="0.84" fill="#2979ff"/>
+    <ellipse cx="8.7" cy="7.2" rx="0.54" ry="0.84" fill="#2979ff"/>
+  </g>
+</svg>
