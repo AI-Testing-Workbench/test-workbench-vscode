@@ -179,6 +179,9 @@ import './contrib/tscode/browser/tscodeRemoteBanner.contribution.js';
 // test-workbench_change - TSCode announcement popup
 import './contrib/tscode/browser/tscodeAnnouncement.contribution.js';
 
+// test-workbench_change - Desktop pet toggle command
+import './contrib/desktopPet/browser/desktopPet.contribution.js';
+
 // Splash
 import './contrib/splash/electron-browser/splash.contribution.js';
 

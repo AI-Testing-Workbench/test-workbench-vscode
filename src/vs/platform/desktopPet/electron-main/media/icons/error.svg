@@ -1,0 +1,33 @@
+<svg viewBox="-15 -25 45 45" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff6b9d"/>
+      <stop offset="50%" stop-color="#ff1744"/>
+      <stop offset="100%" stop-color="#ff6b9d"/>
+    </linearGradient>
+    <style>
+      @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        10%, 30%, 50%, 70%, 90% { transform: translateX(-0.6px); }
+        20%, 40%, 60%, 80% { transform: translateX(0.6px); }
+      }
+      @keyframes tear-drop {
+        0% { transform: translateY(0); opacity: 1; }
+        100% { transform: translateY(2.4px); opacity: 0; }
+      }
+      .error-face { animation: shake 0.5s ease-in-out 2; }
+      .tear { animation: tear-drop 1.5s ease-in infinite; }
+    </style>
+  </defs>
+  
+  <g class="error-face">
+    <circle cx="7.5" cy="8" r="3.9" fill="#ffe8f0"/>
+    <circle cx="7.5" cy="8" r="4.05" fill="none" stroke="url(#borderGrad)" stroke-width="0.6"/>
+    <!-- Sad curved eyes -->
+    <path d="M5.85 7.65 Q6.3 8.25 6.75 7.65" stroke="#ff1744" stroke-width="0.42" fill="none" stroke-linecap="round"/>
+    <path d="M8.25 7.65 Q8.7 8.25 9.15 7.65" stroke="#ff1744" stroke-width="0.42" fill="none" stroke-linecap="round"/>
+    <!-- Tears -->
+    <ellipse class="tear" cx="6.3" cy="8.1" rx="0.33" ry="0.54" fill="rgba(41,121,255,0.5)"/>
+    <ellipse class="tear" cx="8.7" cy="8.1" rx="0.33" ry="0.54" fill="rgba(41,121,255,0.5)" style="animation-delay: 0.3s"/>
+  </g>
+</svg>

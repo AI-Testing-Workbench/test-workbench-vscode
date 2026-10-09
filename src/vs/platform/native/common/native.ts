@@ -452,6 +452,9 @@ export interface ICommonNativeHostService {
 	startPowerSaveBlocker(type: PowerSaveBlockerType): Promise<number>;
 	stopPowerSaveBlocker(id: number): Promise<boolean>;
 	isPowerSaveBlockerStarted(id: number): Promise<boolean>;
+
+	// test-workbench_change - Desktop pet
+	toggleDesktopPet(): Promise<boolean>;
 }
 
 /**

@@ -1,0 +1,5 @@
+{
+  // TestAgent 配置
+  // 更多配置选项请参考: https://opencode.ai/docs/config/
+  "$schema": "https://opencode.ai/config.json"
+}

@@ -1,0 +1,40 @@
+<svg viewBox="-15 -25 45 45" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4fc3f7"/>
+      <stop offset="50%" stop-color="#2979ff"/>
+      <stop offset="100%" stop-color="#69f0ae"/>
+    </linearGradient>
+    <style>
+      @keyframes blink {
+        0%, 88%, 100% { ry: 0.84; }
+        93%            { ry: 0.06; }
+      }
+      .can-blink { animation: blink 4s ease-in-out infinite; }
+      
+      #eyes-js, #body-js, #shadow-js {
+        transition: transform 0.2s ease-out;
+      }
+      #shadow-js {
+        transform-origin: 7.5px 15px;
+      }
+    </style>
+  </defs>
+  
+  <!-- Shadow (for eye tracking) -->
+  <g id="shadow-js">
+    <ellipse cx="7.5" cy="16" rx="3" ry="0.75" fill="rgba(0,0,0,0.1)"/>
+  </g>
+  
+  <!-- Body (for subtle lean) -->
+  <g id="body-js">
+    <circle cx="7.5" cy="8" r="3.9" fill="#e8f4ff"/>
+    <circle cx="7.5" cy="8" r="4.05" fill="none" stroke="url(#borderGrad)" stroke-width="0.6"/>
+  </g>
+  
+  <!-- Eyes (required for eye tracking) -->
+  <g id="eyes-js">
+    <ellipse class="can-blink" cx="6.3" cy="7.2" rx="0.54" ry="0.84" fill="#2979ff"/>
+    <ellipse class="can-blink" cx="8.7" cy="7.2" rx="0.54" ry="0.84" fill="#2979ff"/>
+  </g>
+</svg>

@@ -1,0 +1,25 @@
+<svg viewBox="-15 -25 45 45" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4fc3f7"/>
+      <stop offset="50%" stop-color="#2979ff"/>
+      <stop offset="100%" stop-color="#69f0ae"/>
+    </linearGradient>
+    <style>
+      @keyframes juggle-look {
+        0%, 100% { transform: translateY(0px); }
+        25% { transform: translateY(-0.6px); }
+        75% { transform: translateY(0.6px); }
+      }
+      .juggling-eyes { animation: juggle-look 1.2s ease-in-out infinite; }
+    </style>
+  </defs>
+  
+  <circle cx="7.5" cy="8" r="3.9" fill="#e8f4ff"/>
+  <circle cx="7.5" cy="8" r="4.05" fill="none" stroke="url(#borderGrad)" stroke-width="0.6"/>
+  
+  <g class="juggling-eyes">
+    <ellipse cx="6.3" cy="7.2" rx="0.54" ry="0.84" fill="#2979ff"/>
+    <ellipse cx="8.7" cy="7.2" rx="0.54" ry="0.84" fill="#2979ff"/>
+  </g>
+</svg>

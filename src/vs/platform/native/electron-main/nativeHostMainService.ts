@@ -47,6 +47,7 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { extract, validateZip, zip, type IFile } from '../../../base/node/zip.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
+import { IDesktopPetMainService } from '../../desktopPet/electron-main/desktopPetMainService.js'; // test-workbench_change
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -72,7 +73,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IRequestService private readonly requestService: IRequestService,
 		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IGlobalKeybindingsMainService private readonly globalKeybindingsMainService: IGlobalKeybindingsMainService
+		@IGlobalKeybindingsMainService private readonly globalKeybindingsMainService: IGlobalKeybindingsMainService,
+		@IDesktopPetMainService private readonly desktopPetMainService: IDesktopPetMainService // test-workbench_change
 	) {
 		super();
 
@@ -1594,6 +1596,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	//#endregion
+
+	// test-workbench_change - Desktop pet
+	async toggleDesktopPet(windowId: number | undefined): Promise<boolean> {
+		return this.desktopPetMainService.toggle();
+	}
 
 	private windowById(windowId: number | undefined, fallbackCodeWindowId?: number): ICodeWindow | IAuxiliaryWindow | undefined {
 		return this.codeWindowById(windowId) ?? this.auxiliaryWindowById(windowId) ?? this.codeWindowById(fallbackCodeWindowId);

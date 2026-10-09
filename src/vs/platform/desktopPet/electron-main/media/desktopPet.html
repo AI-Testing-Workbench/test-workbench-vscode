@@ -1,0 +1,287 @@
+<!--
+	Copyright (c) Microsoft Corporation. All rights reserved.
+	Licensed under the MIT License. See License.txt in the project root for license information.
+-->
+<!-- test-workbench_change - new file: desktop pet page (self-contained, mirrors the Trae float window) -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' file: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+<style>
+	* { margin: 0; padding: 0; box-sizing: border-box; }
+	html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+	#pet { position: absolute; inset: 0; overflow: hidden; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+	#pet.dragging { cursor: grabbing; }
+	#pet img { position: absolute; pointer-events: none; -webkit-user-drag: none; }
+</style>
+<title>TestAgent Pet</title>
+</head>
+<body>
+<div id="pet"></div>
+<script>
+	'use strict';
+
+	// ── TestAgent theme (ported from the reference project's "Kiro Face") ──
+	var THEME = {
+		name: 'TestAgent',
+		states: {
+			idle: ['idle-follow.svg'],
+			thinking: ['thinking.svg'],
+			working: ['typing.svg'],
+			error: ['error.svg'],
+			attention: ['happy.svg'],
+			notification: ['notification.svg'],
+			sleeping: ['sleeping.svg'],
+			waking: ['waking.svg'],
+			yawning: ['yawning.svg'],
+			sweeping: ['sweeping.svg'],
+			carrying: ['carrying.svg']
+		},
+		idleAnimations: [{ file: 'idle-look.svg', duration: 3000 }],
+		reactions: {
+			drag: { file: 'react-drag.svg' },
+			clickLeft: { file: 'react-left.svg', duration: 2500 },
+			clickRight: { file: 'react-right.svg', duration: 2500 },
+			double: { files: ['react-double.svg'], duration: 3500 }
+		},
+		objectScale: { widthRatio: 1.9, heightRatio: 1.3, offsetX: -0.45, offsetY: -0.25 }
+	};
+
+	var ipc = window.desktopPetIpc;
+	var pet = document.getElementById('pet');
+
+	var SWAP_LOAD_FALLBACK_MS = 3000;
+	var IDLE_MIN_MS = 12000;
+	var IDLE_MAX_MS = 24000;
+	var DRAG_THRESHOLD = 3;
+	var CLICK_WINDOW_MS = 400;
+
+	var current = null;
+	var pending = null;
+	var displayedFile = null;
+	var token = 0;
+	var cacheSeq = 0;
+	var idleNextTimer = null;
+	var idleReturnTimer = null;
+	var reacting = false;
+	var reactTimer = null;
+
+	function idleFile() { return THEME.states.idle[0]; }
+	function assetUrl(file) { return 'icons/' + file; }
+
+	function applyScale(img) {
+		var os = THEME.objectScale;
+		var widthPct = (os.imgWidthRatio != null ? os.imgWidthRatio : os.widthRatio) * 100;
+		var leftPct = (os.imgOffsetX != null ? os.imgOffsetX : os.offsetX) * 100;
+		var bottomPct = (os.imgBottom != null ? os.imgBottom : 0.05) * 100;
+		img.style.width = widthPct + '%';
+		img.style.height = 'auto';
+		img.style.left = leftPct + '%';
+		img.style.top = 'auto';
+		img.style.bottom = bottomPct + '%';
+	}
+
+	function release(el) {
+		if (!el) return;
+		try { el.removeAttribute('src'); } catch (e) { }
+		if (el.parentNode) el.parentNode.removeChild(el);
+	}
+
+	function show(file, options) {
+		options = options || {};
+		var fadeMs = options.fadeMs != null ? options.fadeMs : 120;
+		if (!file) return;
+		if (!options.force && displayedFile === file && current) return;
+		if (pending && pending.getAttribute('data-file') === file) return;
+
+		var myToken = ++token;
+		if (pending) { release(pending); pending = null; }
+
+		var img = document.createElement('img');
+		img.setAttribute('data-file', file);
+		img.draggable = false;
+		img.style.opacity = '0';
+		applyScale(img);
+
+		var swap = function () {
+			if (myToken !== token || pending !== img) return;
+			var previous = current;
+			if (fadeMs > 0) {
+				img.style.transition = 'opacity ' + fadeMs + 'ms ease-in';
+				void img.offsetHeight;
+			} else {
+				img.style.transition = 'none';
+			}
+			img.style.opacity = '1';
+			if (previous && previous !== img) {
+				previous.style.transition = 'opacity ' + fadeMs + 'ms ease-out';
+				previous.style.opacity = '0';
+				setTimeout(function () { release(previous); }, fadeMs);
+			}
+			pending = null;
+			current = img;
+			displayedFile = file;
+		};
+
+		img.addEventListener('load', swap, { once: true });
+		img.src = assetUrl(file) + '?_t=' + Date.now() + '-' + (++cacheSeq);
+		pet.appendChild(img);
+		pending = img;
+		setTimeout(function () { if (pending === img && myToken === token) swap(); }, SWAP_LOAD_FALLBACK_MS);
+	}
+
+	function showIdle(fadeMs) {
+		show(idleFile(), { fadeMs: fadeMs == null ? 120 : fadeMs, force: true });
+	}
+
+	// ── Idle loop ──
+	function scheduleIdleNext() {
+		clearIdleNext();
+		var anims = THEME.idleAnimations || [];
+		if (!anims.length) return;
+		var delay = IDLE_MIN_MS + Math.random() * (IDLE_MAX_MS - IDLE_MIN_MS);
+		idleNextTimer = setTimeout(function () {
+			idleNextTimer = null;
+			var anim = anims[Math.floor(Math.random() * anims.length)];
+			if (!anim) { scheduleIdleNext(); return; }
+			show(anim.file, { fadeMs: 200, force: true });
+			idleReturnTimer = setTimeout(function () {
+				idleReturnTimer = null;
+				showIdle(200);
+				scheduleIdleNext();
+			}, anim.duration || 3000);
+		}, delay);
+	}
+	function clearIdleNext() { if (idleNextTimer) { clearTimeout(idleNextTimer); idleNextTimer = null; } }
+	function clearIdleReturn() { if (idleReturnTimer) { clearTimeout(idleReturnTimer); idleReturnTimer = null; } }
+
+	// ── Reactions ──
+	function playReaction(reaction) {
+		if (!reaction || !reaction.file) return;
+		reacting = true;
+		clearIdleNext();
+		clearIdleReturn();
+		show(reaction.file, { fadeMs: 100, force: true });
+		if (reactTimer) clearTimeout(reactTimer);
+		reactTimer = setTimeout(function () {
+			reactTimer = null;
+			reacting = false;
+			showIdle(120);
+			scheduleIdleNext();
+		}, reaction.duration || 2500);
+	}
+
+	// ── Drag + click ──
+	var pressed = false;
+	var didDrag = false;
+	var startX = 0, startY = 0, lastX = 0, lastY = 0;
+	var clickCount = 0;
+	var clickTimer = null;
+	var firstFromLeft = true;
+
+	function clearClickTimer() { if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; } }
+
+	pet.addEventListener('pointerdown', function (e) {
+		if (e.button !== 0) return;
+		try { pet.setPointerCapture(e.pointerId); } catch (err) { }
+		pressed = true;
+		didDrag = false;
+		startX = e.screenX; startY = e.screenY;
+		lastX = e.screenX; lastY = e.screenY;
+		pet.classList.add('dragging');
+	});
+
+	pet.addEventListener('pointermove', function (e) {
+		if (!pressed) return;
+		if (!didDrag) {
+			if (Math.abs(e.screenX - startX) > DRAG_THRESHOLD || Math.abs(e.screenY - startY) > DRAG_THRESHOLD) {
+				didDrag = true;
+				if (ipc) ipc.send('desktopPet:drag-start');
+				clearIdleNext();
+				clearIdleReturn();
+				if (THEME.reactions.drag && THEME.reactions.drag.file) {
+					show(THEME.reactions.drag.file, { fadeMs: 80, force: true });
+				}
+			}
+		}
+		if (didDrag) {
+			lastX = e.screenX; lastY = e.screenY;
+			if (ipc) ipc.send('desktopPet:drag-move', e.screenX, e.screenY);
+		}
+	});
+
+	function stopDrag() {
+		var wasDrag = didDrag;
+		pressed = false;
+		didDrag = false;
+		pet.classList.remove('dragging');
+		if (wasDrag) {
+			if (ipc) ipc.send('desktopPet:drag-end');
+			showIdle(120);
+			scheduleIdleNext();
+		}
+		return wasDrag;
+	}
+
+	pet.addEventListener('pointerup', function (e) {
+		if (e.button !== 0) return;
+		if (stopDrag()) return;
+		handleClick(e);
+	});
+	pet.addEventListener('pointercancel', function () { stopDrag(); });
+	pet.addEventListener('lostpointercapture', function () { if (pressed) stopDrag(); });
+	window.addEventListener('blur', function () { if (pressed) stopDrag(); });
+
+	function pickFile(reaction) {
+		if (reaction.files && reaction.files.length) {
+			return reaction.files[Math.floor(Math.random() * reaction.files.length)];
+		}
+		return reaction.file;
+	}
+
+	function handleClick(e) {
+		if (reacting) return;
+		var rect = pet.getBoundingClientRect();
+		var fromLeft = (e.clientX - rect.left) < rect.width / 2;
+		clickCount++;
+		if (clickCount === 1) firstFromLeft = fromLeft;
+		clearClickTimer();
+
+		var dbl = THEME.reactions.double;
+		var leftR = THEME.reactions.clickLeft;
+		var rightR = THEME.reactions.clickRight;
+
+		if (clickCount >= 4 && dbl) {
+			clickCount = 0;
+			var file = pickFile(dbl);
+			if (file) playReaction({ file: file, duration: dbl.duration });
+			return;
+		}
+		if (clickCount >= 2) {
+			clickTimer = setTimeout(function () {
+				clickTimer = null;
+				clickCount = 0;
+				var reaction = firstFromLeft ? leftR : rightR;
+				if (reaction) {
+					var f = pickFile(reaction);
+					if (f) playReaction({ file: f, duration: reaction.duration });
+				}
+			}, CLICK_WINDOW_MS);
+			return;
+		}
+		clickTimer = setTimeout(function () { clickTimer = null; clickCount = 0; }, CLICK_WINDOW_MS);
+	}
+
+	window.addEventListener('beforeunload', function () {
+		clearIdleNext();
+		clearIdleReturn();
+		clearClickTimer();
+	});
+
+	// Initial frame + start idle loop.
+	showIdle(0);
+	scheduleIdleNext();
+</script>
+</body>
+</html>
