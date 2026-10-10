@@ -25,6 +25,7 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { TESTAGENT_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js'; // test-workbench_change
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
@@ -33,7 +34,7 @@ import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser
 import { hasSignedInCodexChatGPTAccount, ICodexAccountService } from '../../../../../services/agentHost/browser/codexAccountService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { canInitializeSessionTypeOnSelection, getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
 import { hasAgentSdkSetupForSessionType } from '../../agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../../common/constants.js';
@@ -269,6 +270,18 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	private _updateAgentSessionItems(): void {
+		// test-workbench_change start: 本 fork 只接入 TestAgent(agent-host-testagent)，
+		// 通过注释屏蔽 Local / Copilot CLI / Cloud / Claude 等其余选择器，只保留 TestAgent。
+		const testAgentSessionType = `agent-host-${TESTAGENT_AGENT_PROVIDER_ID}`;
+		const testAgentContribution = this.chatSessionsService.getChatSessionContribution(testAgentSessionType);
+		const agentSessionItems: ISessionTypeItem[] = testAgentContribution ? [{
+			type: testAgentSessionType,
+			label: testAgentContribution.displayName ?? testAgentContribution.name ?? testAgentSessionType,
+			hoverDescription: testAgentContribution.description ?? '',
+			commandId: `workbench.action.chat.openNewChatSessionInPlace.${testAgentSessionType}`,
+		}] : [];
+
+		/*
 		const localSessionItem: ISessionTypeItem = {
 			type: AgentSessionProviders.Local,
 			label: getAgentSessionProviderName(AgentSessionProviders.Local),
@@ -306,9 +319,8 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		}
 
 		// Filter out hidden items based on settings
-		// test-workbench_change start: 本 fork 只接入 TestAgent(agent-host-opencode)，
-		// 选择器隐藏 Local/Copilot CLI/Cloud/Claude 等其余会话类型
-		const agentSessionItems = allAgentSessionItems.filter(item => item.type === 'agent-host-opencode' && this._isVisible(item.type));
+		const agentSessionItems = allAgentSessionItems.filter(item => this._isVisible(item.type));
+		*/
 		// test-workbench_change end
 
 		// When the experimental "local agent host as default" setting is
@@ -324,6 +336,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		}
 
 		this._sessionTypeItems = agentSessionItems;
+		this.updateEnabled(); // test-workbench_change: 同步“仅一个会话类型时不弹出下拉”的状态
 	}
 
 	/**
@@ -386,6 +399,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	protected override updateEnabled(): void {
 		super.updateEnabled();
 		this.element?.setAttribute('aria-disabled', String(!this.isEnabled()));
+		// test-workbench_change: 本 fork 只有 TestAgent 一个会话类型，直接默认选中，
+		// 不弹出下拉列表（禁用底层 dropdown，点击不再展开）。
+		this.setDropdownEnabled(this._sessionTypeItems.length > 1);
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {

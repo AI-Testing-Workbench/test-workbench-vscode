@@ -13,6 +13,7 @@ import { safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js'; // test-workbench_change
 import { language } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -68,7 +69,9 @@ import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { getChatSessionType, getNewChatSessionResource } from '../../common/model/chatUri.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js'; // test-workbench_change: IChatSessionsService
+import { TESTAGENT_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js'; // test-workbench_change
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js'; // test-workbench_change
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 
@@ -822,6 +825,59 @@ export function registerChatActions() {
 			await widgetService.openSession(input.resource, AUX_WINDOW_GROUP, { ...input.options, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } });
 		}
 	});
+
+	// test-workbench_change start
+	// Desktop-pet entry point. Opens a compact chat window that is always a
+	// TestAgent conversation: the fork only ships the testagent agent-host
+	// provider, so the pet must not fall back to the computed default
+	// (Local/Copilot). The pet main process dispatches this into the window the
+	// user is currently looking at, so the compact window belongs to that window
+	// and nothing else is brought to the front. Agent Host may be off in that
+	// window (editor windows default it off); turn it on on demand here. The
+	// override only starts the backend / registers the testagent session type —
+	// it does not flip the `agentHostEnabled` UI context key, so the editor Chat
+	// view stays hidden.
+	registerAction2(class DesktopPetOpenChatWindowAction extends Action2 {
+		constructor() {
+			super({
+				id: 'desktopPet.openChatWindow',
+				title: localize2('desktopPet.openChatWindow', "Open Chat Window"),
+				f1: false,
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			// test-workbench_change: accessor 只在 run 的同步执行期内有效,任何 await 之前
+			// 必须先把需要的服务全部取出。
+			const enablementService = accessor.get(IAgentHostEnablementService);
+			const chatSessionsService = accessor.get(IChatSessionsService);
+			const widgetService = accessor.get(IChatWidgetService);
+			enablementService.setEnabledOverride?.(true);
+			const sessionType = `agent-host-${TESTAGENT_AGENT_PROVIDER_ID}`;
+
+			// test-workbench_change: 刚开启 Agent Host 时,testagent 的会话类型/内容提供者
+			// 还在异步注册,编辑器解析器尚未为该 scheme 注册 —— 此时直接 openSession 会被
+			// 当成普通文本资源打开,报 "Unable to resolve resource agent-host-testagent:..."。
+			// 等内容提供者 scheme 注册完成(与编辑器解析器注册同一事件)后再打开,避免竞态。
+			if (!chatSessionsService.getContentProviderSchemes().includes(sessionType)) {
+				const waitStore = new DisposableStore();
+				try {
+					await Promise.race([
+						Event.toPromise(Event.filter(chatSessionsService.onDidChangeContentProviderSchemes, e => e.added.includes(sessionType)), waitStore),
+						timeout(15000),
+					]);
+				} finally {
+					waitStore.dispose();
+				}
+			}
+
+			const resource = getNewChatSessionResource(sessionType);
+			const auxiliary = { compact: true, bounds: { width: 640, height: 640 } };
+
+			await widgetService.openSession(resource, AUX_WINDOW_GROUP, { pinned: true, auxiliary });
+		}
+	});
+	// test-workbench_change end
 
 	registerAction2(class ClearChatInputHistoryAction extends Action2 {
 		constructor() {

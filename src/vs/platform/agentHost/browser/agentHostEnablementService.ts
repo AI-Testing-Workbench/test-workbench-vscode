@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { derived, IObservable, observableFromEvent } from '../../../base/common/observable.js';
+import { derived, IObservable, observableFromEvent, observableValue } from '../../../base/common/observable.js'; // test-workbench_change: observableValue
 import { isWeb } from '../../../base/common/platform.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../chat/common/chatSettings.js';
@@ -22,6 +22,14 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 	readonly managedSandboxEnforced: IObservable<boolean>;
 	readonly managedSandboxAllowsBypass: IObservable<boolean>;
 
+	// test-workbench_change start - 按需开启 Agent Host(桌宠对话),不写配置、不影响 UI 可见性
+	private readonly _enabledOverride = observableValue<boolean>(this, false);
+
+	setEnabledOverride(enabled: boolean): void {
+		this._enabledOverride.set(enabled, undefined);
+	}
+	// test-workbench_change end
+
 	constructor(
 		private readonly _isAgentHostRuntimeAvailable: boolean,
 		configurationService: IConfigurationService,
@@ -35,9 +43,12 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 		// 故此处的 fallback 仅用于未注册/未解析(如单测 mock)场景,取 true 以保持上游单测语义不变;
 		// Agents 窗口经 agentsWindow 默认恒为 true。
 		const editorAgentHostEnabled = observableConfigValue(AgentHostEditorEnabledSettingId, true, configurationService);
-		this.enabled = derived(this, reader => this._isAgentHostRuntimeAvailable && !aiFeaturesDisabled.read(reader) && editorAgentHostEnabled.read(reader));
+		// 不含桌宠 override 的基础可用性:UI 上下文键绑定到它,保证 override(桌宠按需开启)
+		// 只拉起后端与 testagent 会话类型,不把编辑器 Chat 视图等 UI 带出来。
+		const baseEnabled = derived(this, reader => this._isAgentHostRuntimeAvailable && !aiFeaturesDisabled.read(reader) && editorAgentHostEnabled.read(reader));
+		this.enabled = derived(this, reader => baseEnabled.read(reader) || this._enabledOverride.read(reader));
 		// test-workbench_change end
-		this._register(bindContextKey(AGENT_HOST_ENABLED_CONTEXT_KEY, contextKeyService, reader => this.enabled.read(reader)));
+		this._register(bindContextKey(AGENT_HOST_ENABLED_CONTEXT_KEY, contextKeyService, reader => baseEnabled.read(reader)));
 
 		this.managedSandboxEnforced = observableFromEvent(this,
 			managedSettingsService.onDidChangeManagedSettings,

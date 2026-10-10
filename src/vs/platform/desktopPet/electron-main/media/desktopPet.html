@@ -568,7 +568,8 @@
 	});
 
 	// Each click advances to the next animation in the round-robin list and
-	// plays it immediately (further clicks keep advancing).
+	// plays it immediately (further clicks keep advancing). The conversation
+	// window is opened from the pet's native context menu, not on click.
 	function handleClick() {
 		var list = THEME.clickAnimations || [];
 		if (!list.length) return;

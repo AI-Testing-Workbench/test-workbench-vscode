@@ -9,17 +9,19 @@
 // always on top, click-through outside the pet pixels) — same technique the
 // Trae CN "traebao" pet uses.
 
-import { BrowserWindow, BrowserWindowConstructorOptions, IpcMainEvent, ipcMain, Menu, screen } from 'electron';
+import { app, BrowserWindow, BrowserWindowConstructorOptions, IpcMainEvent, ipcMain, Menu, screen } from 'electron';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../base/common/network.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
-import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 
 export const IDesktopPetMainService = createDecorator<IDesktopPetMainService>('desktopPetMainService');
 
@@ -29,6 +31,8 @@ export interface IDesktopPetMainService {
 	show(): void;
 	hide(): void;
 	isVisible(): boolean;
+	/** test-workbench_change - open the conversation window from the pet. */
+	openChat(): Promise<void>;
 }
 
 const PET_SIZE = 200;
@@ -92,6 +96,7 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 	private _window: BrowserWindow | undefined;
 	private _enabled = true;
 	private _ready = false;
+	private _hasAppeared = false; // test-workbench_change - once shown in the Agents window the pet stays visible
 	private _ignoring = false;
 	private _dragging = false;
 	private _dragOffset: IPetPosition | undefined;
@@ -132,6 +137,16 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		this._savePosition();
 	};
 
+	// test-workbench_change start
+	private readonly _onBrowserWindowFocus = (_event: unknown, window: BrowserWindow | undefined) => {
+		// The pet window is non-focusable, but ignore it defensively.
+		if (!window || window === this._window) {
+			return;
+		}
+		this._syncVisibility();
+	};
+	// test-workbench_change end
+
 	private readonly _onContextMenu = (event: IpcMainEvent) => {
 		if (!this._isPetSender(event)) {
 			return;
@@ -141,6 +156,13 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 			return;
 		}
 		const menu = Menu.buildFromTemplate([
+			{
+				label: localize('desktopPet.openChat', "Open Chat Window"),
+				click: () => {
+					void this.openChat();
+				}
+			},
+			{ type: 'separator' },
 			{
 				label: localize('desktopPet.hide', "Hide Desktop Pet"),
 				click: () => {
@@ -157,24 +179,23 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		@IApplicationStorageMainService private readonly storageService: IApplicationStorageMainService,
 		@ILifecycleMainService private readonly lifecycleService: ILifecycleMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
 		this._installIpc();
 
-		// Hide the pet when the last workbench window closes (macOS keeps the
-		// app alive, so this keeps "follow the app window" behavior).
-		this._register(this.windowsMainService.onDidChangeWindowsCount(e => {
-			if (!this._ready) {
-				return;
-			}
-			if (e.newCount === 0) {
-				this.hide();
-			} else if (this._enabled) {
-				this.show();
-			}
-		}));
+		// test-workbench_change start
+		// The pet only appears while the Agents window is the active window.
+		// Follow both window count changes (open/close) and code-window focus
+		// changes so it shows on entering the Agents window and hides on leaving.
+		this._register(this.windowsMainService.onDidChangeWindowsCount(() => this._syncVisibility()));
+		this._register(this.windowsMainService.onDidSignalReadyWindow(() => this._syncVisibility()));
+		this._register(this.windowsMainService.onDidDestroyWindow(() => this._syncVisibility()));
+		app.on('browser-window-focus', this._onBrowserWindowFocus);
+		this._register(toDisposable(() => app.removeListener('browser-window-focus', this._onBrowserWindowFocus)));
+		// test-workbench_change end
 
 		this._register(this.lifecycleService.onWillShutdown(() => this._teardown()));
 		this._register(toDisposable(() => this._teardown()));
@@ -185,9 +206,7 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		]).then(() => {
 			this._ready = true;
 			this._enabled = this.storageService.getBoolean(STORAGE_ENABLED, StorageScope.APPLICATION, true);
-			if (this._enabled) {
-				this.show();
-			}
+			this._syncVisibility();
 		}).catch(err => this.logService.error('[desktopPet] startup failed', err));
 	}
 
@@ -196,6 +215,7 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 	}
 
 	show(): void {
+		this._hasAppeared = true; // test-workbench_change
 		let win = this._window;
 		if (!win || win.isDestroyed()) {
 			win = this._window = this._createWindow();
@@ -220,6 +240,33 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		}
 	}
 
+	// test-workbench_change start
+	/**
+	 * The pet first appears only while the Agents window is the active window
+	 * (its right-click "Open Chat Window" needs to activate the Agents window).
+	 * Once it has appeared it stays visible and no longer hides when the user
+	 * switches to an editor window. It hides again only when disabled or when
+	 * no workbench window is left.
+	 */
+	private _syncVisibility(): void {
+		if (!this._ready) {
+			return;
+		}
+		const shouldShow = this._enabled
+			&& this.windowsMainService.getWindowCount() > 0
+			&& (
+				this._hasAppeared
+				|| (this.windowsMainService.getFocusedWindow() ?? this.windowsMainService.getLastActiveWindow())?.config?.isSessionsWindow === true
+			);
+		this.logService.trace(`[desktopPet] sync visibility: enabled=${this._enabled}, hasAppeared=${this._hasAppeared}, shouldShow=${shouldShow}`);
+		if (shouldShow) {
+			this.show();
+		} else {
+			this.hide();
+		}
+	}
+	// test-workbench_change end
+
 	async toggle(): Promise<boolean> {
 		if (this.isVisible()) {
 			this._enabled = false;
@@ -229,9 +276,38 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		}
 		this._enabled = true;
 		this._storeEnabled(true);
-		this.show();
-		return true;
+		this._syncVisibility(); // test-workbench_change
+		return this.isVisible(); // test-workbench_change
 	}
+
+	// test-workbench_change start
+	// Pet ➜ conversation window. Mirrors the Trae "traebao" pet, whose floating
+	// chat panel is opened by the workbench command below. Dispatch the action to
+	// the window the user is currently looking at (focused, else last active) so
+	// the compact window is an auxiliary child of that window and no other window
+	// (Agents window, editor Chat view, ...) is brought to the front. The target
+	// window enables Agent Host on demand inside `desktopPet.openChatWindow`, so
+	// TestAgent works there without changing any configuration. Only when there is
+	// no workbench window at all do we open an Agents window first.
+	async openChat(): Promise<void> {
+		const runActionArgs = { id: 'desktopPet.openChatWindow', from: 'mouse' };
+		const target = this.windowsMainService.getFocusedWindow() ?? this.windowsMainService.getLastActiveWindow();
+		if (target) {
+			target.sendWhenReady('vscode:runAction', CancellationToken.None, runActionArgs);
+			return;
+		}
+		try {
+			const windows = await this.windowsMainService.openAgentsWindow({
+				context: OpenContext.API,
+				cli: this.environmentMainService.args
+			});
+			const window = windows[0];
+			window?.sendWhenReady('vscode:runAction', CancellationToken.None, runActionArgs);
+		} catch (err) {
+			this.logService.error('[desktopPet] failed to open chat window', err);
+		}
+	}
+	// test-workbench_change end
 
 	private _createWindow(): BrowserWindow {
 		const position = this._loadPosition();

@@ -50,6 +50,14 @@ export interface IAgentHostEnablementService {
 	 */
 	readonly managedSandboxEnforced: IObservable<boolean>;
 	readonly managedSandboxAllowsBypass: IObservable<boolean>;
+	/**
+	 * test-workbench_change - runtime, non-persistent override to enable Agent Host
+	 * in this window on demand (used by the desktop-pet chat). It only affects the
+	 * backend / session-type availability; the `agentHostEnabled` UI context key is
+	 * NOT driven by it, so it never surfaces the editor Chat UI. Optional so that
+	 * lightweight mocks keep compiling.
+	 */
+	setEnabledOverride?(enabled: boolean): void;
 }
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
