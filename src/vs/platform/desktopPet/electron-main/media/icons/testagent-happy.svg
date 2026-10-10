@@ -1,0 +1,34 @@
+<svg viewBox="-32 -24 88 72" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4fc3f7"/>
+      <stop offset="50%" stop-color="#2979ff"/>
+      <stop offset="100%" stop-color="#69f0ae"/>
+    </linearGradient>
+    <linearGradient id="bodyGrad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e8f4ff"/>
+      <stop offset="0.5" stop-color="#d4e9ff"/>
+      <stop offset="1" stop-color="#b8deff"/>
+    </linearGradient>
+    <style>
+      @keyframes bounce-jump {
+        0%   { transform: translateY(0px) scaleX(1) scaleY(1); }
+        15%  { transform: translateY(-6.14px) scaleX(0.95) scaleY(1.05); }
+        30%  { transform: translateY(0px) scaleX(1.05) scaleY(0.95); }
+        45%  { transform: translateY(-3.07px) scaleX(0.98) scaleY(1.02); }
+        60%  { transform: translateY(0px) scaleX(1.02) scaleY(0.98); }
+        75%  { transform: translateY(-1.54px) scaleX(1) scaleY(1); }
+        100% { transform: translateY(0px) scaleX(1) scaleY(1); }
+      }
+      .happy-face { animation: bounce-jump 1.2s cubic-bezier(.36,.07,.19,.97) 1 forwards; transform-origin: 12px 22.24px; }
+    </style>
+  </defs>
+
+  <g class="happy-face">
+    <circle cx="12" cy="12" r="10" fill="url(#bodyGrad)"/>
+    <circle cx="12" cy="12" r="10.75" fill="none" stroke="url(#borderGrad)" stroke-width="1.5"/>
+    <!-- Happy curved eyes ^_^ (Cloudling base eye size / spacing) -->
+    <path d="M7.776 11.104 Q8.928 8.8 10.08 11.104" stroke="#2979ff" stroke-width="1.075" fill="none" stroke-linecap="round"/>
+    <path d="M13.92 11.104 Q15.072 8.8 16.224 11.104" stroke="#2979ff" stroke-width="1.075" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>

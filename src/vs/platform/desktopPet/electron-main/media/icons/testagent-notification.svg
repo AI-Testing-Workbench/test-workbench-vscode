@@ -92,14 +92,14 @@
             <path class="edge-rim-tight" d="M3,12A9,9,0,1,1,21,12A9,9,0,1,1,3,12" fill="none" stroke="#69f0ae" stroke-width="0.42" stroke-linejoin="round"/>
           </g>
           <g id="cloud-body" filter="url(#cloud-shadow)">
-            <circle cx="12" cy="12" r="10" fill="url(#circle-fill)" stroke="url(#bg-grad)" stroke-width="1.2"/>
+            <circle cx="12" cy="12" r="10" fill="url(#circle-fill)" stroke="url(#bg-grad)" stroke-width="1.5"/>
             <circle cx="12" cy="12" r="7" fill="url(#hg-grad)" opacity="0.6"/>
           </g>
           <g id="rim-flash-layer"></g>
           <!-- 眼睛层 (counter-rotate 容器) -->
           <g id="eyes-counter">
-            <g id="eye-left" transform="translate(9 10)"></g>
-            <g id="eye-right" transform="translate(15 10)"></g>
+            <g id="eye-left" transform="translate(8.92 9.95)"></g>
+            <g id="eye-right" transform="translate(15.08 9.95)"></g>
           </g>
         </g>
       </g>
@@ -210,8 +210,8 @@ function buildParams() {
 
 // ===== 眼睛绘制 =====
 function setEyeCapsule(g, widenFactor = 1, heightFactor = 1, tilt = 0) {
-  const rx = 1.22 * widenFactor;
-  const ry = 1.97 * heightFactor;
+  const rx = 1.38 * widenFactor;
+  const ry = 2.15 * heightFactor;
   g.innerHTML = `<ellipse cx="0" cy="0" rx="${rx.toFixed(3)}" ry="${ry.toFixed(3)}" fill="${EYE_GRAD}" stroke="#fff" stroke-width="0.08" stroke-opacity="0.55" transform="rotate(${tilt.toFixed(3)})"/>`;
 }
 function setEyeGT(g) {

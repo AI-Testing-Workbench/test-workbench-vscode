@@ -1,0 +1,49 @@
+<svg viewBox="-32 -24 88 72" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4fc3f7"/>
+      <stop offset="50%" stop-color="#2979ff"/>
+      <stop offset="100%" stop-color="#69f0ae"/>
+    </linearGradient>
+    <linearGradient id="bodyGrad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e8f4ff"/>
+      <stop offset="0.5" stop-color="#d4e9ff"/>
+      <stop offset="1" stop-color="#b8deff"/>
+    </linearGradient>
+    <linearGradient id="heartGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff6b9d"/>
+      <stop offset="100%" stop-color="#ff1744"/>
+    </linearGradient>
+    <style>
+      @keyframes spin-happy {
+        0% { transform: rotate(0deg) scale(1); }
+        50% { transform: rotate(180deg) scale(1.1); }
+        100% { transform: rotate(360deg) scale(1); }
+      }
+      @keyframes heart-float {
+        0%   { transform: translate(0, 0) scale(0.8); opacity: 0; }
+        20%  { opacity: 1; }
+        100% { transform: translate(1.5px, -11.5px) scale(1.1); opacity: 0; }
+      }
+      .spinning-face { animation: spin-happy 1.2s ease-in-out 1; transform-origin: 12px 12px; }
+      .love-heart { animation: heart-float 2s ease-out infinite; transform-origin: 20.96px 6.88px; }
+    </style>
+  </defs>
+
+  <g class="spinning-face">
+    <circle cx="12" cy="12" r="10" fill="url(#bodyGrad)"/>
+    <circle cx="12" cy="12" r="10.75" fill="none" stroke="url(#borderGrad)" stroke-width="1.5"/>
+    <!-- Happy curved eyes (Cloudling base eye size / spacing) -->
+    <path d="M7.776 11.104 Q8.928 8.8 10.08 11.104" stroke="#2979ff" stroke-width="1.075" fill="none" stroke-linecap="round"/>
+    <path d="M13.92 11.104 Q15.072 8.8 16.224 11.104" stroke="#2979ff" stroke-width="1.075" fill="none" stroke-linecap="round"/>
+    <!-- Blush -->
+    <ellipse cx="8.16" cy="13.024" rx="1.69" ry="0.92" fill="rgba(255,107,157,0.4)"/>
+    <ellipse cx="15.84" cy="13.024" rx="1.69" ry="0.92" fill="rgba(255,107,157,0.4)"/>
+  </g>
+
+  <!-- Floating heart -->
+  <g class="love-heart">
+    <path d="M20.96 6.88 Q20.96 4.576 22.112 4.576 Q23.264 4.576 23.264 6.88 Q23.264 9.184 20.96 10.72 Q18.656 9.184 18.656 6.88 Q18.656 4.576 19.808 4.576 Q20.96 4.576 20.96 6.88 Z"
+          fill="url(#heartGrad)"/>
+  </g>
+</svg>

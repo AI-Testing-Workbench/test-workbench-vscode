@@ -11,21 +11,27 @@
       <stop offset="1" stop-color="#b8deff"/>
     </linearGradient>
     <style>
-      @keyframes look-around {
-        0%, 100% { transform: translateX(0); }
-        25% { transform: translateX(-1.5px); }
-        75% { transform: translateX(1.5px); }
+      @keyframes surprised-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
       }
-      .looking-eyes { animation: look-around 3s ease-in-out 1; }
+      @keyframes eye-highlight {
+        0%, 100% { opacity: 0.7; }
+        50% { opacity: 1; }
+      }
+      .surprised-face { animation: surprised-pulse 0.6s ease-in-out 2; transform-origin: 12px 12px; }
+      .eye-highlight { animation: eye-highlight 0.6s ease-in-out infinite; }
     </style>
   </defs>
 
-  <circle cx="12" cy="12" r="10" fill="url(#bodyGrad)"/>
-  <circle cx="12" cy="12" r="10.75" fill="none" stroke="url(#borderGrad)" stroke-width="1.5"/>
-
-  <g class="looking-eyes">
+  <g class="surprised-face">
+    <circle cx="12" cy="12" r="10" fill="url(#bodyGrad)"/>
+    <circle cx="12" cy="12" r="10.75" fill="none" stroke="url(#borderGrad)" stroke-width="1.5"/>
     <!-- Eyes (Cloudling base geometry) -->
     <ellipse cx="8.92" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff"/>
     <ellipse cx="15.08" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff"/>
+    <!-- Eye highlights -->
+    <circle class="eye-highlight" cx="9.36" cy="9.31" r="0.44" fill="rgba(255,255,255,0.7)"/>
+    <circle class="eye-highlight" cx="15.52" cy="9.31" r="0.44" fill="rgba(255,255,255,0.7)"/>
   </g>
 </svg>

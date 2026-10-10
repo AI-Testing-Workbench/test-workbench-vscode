@@ -42,22 +42,13 @@
 		visibleHeightRatio: 0.41
 	};
 	// Where the Cloudling body sits in its own viewBox; used to anchor files
-	// that use a different viewBox (e.g. the legacy react-drag icon) so the
-	// icon stays centered and the same size as the Cloudling states.
+	// that use a different viewBox so the icon stays centered and the same
+	// size as the Cloudling states.
 	var FACE = { x: 12, y: 12 };
 
-	// Per-file layout override. The drag reaction reuses the legacy
-	// react-drag.svg (45x45 viewBox, ~8.1u body), so it needs its own viewBox,
-	// an anchor point and a scale that makes its body match the Cloudling body
-	// (20u) on screen.
-	var FILE_LAYOUT = {
-		'react-drag.svg': {
-			viewBox: { x: -15, y: -25, width: 45, height: 45 },
-			anchor: { x: 7.5, y: 8 },
-			// (Cloudling body 20u / react-drag body 8.1u)
-			scale: 20 / 8.1
-		}
-	};
+	// Per-file layout overrides. Every current asset shares the Cloudling
+	// 88x72 viewBox, so no per-file override is needed.
+	var FILE_LAYOUT = {};
 
 	var THEME = {
 		name: 'TestAgent Cloudling',
@@ -71,8 +62,8 @@
 			attention: ['testagent-attention.svg'],
 			notification: ['testagent-notification.svg']
 		},
-		// Every Cloudling asset is scripted and therefore needs the <object>
-		// channel (an <img> would only paint the first frame).
+		// Animated assets are rendered through the <object> channel so inline
+		// styles/animations are guaranteed to run.
 		scriptedFiles: [
 			'testagent-idle.svg',
 			'testagent-idle-reading.svg',
@@ -82,14 +73,36 @@
 			'testagent-juggling.svg',
 			'testagent-conducting.svg',
 			'testagent-attention.svg',
-			'testagent-notification.svg'
+			'testagent-notification.svg',
+			'testagent-dengyan.svg',
+			'testagent-drag.svg',
+			'testagent-error.svg',
+			'testagent-float.svg',
+			'testagent-happy.svg',
+			'testagent-sweeping.svg',
+			'testagent-thinking.svg',
+			'testagent-xuanzhuan.svg',
+			'testagent-yantiao.svg',
+			'idle-follow.svg',
+			'idle-look.svg'
 		],
 		idleAnimations: [
 			{ file: 'testagent-idle-reading.svg', duration: 14000 },
-			{ file: 'testagent-building.svg', duration: 10800 }
+			{ file: 'testagent-building.svg', duration: 10800 },
+			{ file: 'testagent-dengyan.svg', duration: 6000 },
+			{ file: 'testagent-drag.svg', duration: 3000 },
+			{ file: 'testagent-error.svg', duration: 6000 },
+			{ file: 'testagent-float.svg', duration: 6400 },
+			{ file: 'testagent-happy.svg', duration: 6000 },
+			{ file: 'testagent-sweeping.svg', duration: 6000 },
+			{ file: 'testagent-thinking.svg', duration: 6000 },
+			{ file: 'testagent-xuanzhuan.svg', duration: 6000 },
+			{ file: 'testagent-yantiao.svg', duration: 6000 },
+			{ file: 'idle-follow.svg', duration: 8000 },
+			{ file: 'idle-look.svg', duration: 6000 }
 		],
 		reactions: {
-			drag: { file: 'react-drag.svg', duration: 500 }
+			drag: { file: 'testagent-drag.svg', duration: 500 }
 		},
 		// Each click advances to the next animation in this list (round-robin).
 		clickAnimations: [
@@ -101,7 +114,18 @@
 			'testagent-idle.svg',
 			'testagent-idle-reading.svg',
 			'testagent-idle-to-dozing.svg',
-			'testagent-idle-to-sleeping.svg'
+			'testagent-idle-to-sleeping.svg',
+			'testagent-dengyan.svg',
+			'testagent-drag.svg',
+			'testagent-error.svg',
+			'testagent-float.svg',
+			'testagent-happy.svg',
+			'testagent-sweeping.svg',
+			'testagent-thinking.svg',
+			'testagent-xuanzhuan.svg',
+			'testagent-yantiao.svg',
+			'idle-follow.svg',
+			'idle-look.svg'
 		],
 		timings: {
 			// Idle → yawn (idle-to-dozing) → hold doze pose.
@@ -374,7 +398,18 @@
 		'testagent-juggling.svg': 5200,
 		'testagent-conducting.svg': 12000,
 		'testagent-attention.svg': 3660,
-		'testagent-notification.svg': 2600
+		'testagent-notification.svg': 2600,
+		'testagent-dengyan.svg': 1200,
+		'testagent-drag.svg': 300,
+		'testagent-error.svg': 1500,
+		'testagent-float.svg': 800,
+		'testagent-happy.svg': 1200,
+		'testagent-sweeping.svg': 600,
+		'testagent-thinking.svg': 2000,
+		'testagent-xuanzhuan.svg': 2000,
+		'testagent-yantiao.svg': 1200,
+		'idle-follow.svg': 4000,
+		'idle-look.svg': 3000
 	};
 	function alignToCycles(file, ms) {
 		var period = ANIM_PERIOD_MS[file];

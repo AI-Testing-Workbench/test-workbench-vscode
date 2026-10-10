@@ -1,0 +1,38 @@
+<svg viewBox="-32 -24 88 72" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff6b9d"/>
+      <stop offset="50%" stop-color="#ff1744"/>
+      <stop offset="100%" stop-color="#ff6b9d"/>
+    </linearGradient>
+    <linearGradient id="bodyGrad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff0f6"/>
+      <stop offset="0.5" stop-color="#ffe0ec"/>
+      <stop offset="1" stop-color="#ffc9dd"/>
+    </linearGradient>
+    <style>
+      @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        10%, 30%, 50%, 70%, 90% { transform: translateX(-1.5px); }
+        20%, 40%, 60%, 80% { transform: translateX(1.5px); }
+      }
+      @keyframes tear-drop {
+        0% { transform: translateY(0); opacity: 1; }
+        100% { transform: translateY(6.14px); opacity: 0; }
+      }
+      .error-face { animation: shake 0.5s ease-in-out 2; }
+      .tear { animation: tear-drop 1.5s ease-in infinite; }
+    </style>
+  </defs>
+
+  <g class="error-face">
+    <circle cx="12" cy="12" r="10" fill="url(#bodyGrad)"/>
+    <circle cx="12" cy="12" r="10.75" fill="none" stroke="url(#borderGrad)" stroke-width="1.5"/>
+    <!-- Sad curved eyes (Cloudling base eye size / spacing) -->
+    <path d="M7.776 11.104 Q8.928 12.64 10.08 11.104" stroke="#ff1744" stroke-width="1.075" fill="none" stroke-linecap="round"/>
+    <path d="M13.92 11.104 Q15.072 12.64 16.224 11.104" stroke="#ff1744" stroke-width="1.075" fill="none" stroke-linecap="round"/>
+    <!-- Tears -->
+    <ellipse class="tear" cx="8.928" cy="12.256" rx="0.845" ry="1.382" fill="rgba(41,121,255,0.5)"/>
+    <ellipse class="tear" cx="15.072" cy="12.256" rx="0.845" ry="1.382" fill="rgba(41,121,255,0.5)" style="animation-delay: 0.3s"/>
+  </g>
+</svg>

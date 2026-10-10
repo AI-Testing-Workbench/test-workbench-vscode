@@ -11,36 +11,24 @@
       <stop offset="1" stop-color="#b8deff"/>
     </linearGradient>
     <style>
-      @keyframes blink {
-        0%, 88%, 100% { ry: 2.15; }
-        93%            { ry: 0.15; }
+      @keyframes typing-blink {
+        0%, 45%, 55%, 100% { ry: 2.15; }
+        50% { ry: 0.22; }
       }
-      .can-blink { animation: blink 4s ease-in-out infinite; }
-
-      #eyes-js, #body-js, #shadow-js {
-        transition: transform 0.2s ease-out;
+      @keyframes typing-bounce {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-1.5px); }
       }
-      #shadow-js {
-        transform-origin: 12px 29.92px;
-      }
+      .typing-eye { animation: typing-blink 0.8s ease-in-out infinite; }
+      .typing-body { animation: typing-bounce 0.8s ease-in-out infinite; }
     </style>
   </defs>
 
-  <!-- Shadow (for eye tracking) -->
-  <g id="shadow-js">
-    <ellipse cx="12" cy="32.5" rx="7.68" ry="1.92" fill="rgba(0,0,0,0.1)"/>
-  </g>
-
-  <!-- Body (for subtle lean) -->
-  <g id="body-js">
+  <g class="typing-body">
     <circle cx="12" cy="12" r="10" fill="url(#bodyGrad)"/>
     <circle cx="12" cy="12" r="10.75" fill="none" stroke="url(#borderGrad)" stroke-width="1.5"/>
-  </g>
-
-  <!-- Eyes (required for eye tracking) -->
-  <g id="eyes-js">
     <!-- Eyes (Cloudling base geometry) -->
-    <ellipse class="can-blink" cx="8.92" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff"/>
-    <ellipse class="can-blink" cx="15.08" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff"/>
+    <ellipse class="typing-eye" cx="8.92" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff"/>
+    <ellipse class="typing-eye" cx="15.08" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff"/>
   </g>
 </svg>

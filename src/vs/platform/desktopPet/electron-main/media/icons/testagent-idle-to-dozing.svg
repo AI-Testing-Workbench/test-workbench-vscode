@@ -49,8 +49,8 @@ const DOZE = {
   bodyRot: -1.5,
   bodyScale: 1.04,
   eyeY: 10.78,
-  eyeGap: 6.66,
-  eyeW: 2.72,
+  eyeGap: 6.16,
+  eyeW: 2.76,
   eyeH: 1.28,
   eyeTilt: 7.7,
   eyeStroke: 0.80,
@@ -276,15 +276,15 @@ function makeClosingSlitEye(cx, cy, w, h, close, clipId) {
 }
 
 function makeEyes(eye) {
-  const fillGap = 6.66;
-  const fillCy = 9.78;
-  const fillW = 2.72;
-  const fillH = 4.36;
+  const fillGap = 6.16;
+  const fillCy = 9.95;
+  const fillW = 2.76;
+  const fillH = 4.30;
   const fillLeft = 12 - fillGap / 2;
   const fillRight = 12 + fillGap / 2;
 
-  const closedGap = lerp(6.66, DOZE.eyeGap, eye.drop);
-  const closedCy = lerp(9.78, DOZE.eyeY, eye.drop);
+  const closedGap = lerp(6.16, DOZE.eyeGap, eye.drop);
+  const closedCy = lerp(9.95, DOZE.eyeY, eye.drop);
   const closedW = lerp(2.28, DOZE.eyeW, eye.drop);
   const closedH = lerp(0.72, DOZE.eyeH, eye.drop);
   const closedTilt = lerp(2.8, DOZE.eyeTilt, eye.drop);
@@ -486,7 +486,7 @@ function renderFrame(t) {
       </g>
       <g id="body-pose" transform="${bodyTransform}">
         <g filter="url(#drop)">
-          <use href="#cloud-shape" fill="url(#body-grad)" stroke="url(#testagent-border)" stroke-width="1.2"/>
+          <use href="#cloud-shape" fill="url(#body-grad)" stroke="url(#testagent-border)" stroke-width="1.5"/>
           <circle cx="12" cy="7" r="7" fill="url(#hi-grad)" clip-path="url(#cloud-clip)" opacity=".88"/>
         </g>
         ${makeEyes(f.eye)}

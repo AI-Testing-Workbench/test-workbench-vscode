@@ -288,7 +288,7 @@ function makeSleepMask(p, tx, ty, rot, scale) {
  * 眼睛 (多模式: capsule / arrows / smile / closed)
  * ========================================================================= */
 function makeEyes(p, mode, openness, offX, offY) {
-  const lcx = 8.67, rcx = 15.33, cy = 9.78;  // 双眼默认位置
+  const lcx = 8.92, rcx = 15.08, cy = 9.95;  // 双眼默认位置
   let lEye, rEye;
 
   if (mode === 'arrows') {
@@ -304,7 +304,7 @@ function makeEyes(p, mode, openness, offX, offY) {
   } else if (mode === 'smile') {
     // happy 微笑弧 h=1.0 w=3.5 stroke=1.25 cy=12.7
     const w = params.smileW, h = params.smileH;
-    const smileCY = 10.0;
+    const smileCY = 9.95;
     const smilePath = (cx) => `M ${(cx-w/2).toFixed(2)} ${smileCY} Q ${cx} ${(smileCY-2*h).toFixed(2)} ${(cx+w/2).toFixed(2)} ${smileCY}`;
     lEye = `<path d="${smilePath(lcx)}" fill="none" stroke="#2979ff" stroke-width="1.25" stroke-linecap="round"/>`;
     rEye = `<path d="${smilePath(rcx)}" fill="none" stroke="#2979ff" stroke-width="1.25" stroke-linecap="round"/>`;
@@ -313,8 +313,8 @@ function makeEyes(p, mode, openness, offX, offY) {
     const baseH = 5;
     const minH = 0.3;
     const h = Math.max(minH, baseH * openness);
-    lEye = `<ellipse cx="${lcx}" cy="${cy}" rx="${(Math.max(0.08, h * 0.272)).toFixed(2)}" ry="${(Math.max(0.15, h * 0.436)).toFixed(2)}" fill="#2979ff" stroke="#fff" stroke-width="0.08" stroke-opacity="0.7"/>`;
-    rEye = `<ellipse cx="${rcx}" cy="${cy}" rx="${(Math.max(0.08, h * 0.272)).toFixed(2)}" ry="${(Math.max(0.15, h * 0.436)).toFixed(2)}" fill="#2979ff" stroke="#fff" stroke-width="0.08" stroke-opacity="0.7"/>`;
+    lEye = `<ellipse cx="${lcx}" cy="${cy}" rx="${(Math.max(0.08, h * 0.276)).toFixed(2)}" ry="${(Math.max(0.15, h * 0.43)).toFixed(2)}" fill="#2979ff" stroke="#fff" stroke-width="0.08" stroke-opacity="0.7"/>`;
+    rEye = `<ellipse cx="${rcx}" cy="${cy}" rx="${(Math.max(0.08, h * 0.276)).toFixed(2)}" ry="${(Math.max(0.15, h * 0.43)).toFixed(2)}" fill="#2979ff" stroke="#fff" stroke-width="0.08" stroke-opacity="0.7"/>`;
   }
 
   return `<g class="eyes" transform="translate(${offX.toFixed(2)} ${offY.toFixed(2)})">${lEye}${rEye}</g>`;
@@ -324,7 +324,7 @@ function makeCloudling(p, eyeMode, eyeOpenness, eyeOffX, eyeOffY) {
   return `
     <g class="cloudling-base">
       <g filter="url(#${p}-shadow)">
-        <use href="#${p}-cloud-shape" fill="url(#${p}-body)" stroke="url(#testagent-border)" stroke-width="1.2"/>
+        <use href="#${p}-cloud-shape" fill="url(#${p}-body)" stroke="url(#testagent-border)" stroke-width="1.5"/>
         <circle cx="12" cy="7" r="7" fill="url(#${p}-hi)" clip-path="url(#${p}-clip)"/>
       </g>
       ${makeEyes(p, eyeMode, eyeOpenness, eyeOffX, eyeOffY)}

@@ -1,11 +1,11 @@
-<svg viewBox="-15 -25 45 45" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="-32 -24 88 72" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
   <defs>
     <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#4fc3f7"/>
       <stop offset="50%" stop-color="#2979ff"/>
       <stop offset="100%" stop-color="#69f0ae"/>
     </linearGradient>
-    <linearGradient id="bodyGrad" x1="7.5" y1="4" x2="7.5" y2="12" gradientUnits="userSpaceOnUse">
+    <linearGradient id="bodyGrad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#e8f4ff"/>
       <stop offset="0.5" stop-color="#d4e9ff"/>
       <stop offset="1" stop-color="#b8deff"/>
@@ -16,15 +16,15 @@
         25% { transform: rotate(-3deg); }
         75% { transform: rotate(3deg); }
       }
-      .dragging-body { animation: drag-wobble 0.3s ease-in-out infinite; transform-origin: 7.5px 8px; }
+      .dragging-body { animation: drag-wobble 0.3s ease-in-out infinite; transform-origin: 12px 12px; }
     </style>
   </defs>
-  
+
   <g class="dragging-body">
-    <circle cx="7.5" cy="8" r="3.9" fill="url(#bodyGrad)"/>
-    <circle cx="7.5" cy="8" r="4.05" fill="none" stroke="url(#borderGrad)" stroke-width="0.6"/>
-    <!-- Surprised eyes -->
-    <circle cx="6.3" cy="7.3" r="0.75" fill="#2979ff"/>
-    <circle cx="8.7" cy="7.3" r="0.75" fill="#2979ff"/>
+    <circle cx="12" cy="12" r="10" fill="url(#bodyGrad)"/>
+    <circle cx="12" cy="12" r="10.75" fill="none" stroke="url(#borderGrad)" stroke-width="1.5"/>
+    <!-- Eyes (Cloudling base geometry) -->
+    <ellipse cx="8.92" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff"/>
+    <ellipse cx="15.08" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff"/>
   </g>
 </svg>

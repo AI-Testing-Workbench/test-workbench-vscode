@@ -110,12 +110,12 @@
     <g id="cloudWrap">
       <!-- edge-system removed for clean testagent style -->
       <g filter="url(#drop)">
-        <use href="#cs" fill="url(#circle-fill)" stroke="url(#testagent-border)" stroke-width="1.2"/>
+        <use href="#cs" fill="url(#circle-fill)" stroke="url(#testagent-border)" stroke-width="1.5"/>
         <circle cx="12" cy="7" r="7" fill="url(#hi-grad)" clip-path="url(#cp)"/>
       </g>
       <g id="capsuleEye">
-        <ellipse id="capL" cx="9" cy="9.78" rx="1.22" ry="1.97" fill="#2979ff" stroke="#fff" stroke-width="0.08" stroke-opacity="0.55"/>
-        <ellipse id="capR" cx="15" cy="9.78" rx="1.22" ry="1.97" fill="#2979ff" stroke="#fff" stroke-width="0.08" stroke-opacity="0.55"/>
+        <ellipse id="capL" cx="8.92" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff" stroke="#fff" stroke-width="0.08" stroke-opacity="0.55"/>
+        <ellipse id="capR" cx="15.08" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff" stroke="#fff" stroke-width="0.08" stroke-opacity="0.55"/>
       </g>
       <g id="arcEye" opacity="0">
         <path id="arcL" fill="none" stroke="#2979ff" stroke-width="1.25" stroke-linecap="round"/>
@@ -162,9 +162,9 @@ const SWEEP_OFFSET = -16;
 const RING_COUNT = 4;
 const SMILE = { h: 1, w: 3.5 };
 const LAUGH = { h: 1.32, w: 3.95 };
-const EYE_CY = 9.78;
-const CX_L = 9;
-const CX_R = 15;
+const EYE_CY = 9.95;
+const CX_L = 8.92;
+const CX_R = 15.08;
 const sparks = [
   { x: 4.1, y: 4.1, dx: -2.4, dy: -1.7, d: 0, s: 1.1, rot: -18 },
   { x: 12.1, y: 1.2, dx: .1, dy: -2.4, d: .08, s: .95, rot: 16 },

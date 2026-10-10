@@ -11,19 +11,17 @@
       <stop offset="1" stop-color="#b8deff"/>
     </linearGradient>
     <style>
-      @keyframes look-around {
-        0%, 100% { transform: translateX(0); }
-        25% { transform: translateX(-1.5px); }
-        75% { transform: translateX(1.5px); }
+      @keyframes sweep {
+        0%, 100% { transform: rotate(-5deg); }
+        50% { transform: rotate(5deg); }
       }
-      .looking-eyes { animation: look-around 3s ease-in-out 1; }
+      .sweeping-body { animation: sweep 0.6s ease-in-out infinite; transform-origin: 12px 12px; }
     </style>
   </defs>
 
-  <circle cx="12" cy="12" r="10" fill="url(#bodyGrad)"/>
-  <circle cx="12" cy="12" r="10.75" fill="none" stroke="url(#borderGrad)" stroke-width="1.5"/>
-
-  <g class="looking-eyes">
+  <g class="sweeping-body">
+    <circle cx="12" cy="12" r="10" fill="url(#bodyGrad)"/>
+    <circle cx="12" cy="12" r="10.75" fill="none" stroke="url(#borderGrad)" stroke-width="1.5"/>
     <!-- Eyes (Cloudling base geometry) -->
     <ellipse cx="8.92" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff"/>
     <ellipse cx="15.08" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff"/>

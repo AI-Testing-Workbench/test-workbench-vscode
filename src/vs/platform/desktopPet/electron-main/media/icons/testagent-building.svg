@@ -200,11 +200,11 @@ const DEFAULTS = {
   breathHigh: 1.02,
 
   // 眼睛
-  eyeLeftX: 9,
-  eyeRightX: 15,
-  eyeWidth: 2.72,
-  eyeHeight: 4.36,
-  eyeY: 7.60,
+  eyeLeftX: 8.92,
+  eyeRightX: 15.08,
+  eyeWidth: 2.76,
+  eyeHeight: 4.30,
+  eyeY: 7.80,
   eyeFlashStrength: 0.5,    // 变身瞬间眼睛亮度增强 (0-1)
 
   // 阴影
@@ -361,7 +361,7 @@ function makeTestagentBody(p, f) {
         <use class="edge-rim-tight" href="#${p}-cloud-shape" fill="none" stroke="#69f0ae" stroke-width="0.42" stroke-linejoin="round"/>
       </g>
       <g filter="url(#${p}-shadow)">
-        <use href="#${p}-cloud-shape" fill="url(#${p}-body)" stroke="url(#testagent-border)" stroke-width="1.2"/>
+        <use href="#${p}-cloud-shape" fill="url(#${p}-body)" stroke="url(#testagent-border)" stroke-width="1.5"/>
         <circle cx="12" cy="7" r="7" fill="url(#${p}-hi)" clip-path="url(#${p}-clip)"/>
       </g>
       ${terminalDecor}
@@ -397,7 +397,7 @@ function makeEyes(p, f) {
   }
 
   if (mode === 'smile') {
-    const w = 3.5, h = 1.0, smileCY = 9.78;
+    const w = 3.5, h = 1.0, smileCY = 9.95;
     const smilePath = (cx) => `M ${(cx-w/2).toFixed(2)} ${smileCY} Q ${cx} ${(smileCY-2*h).toFixed(2)} ${(cx+w/2).toFixed(2)} ${smileCY}`;
     return `
       <g class="eyes">
@@ -433,7 +433,7 @@ function springOvershoot(tLocal, amp, freq, damping) {
  * 时间线计算
  * ========================================================================= */
 const EYE_STYLES = {
-  cloud:    { left: 9.00, right: 15.00, width: 2.72, height: 4.36, y: 7.60 },
+  cloud:    { left: 8.92, right: 15.08, width: 2.76, height: 4.30, y: 7.80 },
   terminal: { left: 9.20, right: 14.80, width: 2.40, height: 3.80, y: 8.20 },
   module:   { left: 8.85, right: 15.15, width: 2.60, height: 4.10, y: 7.85 },
   monitor:  { left: 8.85, right: 15.15, width: 2.20, height: 3.60, y: 8.40 },
