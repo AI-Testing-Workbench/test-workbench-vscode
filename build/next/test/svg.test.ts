@@ -136,6 +136,23 @@ suite('SVG finishing', () => {
 		assert.strictEqual(await fs.promises.readFile(filePath, 'utf8'), input);
 	});
 
+	test('keeps empty id containers used as script shims', async context => {
+		const { outDir } = await createFixture(context);
+		const filePath = path.join(outDir, 'scripted.svg');
+		const input = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+	<g id="shims" style="display:none"><g id="btn-play"></g><g id="duration-total"></g></g>
+	<script type="application/ecmascript"><![CDATA[document.getElementById('btn-play');]]></script>
+</svg>`;
+		await fs.promises.writeFile(filePath, input);
+
+		await optimizeSvgFiles(outDir, true);
+
+		const output = await fs.promises.readFile(filePath, 'utf8');
+		assert.match(output, /id="shims"/);
+		assert.match(output, /id="btn-play"/);
+		assert.match(output, /id="duration-total"/);
+	});
+
 	test('preserves IDs, references, accessibility, theming, and license information', async context => {
 		const { outDir } = await createFixture(context);
 		const filePath = path.join(outDir, 'semantic.svg');

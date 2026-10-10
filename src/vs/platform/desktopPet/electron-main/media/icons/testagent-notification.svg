@@ -38,10 +38,7 @@
         <stop offset="50%" stop-color="#2979ff"/>
         <stop offset="100%" stop-color="#69f0ae"/>
       </linearGradient>
-      <radialGradient id="circle-fill" cx="50%" cy="40%" r="60%">
-        <stop offset="0%" stop-color="#e8f4ff"/>
-        <stop offset="100%" stop-color="#c8e0ff"/>
-      </radialGradient>
+      <linearGradient id="circle-fill" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#e8f4ff"/><stop offset="0.5" stop-color="#d4e9ff"/><stop offset="1" stop-color="#b8deff"/></linearGradient>
       <radialGradient id="hg-grad" cx="0.45" cy="0.25" r="0.55">
         <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
         <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
@@ -95,7 +92,7 @@
             <path class="edge-rim-tight" d="M3,12A9,9,0,1,1,21,12A9,9,0,1,1,3,12" fill="none" stroke="#69f0ae" stroke-width="0.42" stroke-linejoin="round"/>
           </g>
           <g id="cloud-body" filter="url(#cloud-shadow)">
-            <circle cx="12" cy="12" r="9" fill="url(#circle-fill)" stroke="url(#bg-grad)" stroke-width="1.2"/>
+            <circle cx="12" cy="12" r="10" fill="url(#circle-fill)" stroke="url(#bg-grad)" stroke-width="1.2"/>
             <circle cx="12" cy="12" r="7" fill="url(#hg-grad)" opacity="0.6"/>
           </g>
           <g id="rim-flash-layer"></g>
@@ -118,7 +115,7 @@
    ============================================================ */
 
 const COLOR = '#2979ff';
-const EYE_GRAD = 'url(#eye-grad)';
+const EYE_GRAD = '#2979ff';
 
 // ===== 默认参数 (推荐值) =====
 const DEFAULTS = {

@@ -210,10 +210,7 @@ function makeDozeCloudPath(amount) {
 
 function defs(cloudD) {
   return `
-    <radialGradient id="body-grad" cx="50%" cy="40%" r="60%">
-        <stop offset="0%" stop-color="#e8f4ff"/>
-        <stop offset="100%" stop-color="#c8e0ff"/>
-      </radialGradient>
+    <linearGradient id="body-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#e8f4ff"/><stop offset="0.5" stop-color="#d4e9ff"/><stop offset="1" stop-color="#b8deff"/></linearGradient>
     <linearGradient id="eye-grad" x1="12" y1="8" x2="12" y2="15" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#69f0ae"/>
       <stop offset="0.55" stop-color="#4fc3f7"/>
@@ -305,7 +302,7 @@ function makeEyes(eye) {
           ? makeClosingSlitEye(fillRight, fillCy, fillW, fillH, eye.finalClose, 'eye-r-clip')
           : makeEllipseEye(fillRight, fillCy, fillW, fillH, eye.lid, 'eye-r-clip')}
       </g>
-      <g id="eyes-doze" fill="none" stroke="url(#eye-grad)" stroke-width="${closedStroke.toFixed(2)}" stroke-linecap="round" stroke-linejoin="round" opacity="${(eye.closedOpacity * DOZE.eyeOpacity).toFixed(3)}">
+      <g id="eyes-doze" fill="none" stroke="#2979ff" stroke-width="${closedStroke.toFixed(2)}" stroke-linecap="round" stroke-linejoin="round" opacity="${(eye.closedOpacity * DOZE.eyeOpacity).toFixed(3)}">
         <path d="${closedEyeStrokePath(closedLeft, closedCy, closedW, closedH, closedTilt, -1)}"/>
         <path d="${closedEyeStrokePath(closedRight, closedCy, closedW, closedH, closedTilt, 1)}"/>
       </g>

@@ -59,10 +59,7 @@
         <stop offset="50%" stop-color="#2979ff"/>
         <stop offset="100%" stop-color="#69f0ae"/>
       </linearGradient>
-      <radialGradient id="circle-fill" cx="50%" cy="40%" r="60%">
-        <stop offset="0%" stop-color="#e8f4ff"/>
-        <stop offset="100%" stop-color="#c8e0ff"/>
-      </radialGradient>
+      <linearGradient id="circle-fill" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#e8f4ff"/><stop offset="0.5" stop-color="#d4e9ff"/><stop offset="1" stop-color="#b8deff"/></linearGradient>
       <linearGradient id="eye-grad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
         <stop offset="0" stop-color="#69f0ae"/>
         <stop offset=".5" stop-color="#4fc3f7"/>
@@ -121,8 +118,8 @@
         <ellipse id="capR" cx="15" cy="9.78" rx="1.22" ry="1.97" fill="#2979ff" stroke="#fff" stroke-width="0.08" stroke-opacity="0.55"/>
       </g>
       <g id="arcEye" opacity="0">
-        <path id="arcL" fill="none" stroke="url(#eye-grad)" stroke-width="1.25" stroke-linecap="round"/>
-        <path id="arcR" fill="none" stroke="url(#eye-grad)" stroke-width="1.25" stroke-linecap="round"/>
+        <path id="arcL" fill="none" stroke="#2979ff" stroke-width="1.25" stroke-linecap="round"/>
+        <path id="arcR" fill="none" stroke="#2979ff" stroke-width="1.25" stroke-linecap="round"/>
       </g>
     </g>
   <g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">

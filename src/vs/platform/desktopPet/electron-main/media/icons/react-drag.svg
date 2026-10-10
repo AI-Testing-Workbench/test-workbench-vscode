@@ -5,6 +5,11 @@
       <stop offset="50%" stop-color="#2979ff"/>
       <stop offset="100%" stop-color="#69f0ae"/>
     </linearGradient>
+    <linearGradient id="bodyGrad" x1="7.5" y1="4" x2="7.5" y2="12" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e8f4ff"/>
+      <stop offset="0.5" stop-color="#d4e9ff"/>
+      <stop offset="1" stop-color="#b8deff"/>
+    </linearGradient>
     <style>
       @keyframes drag-wobble {
         0%, 100% { transform: rotate(0deg); }
@@ -16,7 +21,7 @@
   </defs>
   
   <g class="dragging-body">
-    <circle cx="7.5" cy="8" r="3.9" fill="#e8f4ff"/>
+    <circle cx="7.5" cy="8" r="3.9" fill="url(#bodyGrad)"/>
     <circle cx="7.5" cy="8" r="4.05" fill="none" stroke="url(#borderGrad)" stroke-width="0.6"/>
     <!-- Surprised eyes -->
     <circle cx="6.3" cy="7.3" r="0.75" fill="#2979ff"/>

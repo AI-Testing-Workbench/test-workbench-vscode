@@ -25,6 +25,10 @@ const svgOptions: OptimizeOptions = {
 				removeHiddenElems: false,
 				removeComments: false,
 				removeMetadata: false,
+				// test-workbench_change - Keep empty containers: scripted SVG
+				// assets (desktop pet icons) hold on to empty <g id="..."> shims
+				// that their inline scripts look up via getElementById().
+				removeEmptyContainers: false,
 				removeUnknownsAndDefaults: {
 					unknownAttrs: false,
 					keepRoleAttr: true,

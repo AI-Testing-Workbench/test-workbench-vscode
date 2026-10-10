@@ -141,9 +141,7 @@ let scrubbing = false;
  * ========================================================================= */
 function commonDefs(p, cloudD = makeSoftCloudPath(0)) {
   return `
-    <radialGradient id="${p}-body" cx="50%" cy="40%" r="60%">
-      <stop offset="0%" stop-color="#e8f4ff"/><stop offset="100%" stop-color="#c8e0ff"/>
-    </radialGradient>
+    <linearGradient id="${p}-body" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#e8f4ff"/><stop offset="0.5" stop-color="#d4e9ff"/><stop offset="1" stop-color="#b8deff"/></linearGradient>
     <linearGradient id="${p}-eye" x1="0" y1="3" x2="0" y2="21" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#69f0ae"/><stop offset="0.5" stop-color="#4fc3f7"/><stop offset="1" stop-color="#2979ff"/>
     </linearGradient>
@@ -301,15 +299,15 @@ function makeEyes(p, mode, openness, offX, offY) {
     const gtPath = `M ${(-sz*0.7).toFixed(2)} ${(-sz*0.85).toFixed(2)} L ${(sz*0.7).toFixed(2)} 0 L ${(-sz*0.7).toFixed(2)} ${(sz*0.85).toFixed(2)}`;
     // < path (右眼): 右上 → 中左 → 右下
     const ltPath = `M ${(sz*0.7).toFixed(2)} ${(-sz*0.85).toFixed(2)} L ${(-sz*0.7).toFixed(2)} 0 L ${(sz*0.7).toFixed(2)} ${(sz*0.85).toFixed(2)}`;
-    lEye = `<g transform="translate(${lcx} ${cy})"><path d="${gtPath}" fill="none" stroke="url(#${p}-eye)" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></g>`;
-    rEye = `<g transform="translate(${rcx} ${cy})"><path d="${ltPath}" fill="none" stroke="url(#${p}-eye)" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+    lEye = `<g transform="translate(${lcx} ${cy})"><path d="${gtPath}" fill="none" stroke="#2979ff" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+    rEye = `<g transform="translate(${rcx} ${cy})"><path d="${ltPath}" fill="none" stroke="#2979ff" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></g>`;
   } else if (mode === 'smile') {
     // happy 微笑弧 h=1.0 w=3.5 stroke=1.25 cy=12.7
     const w = params.smileW, h = params.smileH;
     const smileCY = 10.0;
     const smilePath = (cx) => `M ${(cx-w/2).toFixed(2)} ${smileCY} Q ${cx} ${(smileCY-2*h).toFixed(2)} ${(cx+w/2).toFixed(2)} ${smileCY}`;
-    lEye = `<path d="${smilePath(lcx)}" fill="none" stroke="url(#${p}-eye)" stroke-width="1.25" stroke-linecap="round"/>`;
-    rEye = `<path d="${smilePath(rcx)}" fill="none" stroke="url(#${p}-eye)" stroke-width="1.25" stroke-linecap="round"/>`;
+    lEye = `<path d="${smilePath(lcx)}" fill="none" stroke="#2979ff" stroke-width="1.25" stroke-linecap="round"/>`;
+    rEye = `<path d="${smilePath(rcx)}" fill="none" stroke="#2979ff" stroke-width="1.25" stroke-linecap="round"/>`;
   } else {
     // capsule (default) 或 closed (ry 极小)
     const baseH = 5;
@@ -341,12 +339,17 @@ function makeHat(p, tx, ty, rot, scale) {
   const cuffSVG = makeFluffyCuff(p, 12, 5.4, 3.7, 0.85, 0, 18);
   const s = STAR_LOCKED;
   const starPath = makeStar(s.cx, s.cy, s.size, s.rotation, s.cornerRound, s.innerRatio);
+  // Enlarge the hat geometry about its own pivot (12,5.4) so the drop-on
+  // animation (the outer scale below) is unchanged.
+  const HAT_SIZE = 1.3;
   return `
     <g class="hat-piece" transform="translate(${tx} ${ty}) rotate(${rot} 12 5.4) scale(${scale})">
-      <g filter="url(#${p}-shadow)"><path d="${hatData.path}" fill="url(#${p}-hat)"/></g>
-      <g class="cuff-fluffy">${cuffSVG}</g>
-      <g class="star-piece" filter="url(#${p}-star-glow)">
-        <path d="${starPath}" fill="url(#${p}-star-yellow)" stroke="#fff" stroke-width="0.06" stroke-opacity="0.7" stroke-linejoin="round"/>
+      <g transform="translate(12 5.4) scale(${HAT_SIZE}) translate(-12 -5.4)">
+        <g filter="url(#${p}-shadow)"><path d="${hatData.path}" fill="url(#${p}-hat)"/></g>
+        <g class="cuff-fluffy">${cuffSVG}</g>
+        <g class="star-piece" filter="url(#${p}-star-glow)">
+          <path d="${starPath}" fill="url(#${p}-star-yellow)" stroke="#fff" stroke-width="0.06" stroke-opacity="0.7" stroke-linejoin="round"/>
+        </g>
       </g>
     </g>
   `;

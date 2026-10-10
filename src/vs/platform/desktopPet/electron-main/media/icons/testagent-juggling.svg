@@ -19,10 +19,7 @@
         <stop offset="50%" stop-color="#2979ff"/>
         <stop offset="100%" stop-color="#69f0ae"/>
       </linearGradient>
-        <radialGradient id="body-grad" cx="50%" cy="40%" r="60%">
-        <stop offset="0%" stop-color="#e8f4ff"/>
-        <stop offset="100%" stop-color="#c8e0ff"/>
-      </radialGradient>
+        <linearGradient id="body-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#e8f4ff"/><stop offset="0.5" stop-color="#d4e9ff"/><stop offset="1" stop-color="#b8deff"/></linearGradient>
         <linearGradient id="eye-grad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
           <stop offset="0" stop-color="#69f0ae"/>
           <stop offset="0.5" stop-color="#4fc3f7"/>
@@ -188,7 +185,7 @@ const P = {
   manualScale: 0.22,
   morphMin: 0.08,
   morphMax: 0.60,
-  cloudR: 7.0,
+  cloudR: 10.0,
   eyeShift: 1.20,
   eyeFlowPeriod: 5.5,
   eyeFlowAmp: 4,

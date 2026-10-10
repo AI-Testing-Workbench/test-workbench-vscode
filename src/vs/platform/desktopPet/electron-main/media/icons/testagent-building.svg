@@ -220,9 +220,7 @@ let scrubbing = false;
  * ========================================================================= */
 function commonDefs(p, cloudD) {
   return `
-    <radialGradient id="${p}-body" cx="50%" cy="40%" r="60%">
-      <stop offset="0%" stop-color="#e8f4ff"/><stop offset="100%" stop-color="#c8e0ff"/>
-    </radialGradient>
+    <linearGradient id="${p}-body" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#e8f4ff"/><stop offset="0.5" stop-color="#d4e9ff"/><stop offset="1" stop-color="#b8deff"/></linearGradient>
     <linearGradient id="${p}-eye" x1="0" y1="3" x2="0" y2="21" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#69f0ae"/><stop offset="0.5" stop-color="#4fc3f7"/><stop offset="1" stop-color="#2979ff"/>
     </linearGradient>
@@ -383,7 +381,7 @@ function makeEyes(p, f) {
   const lcx = f.eyeLeftX ?? params.eyeLeftX ?? 9;
   const rcx = f.eyeRightX ?? params.eyeRightX ?? 15;
   const useFlash = flashStrength > 0.05;
-  const eyeFill = useFlash ? `url(#${p}-eye-flash)` : `url(#${p}-eye)`;
+  const eyeFill = useFlash ? `url(#${p}-eye-flash)` : `#2979ff`;
   const filter = useFlash ? `filter="url(#${p}-eye-glow)"` : '';
 
   if (mode === 'closed') {
@@ -403,8 +401,8 @@ function makeEyes(p, f) {
     const smilePath = (cx) => `M ${(cx-w/2).toFixed(2)} ${smileCY} Q ${cx} ${(smileCY-2*h).toFixed(2)} ${(cx+w/2).toFixed(2)} ${smileCY}`;
     return `
       <g class="eyes">
-        <path d="${smilePath(lcx)}" fill="none" stroke="url(#${p}-eye)" stroke-width="1.25" stroke-linecap="round"/>
-        <path d="${smilePath(rcx)}" fill="none" stroke="url(#${p}-eye)" stroke-width="1.25" stroke-linecap="round"/>
+        <path d="${smilePath(lcx)}" fill="none" stroke="#2979ff" stroke-width="1.25" stroke-linecap="round"/>
+        <path d="${smilePath(rcx)}" fill="none" stroke="#2979ff" stroke-width="1.25" stroke-linecap="round"/>
       </g>
     `;
   }

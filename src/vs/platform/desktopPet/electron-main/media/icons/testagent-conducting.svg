@@ -28,10 +28,7 @@
 }
 ]]></style>
       <defs>
-        <radialGradient id="circle-fill" cx="50%" cy="40%" r="60%">
-          <stop offset="0%" stop-color="#e8f4ff"/>
-          <stop offset="100%" stop-color="#c8e0ff"/>
-        </radialGradient>
+        <linearGradient id="circle-fill" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#e8f4ff"/><stop offset="0.5" stop-color="#d4e9ff"/><stop offset="1" stop-color="#b8deff"/></linearGradient>
         <linearGradient id="eye-grad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
           <stop offset="0" stop-color="#69f0ae"/>
           <stop offset="0.5" stop-color="#4fc3f7"/>
@@ -163,8 +160,8 @@
           <circle cx="12" cy="7" r="7" fill="url(#hi-grad)" clip-path="url(#cloud-clip)"/>
         </g>
         <g id="eyeGroup">
-          <ellipse id="eyeL" cx="9" cy="9.78" rx="1.22" ry="1.97" fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
-          <ellipse id="eyeR" cx="15" cy="9.78" rx="1.22" ry="1.97" fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+          <ellipse id="eyeL" cx="9" cy="9.78" rx="1.22" ry="1.97" fill="#2979ff" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+          <ellipse id="eyeR" cx="15" cy="9.78" rx="1.22" ry="1.97" fill="#2979ff" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
         </g>
       </g>
 
@@ -179,7 +176,7 @@
 </g>
 
 <script type="application/ecmascript"><![CDATA[
-const CLOUD_D = "M 12 3 A 9 9 0 1 1 12 21 A 9 9 0 1 1 12 3 Z";
+const CLOUD_D = "M 12 2 A 10 10 0 1 1 12 22 A 10 10 0 1 1 12 2 Z";
 
 const CENTER = { x: 12, y: 12 };
 
