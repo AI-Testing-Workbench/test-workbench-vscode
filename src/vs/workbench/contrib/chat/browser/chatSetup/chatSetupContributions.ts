@@ -35,7 +35,7 @@ import product from '../../../../../platform/product/common/product.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
+// import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js'; // test-workbench_change — ToggleSignInTitleBarAction 已注释
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementContextKeys, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -432,22 +432,24 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		class ToggleSignInTitleBarAction extends ToggleTitleBarConfigAction {
-			constructor() {
-				super(
-					ChatConfiguration.TitleBarSignInEnabled,
-					localize('toggle.chatSignIn', 'Copilot Sign In'),
-					localize('toggle.chatSignInDescription', "Toggle visibility of the Copilot Sign In button in title bar"),
-					3,
-					ContextKeyExpr.and(
-						IsWebContext.negate(),
-						ChatContextKeys.Entitlement.signedOut,
-						ChatContextKeys.Setup.hidden.negate(),
-						ChatContextKeys.Setup.disabledInWorkspace.negate(),
-					)
-				);
-			}
-		}
+		// test-workbench_change start — 不要标题栏右键菜单里的“Copilot 登录”
+		// class ToggleSignInTitleBarAction extends ToggleTitleBarConfigAction {
+		// 	constructor() {
+		// 		super(
+		// 			ChatConfiguration.TitleBarSignInEnabled,
+		// 			localize('toggle.chatSignIn', 'Copilot Sign In'),
+		// 			localize('toggle.chatSignInDescription', "Toggle visibility of the Copilot Sign In button in title bar"),
+		// 			3,
+		// 			ContextKeyExpr.and(
+		// 				IsWebContext.negate(),
+		// 				ChatContextKeys.Entitlement.signedOut,
+		// 				ChatContextKeys.Setup.hidden.negate(),
+		// 				ChatContextKeys.Setup.disabledInWorkspace.negate(),
+		// 			)
+		// 		);
+		// 	}
+		// }
+		// test-workbench_change end
 
 		const windowFocusListener = this._register(new MutableDisposable());
 		class UpgradePlanAction extends Action2 {
@@ -565,7 +567,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerForceSignInDialogAction);
 		registerAction2(ChatSetupFromAccountsAction);
 		registerAction2(ChatSetupSignInTitleBarAction);
-		registerAction2(ToggleSignInTitleBarAction);
+		// registerAction2(ToggleSignInTitleBarAction); // test-workbench_change — 不要标题栏右键菜单里的“Copilot 登录”
 		registerAction2(ChatSetupTriggerAnonymousWithoutDialogAction);
 		registerAction2(ChatSetupTriggerSupportAnonymousAction);
 		registerAction2(UpgradePlanAction);

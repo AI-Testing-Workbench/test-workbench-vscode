@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from '../../../../../../nls.js';
+import { localize2 } from '../../../../../../nls.js'; // test-workbench_change — remove localize
 import { Action2 } from '../../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -14,8 +14,8 @@ import { IAgentSessionProjectionService } from './agentSessionProjectionService.
 import { IAgentSession, isMarshalledAgentSessionContext, IMarshalledAgentSessionContext } from '../agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 import { CHAT_CATEGORY } from '../../actions/chatActions.js';
-import { ToggleTitleBarConfigAction } from '../../../../../browser/parts/titlebar/titlebarActions.js';
-import { IsCompactTitleBarContext } from '../../../../../common/contextkeys.js';
+// import { ToggleTitleBarConfigAction } from '../../../../../browser/parts/titlebar/titlebarActions.js'; // test-workbench_change — ToggleUnifiedAgentsBarAction 已注释
+// import { IsCompactTitleBarContext } from '../../../../../common/contextkeys.js'; // test-workbench_change — ToggleUnifiedAgentsBarAction 已注释
 import { inAgentSessionProjection } from './agentSessionProjection.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 
@@ -90,22 +90,24 @@ export class ExitAgentSessionProjectionAction extends Action2 {
 
 //#endregion
 
-//#region Toggle Agent Quick Input
-
-export class ToggleUnifiedAgentsBarAction extends ToggleTitleBarConfigAction {
-	constructor() {
-		super(
-			ChatConfiguration.UnifiedAgentsBar,
-			localize('toggle.agentQuickInput', 'Agent Quick Input'),
-			localize('toggle.agentQuickInputDescription', "Toggle Agent Quick Input, replacing the classic command center search box."), 7,
-			ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				IsCompactTitleBarContext.negate(),
-				ChatContextKeys.supported,
-				ContextKeyExpr.has('config.window.commandCenter'),
-			)
-		);
-	}
-}
-
-//#endregion
+// test-workbench_change start — 不要标题栏右键菜单里的“Agent Quick Input”
+// //#region Toggle Agent Quick Input
+//
+// export class ToggleUnifiedAgentsBarAction extends ToggleTitleBarConfigAction {
+// 	constructor() {
+// 		super(
+// 			ChatConfiguration.UnifiedAgentsBar,
+// 			localize('toggle.agentQuickInput', 'Agent Quick Input'),
+// 			localize('toggle.agentQuickInputDescription', "Toggle Agent Quick Input, replacing the classic command center search box."), 7,
+// 			ContextKeyExpr.and(
+// 				ChatContextKeys.enabled,
+// 				IsCompactTitleBarContext.negate(),
+// 				ChatContextKeys.supported,
+// 				ContextKeyExpr.has('config.window.commandCenter'),
+// 			)
+// 		);
+// 	}
+// }
+//
+// //#endregion
+// test-workbench_change end

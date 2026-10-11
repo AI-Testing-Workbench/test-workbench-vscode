@@ -9,13 +9,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { score } from '../../../../editor/common/languageSelector.js';
 import { localize } from '../../../../nls.js';
-import { ISubmenuItem, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ISubmenuItem } from '../../../../platform/actions/common/actions.js'; // test-workbench_change — remove registerAction2
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js'; // test-workbench_change — remove ContextKeyExpr
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ToggleTitleBarConfigAction } from '../../../browser/parts/titlebar/titlebarActions.js';
-import { IsCompactTitleBarContext, WorkspaceFolderCountContext } from '../../../common/contextkeys.js';
+// import { ToggleTitleBarConfigAction } from '../../../browser/parts/titlebar/titlebarActions.js'; // test-workbench_change — 共享菜单已注释
+// import { IsCompactTitleBarContext, WorkspaceFolderCountContext } from '../../../common/contextkeys.js'; // test-workbench_change — 共享菜单已注释
 import { IShareProvider, IShareService, IShareableItem } from '../common/share.js';
 
 export const ShareProviderCountContext = new RawContextKey<number>('shareProviderCount', 0, localize('shareProviderCount', "The number of available share providers"));
@@ -87,8 +87,10 @@ export class ShareService implements IShareService {
 	}
 }
 
-registerAction2(class ToggleShareControl extends ToggleTitleBarConfigAction {
-	constructor() {
-		super('workbench.experimental.share.enabled', localize('toggle.share', 'Share'), localize('toggle.shareDescription', "Toggle visibility of the Share action in title bar"), 3, ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), ContextKeyExpr.has('config.window.commandCenter'), ContextKeyExpr.and(ShareProviderCountContext.notEqualsTo(0), WorkspaceFolderCountContext.notEqualsTo(0))));
-	}
-});
+// test-workbench_change start — 不要标题栏右键菜单里的“共享”
+// registerAction2(class ToggleShareControl extends ToggleTitleBarConfigAction {
+// 	constructor() {
+// 		super('workbench.experimental.share.enabled', localize('toggle.share', 'Share'), localize('toggle.shareDescription', "Toggle visibility of the Share action in title bar"), 3, ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), ContextKeyExpr.has('config.window.commandCenter'), ContextKeyExpr.and(ShareProviderCountContext.notEqualsTo(0), WorkspaceFolderCountContext.notEqualsTo(0))));
+// 	}
+// });
+// test-workbench_change end

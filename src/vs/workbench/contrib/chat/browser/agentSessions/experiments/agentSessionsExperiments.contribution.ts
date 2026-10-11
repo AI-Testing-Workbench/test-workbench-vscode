@@ -6,14 +6,14 @@
 import { registerSingleton, InstantiationType } from '../../../../../../platform/instantiation/common/extensions.js';
 import { MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IAgentSessionProjectionService, AgentSessionProjectionService, AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS } from './agentSessionProjectionService.js';
-import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleUnifiedAgentsBarAction } from './agentSessionProjectionActions.js';
+import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction } from './agentSessionProjectionActions.js'; // test-workbench_change — remove ToggleUnifiedAgentsBarAction
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { AgentTitleBarStatusRendering } from './agentTitleBarStatusWidget.js';
 import { AgentTitleBarStatusService, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
+// import { ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js'; // test-workbench_change — Agent Quick Input 菜单已注释
 import { InEditorZenModeContext } from '../../../../../common/contextkeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
@@ -242,7 +242,7 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 
 registerAction2(EnterAgentSessionProjectionAction);
 registerAction2(ExitAgentSessionProjectionAction);
-registerAction2(ToggleUnifiedAgentsBarAction);
+// registerAction2(ToggleUnifiedAgentsBarAction); // test-workbench_change — 不要标题栏右键菜单里的“Agent Quick Input”
 
 registerSingleton(IAgentSessionProjectionService, AgentSessionProjectionService, InstantiationType.Delayed);
 registerSingleton(IAgentTitleBarStatusService, AgentTitleBarStatusService, InstantiationType.Delayed);
@@ -291,19 +291,21 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 	order: 1
 });
 
+// test-workbench_change start — 不要“Agent Quick Input”入口（其 action 已注释，避免菜单项指向不存在的命令）
 // Toggle for Agent Quick Input (Insiders only)
-MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
-	command: {
-		id: `toggle.${ChatConfiguration.UnifiedAgentsBar}`,
-		title: localize('toggleAgentQuickInput', "Agent Quick Input (Experimental)"),
-		toggled: ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`),
-	},
-	when: ContextKeyExpr.and(
-		ChatContextKeys.enabled,
-		ProductQualityContext.notEqualsTo('stable')
-	),
-	group: 'z_experimental',
-	order: 10
-});
+// MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
+// 	command: {
+// 		id: `toggle.${ChatConfiguration.UnifiedAgentsBar}`,
+// 		title: localize('toggleAgentQuickInput', "Agent Quick Input (Experimental)"),
+// 		toggled: ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`),
+// 	},
+// 	when: ContextKeyExpr.and(
+// 		ChatContextKeys.enabled,
+// 		ProductQualityContext.notEqualsTo('stable')
+// 	),
+// 	group: 'z_experimental',
+// 	order: 10
+// });
+// test-workbench_change end
 
 //#endregion
