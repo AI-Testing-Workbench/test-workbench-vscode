@@ -547,7 +547,7 @@
 		{
 			"label": "Run Code",
 			"type": "shell",
-			"command": "./scripts/code.sh",
+			"command": "npm run compile && ./scripts/code.sh",
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},

@@ -545,6 +545,10 @@
 	var lastStickyState = null;
 	var lastExternalState = null;
 	var externalReturnTimer = null;
+	// test-workbench_change - true while the pet is displaying an agent-driven
+	// state (working / notification / complete). While true, the click-to-switch
+	// animation is suppressed and a drag restores the followed state on release.
+	var agentActive = false;
 
 	function clearExternalReturn() {
 		if (externalReturnTimer) { clearTimeout(externalReturnTimer); externalReturnTimer = null; }
@@ -562,15 +566,20 @@
 		clearExternalReturn();
 		clearIdleAnim();
 		clearSleepTimers();
+		// An agent event takes over the pet: drop any pending click reaction so
+		// its timer cannot fire later and reset the pet to idle mid-follow.
+		if (reactTimer) { clearTimeout(reactTimer); reactTimer = null; }
 
 		if (state === 'idle' || state === 'sleeping' || state === 'yawning') {
 			lastStickyState = null;
 			reacting = false;
+			agentActive = false;
 			wakeUp();
 			return;
 		}
 
 		reacting = true;
+		agentActive = true;
 		awake = true;
 		idleAnimActive = false;
 		sleepPending = false;
@@ -589,6 +598,7 @@
 		externalReturnTimer = setTimeout(function () {
 			externalReturnTimer = null;
 			reacting = false;
+			agentActive = false;
 			lastStickyState = null;
 			lastExternalState = 'idle';
 			showIdle(120);
@@ -596,6 +606,19 @@
 			scheduleIdleAnim();
 			armSleep();
 		}, holdMs);
+	}
+
+	// test-workbench_change - re-apply the agent state the pet was following
+	// after a drag, so dragging the pet does not drop the followed event.
+	// Returns true when a followed state was restored.
+	function restoreFollowState() {
+		if (!agentActive || !lastExternalState || lastExternalState === 'idle') {
+			return false;
+		}
+		var state = lastExternalState;
+		lastExternalState = null; // bypass the dedupe so the animation restarts
+		setExternalState(state);
+		return true;
 	}
 
 	if (ipc && ipc.on) {
@@ -629,6 +652,9 @@
 				sleepPending = false;
 				clearIdleAnim();
 				clearSleepTimers();
+				// test-workbench_change - hold the followed state across the drag
+				// instead of letting its transient timer reset the pet mid-drag.
+				clearExternalReturn();
 				if (THEME.reactions.drag && THEME.reactions.drag.file) {
 					show(THEME.reactions.drag.file, { fadeMs: 80, force: true });
 				}
@@ -647,10 +673,13 @@
 		pet.classList.remove('dragging');
 		if (wasDrag) {
 			if (ipc) ipc.send('desktopPet:drag-end');
-			showIdle(120);
-			lastActivityAt = Date.now();
-			scheduleIdleAnim();
-			armSleep();
+			// test-workbench_change - keep following the agent event across a drag.
+			if (!restoreFollowState()) {
+				showIdle(120);
+				lastActivityAt = Date.now();
+				scheduleIdleAnim();
+				armSleep();
+			}
 		}
 		return wasDrag;
 	}
@@ -674,6 +703,9 @@
 	// plays it immediately (further clicks keep advancing). The conversation
 	// window is opened from the pet's native context menu, not on click.
 	function handleClick() {
+		// test-workbench_change - an active agent event owns the pet; a click
+		// must not switch away from the followed animation.
+		if (agentActive) return;
 		var list = THEME.clickAnimations || [];
 		if (!list.length) return;
 		var file = list[clickIndex % list.length];
