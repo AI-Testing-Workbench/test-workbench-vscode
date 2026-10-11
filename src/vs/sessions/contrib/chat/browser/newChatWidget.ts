@@ -541,6 +541,21 @@ export class NewChatWidget extends Disposable {
 			true,
 			() => this.chatPetService.toggle()
 		));
+		// test-workbench_change start - TestAgent desktop pet show/hide, rendered
+		// as a checkbox (same representation as the native Pet entry). The pet
+		// lives in the desktop build only, so the entry is desktop-only.
+		let desktopPetVisible = true;
+		const desktopPetAction = this._register(new Action(
+			'sessions.desktopPet.toggle',
+			localize('desktopPetAction', "TestAgent-Pet"),
+			undefined,
+			true,
+			async () => {
+				const visible = await this.commandService.executeCommand<boolean>('desktopPet.toggle');
+				desktopPetVisible = visible === true;
+			}
+		));
+		// test-workbench_change end
 		this._register(dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
 			const target = e.target as Node | null;
 			if (target && chatWidgetContent.contains(target)) {
@@ -551,12 +566,13 @@ export class NewChatWidget extends Disposable {
 			e.stopPropagation();
 			aquariumAction.checked = this.aquariumService.actionVisible.get();
 			petAction.checked = this.chatPetService.enabled.get();
+			desktopPetAction.checked = desktopPetVisible; // test-workbench_change
 			const anchor = new StandardMouseEvent(dom.getWindow(element), e);
 			this.contextMenuService.showContextMenu({
 				menuId: Menus.SessionChatBackgroundContext,
 				contextKeyService: this.contextKeyService,
 				getAnchor: () => anchor,
-				getActions: () => [], // test-workbench_change: hide Aquarium / Pet entries
+				getActions: () => (isWeb ? [] : [desktopPetAction]), // test-workbench_change: hide Aquarium / Pet; show TestAgent-Pet on desktop
 				getCheckedActionsRepresentation: () => 'checkbox',
 			});
 		}));

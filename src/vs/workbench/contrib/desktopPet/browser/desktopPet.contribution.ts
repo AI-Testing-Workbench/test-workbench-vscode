@@ -33,10 +33,16 @@ registerAction2(class extends Action2 {
 			f1: true
 		});
 	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(INativeHostService).toggleDesktopPet();
+	async run(accessor: ServicesAccessor): Promise<boolean> {
+		return accessor.get(INativeHostService).toggleDesktopPet();
 	}
 });
+
+// test-workbench_change start
+// The pet show/hide command is surfaced as a checkbox in the Agents window chat
+// view context menu (see newChatWidget.ts), next to "Set Background", by
+// executing `desktopPet.toggle` and using this command's boolean result.
+// test-workbench_change end
 
 // test-workbench_change - command the TestAgent extension (editor plugin mode)
 // calls to drive the pet, since that window has no Agent Host connection of its
