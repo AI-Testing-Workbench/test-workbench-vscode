@@ -56,11 +56,12 @@
 			idle: ['testagent-idle.svg'],
 			yawning: ['testagent-idle-to-dozing.svg'],
 			sleeping: ['testagent-idle-to-sleeping.svg'],
-			working: ['testagent-building.svg'],
-			juggling: ['testagent-juggling.svg'],
-			conducting: ['testagent-conducting.svg'],
-			attention: ['testagent-attention.svg'],
+			// test-workbench_change start - agent-event driven states (3 triggers)
+			// 1) working -> thinking  2) complete -> attention  3) permission/question -> notification
+			working: ['testagent-thinking.svg'],
+			complete: ['testagent-attention.svg'],
 			notification: ['testagent-notification.svg']
+			// test-workbench_change end
 		},
 		// Animated assets are rendered through the <object> channel so inline
 		// styles/animations are guaranteed to run.
@@ -95,7 +96,7 @@
 			{ file: 'testagent-float.svg', duration: 6400 },
 			{ file: 'testagent-happy.svg', duration: 6000 },
 			{ file: 'testagent-sweeping.svg', duration: 6000 },
-			{ file: 'testagent-thinking.svg', duration: 6000 },
+			// test-workbench_change - thinking/attention are reserved for agent events, not idle
 			{ file: 'testagent-xuanzhuan.svg', duration: 6000 },
 			{ file: 'testagent-yantiao.svg', duration: 6000 },
 			{ file: 'idle-follow.svg', duration: 8000 },
@@ -532,6 +533,72 @@
 			scheduleIdleAnim();
 			armSleep();
 		}, holdMs);
+	}
+
+	// ── Agent-event driven state (TestAgent "follow events" mode) ──
+	// Three triggers are forwarded: `working` (held until the agent moves on),
+	// `notification` (permission/question, held until the user responds) and
+	// `complete` (turn finished -> returns to idle).
+	var STICKY_STATES = { working: 1, notification: 1 };
+	var IDLE_AFTER_STATES = { complete: 1 };
+	var lastStickyState = null;
+	var lastExternalState = null;
+	var externalReturnTimer = null;
+
+	function clearExternalReturn() {
+		if (externalReturnTimer) { clearTimeout(externalReturnTimer); externalReturnTimer = null; }
+	}
+
+	function setExternalState(state) {
+		var map = THEME.states[state];
+		if (!map || !map.length) { state = 'idle'; map = THEME.states.idle; }
+		// Dedupe: the plugin forwards an event for every tool/part update, so
+		// re-showing the same state would restart the animation on each event
+		// and make the pet flicker. Only act on a real state change.
+		if (state === lastExternalState) { return; }
+		lastExternalState = state;
+		var file = map[0];
+		clearExternalReturn();
+		clearIdleAnim();
+		clearSleepTimers();
+
+		if (state === 'idle' || state === 'sleeping' || state === 'yawning') {
+			lastStickyState = null;
+			reacting = false;
+			wakeUp();
+			return;
+		}
+
+		reacting = true;
+		awake = true;
+		idleAnimActive = false;
+		sleepPending = false;
+		show(file, { fadeMs: 120, force: true });
+
+		// Sticky states are held until the agent forwards a different state
+		// (working until the turn moves on; notification until the user
+		// answers the permission/question prompt).
+		if (STICKY_STATES[state]) {
+			if (state === 'working') { lastStickyState = state; }
+			return;
+		}
+
+		// Transient state (turn complete): play for whole cycles, then idle.
+		var holdMs = alignToCycles(file, IDLE_AFTER_STATES[state] ? 2500 : 3000);
+		externalReturnTimer = setTimeout(function () {
+			externalReturnTimer = null;
+			reacting = false;
+			lastStickyState = null;
+			lastExternalState = 'idle';
+			showIdle(120);
+			lastActivityAt = Date.now();
+			scheduleIdleAnim();
+			armSleep();
+		}, holdMs);
+	}
+
+	if (ipc && ipc.on) {
+		ipc.on('desktopPet:state', function (state) { setExternalState(state); });
 	}
 
 	// ── Drag + click ──

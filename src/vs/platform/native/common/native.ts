@@ -455,6 +455,7 @@ export interface ICommonNativeHostService {
 
 	// test-workbench_change - Desktop pet
 	toggleDesktopPet(): Promise<boolean>;
+	setDesktopPetState(state: string): Promise<void>;
 }
 
 /**

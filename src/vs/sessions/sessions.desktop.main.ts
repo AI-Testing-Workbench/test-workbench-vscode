@@ -228,6 +228,7 @@ import '../workbench/contrib/keybindingsExport/electron-browser/keybindingsExpor
 
 import './electron-browser/sessions.desktop.contribution.js';
 import './contrib/openAgentsWindow/electron-browser/openAgentsWindow.contribution.js';
+import '../workbench/contrib/desktopPet/browser/desktopPet.contribution.js'; // test-workbench_change - drive desktop pet from agent events
 
 // Remote Agent Host
 import '../workbench/services/agentHost/electron-browser/agentHostService.js';

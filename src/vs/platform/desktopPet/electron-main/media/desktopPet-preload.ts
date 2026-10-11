@@ -22,7 +22,8 @@
 	]);
 
 	const ALLOWED_ON = new Set<string>([
-		'desktopPet:pointer'
+		'desktopPet:pointer',
+		'desktopPet:state' // test-workbench_change - agent-event driven state
 	]);
 
 	contextBridge.exposeInMainWorld('desktopPetIpc', {

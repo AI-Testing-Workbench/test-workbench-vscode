@@ -25,6 +25,19 @@ import { IWindowsMainService, OpenContext } from '../../windows/electron-main/wi
 
 export const IDesktopPetMainService = createDecorator<IDesktopPetMainService>('desktopPetMainService');
 
+/** test-workbench_change - pet states driven by TestAgent agent events. */
+export type DesktopPetState =
+	| 'idle'
+	| 'thinking'
+	| 'working'
+	| 'juggling'
+	| 'conducting'
+	| 'sweeping'
+	| 'attention'
+	| 'notification'
+	| 'error'
+	| 'happy';
+
 export interface IDesktopPetMainService {
 	readonly _serviceBrand: undefined;
 	toggle(): Promise<boolean>;
@@ -33,6 +46,8 @@ export interface IDesktopPetMainService {
 	isVisible(): boolean;
 	/** test-workbench_change - open the conversation window from the pet. */
 	openChat(): Promise<void>;
+	/** test-workbench_change - push an agent-driven state; no-op unless the follow switch is on. */
+	setState(state: DesktopPetState): void;
 }
 
 const PET_SIZE = 165;
@@ -80,6 +95,8 @@ function computeArtRect(windowWidth: number, windowHeight: number): IArtRect {
 
 const STORAGE_ENABLED = 'desktopPet.enabled';
 const STORAGE_POSITION = 'desktopPet.position';
+const STORAGE_FOLLOW_EVENTS = 'desktopPet.followEvents'; // test-workbench_change
+const IPC_STATE = 'desktopPet:state'; // test-workbench_change
 
 const HTML_PATH = 'vs/platform/desktopPet/electron-main/media/desktopPet.html';
 const PRELOAD_PATH = 'vs/platform/desktopPet/electron-main/media/desktopPet-preload.js';
@@ -95,6 +112,7 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 
 	private _window: BrowserWindow | undefined;
 	private _enabled = true;
+	private _followEvents = false; // test-workbench_change - right-click toggle; off by default
 	private _ready = false;
 	private _hasAppeared = false; // test-workbench_change - once shown in the Agents window the pet stays visible
 	private _ignoring = false;
@@ -163,6 +181,22 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 				}
 			},
 			{ type: 'separator' },
+			// test-workbench_change start - follow TestAgent agent events toggle
+			{
+				type: 'checkbox',
+				label: localize('desktopPet.followEvents', "Follow TestAgent Events"),
+				checked: this._followEvents,
+				click: (item) => {
+					this._followEvents = item.checked;
+					this._storeFollowEvents(item.checked);
+					// Leaving the mode resets the pet to its self-running idle state.
+					if (!item.checked) {
+						this._pushState('idle');
+					}
+				}
+			},
+			{ type: 'separator' },
+			// test-workbench_change end
 			{
 				label: localize('desktopPet.hide', "Hide Desktop Pet"),
 				click: () => {
@@ -206,6 +240,7 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		]).then(() => {
 			this._ready = true;
 			this._enabled = this.storageService.getBoolean(STORAGE_ENABLED, StorageScope.APPLICATION, true);
+			this._followEvents = this.storageService.getBoolean(STORAGE_FOLLOW_EVENTS, StorageScope.APPLICATION, false); // test-workbench_change
 			this._syncVisibility();
 		}).catch(err => this.logService.error('[desktopPet] startup failed', err));
 	}
@@ -306,6 +341,33 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		} catch (err) {
 			this.logService.error('[desktopPet] failed to open chat window', err);
 		}
+	}
+	// test-workbench_change end
+
+	// test-workbench_change start - agent-event driven state
+	/**
+	 * Pushes a TestAgent agent-event state to the pet page. This is a no-op
+	 * unless the user enabled "Follow TestAgent Events" from the pet's context
+	 * menu, so the renderer can forward states unconditionally.
+	 */
+	setState(state: DesktopPetState): void {
+		if (!this._followEvents) {
+			return;
+		}
+		this._pushState(state);
+	}
+
+	/** Send a state to the pet page regardless of the follow switch (used to reset to idle). */
+	private _pushState(state: DesktopPetState): void {
+		const win = this._window;
+		if (!win || win.isDestroyed() || win.webContents.isDestroyed()) {
+			return;
+		}
+		win.webContents.send(IPC_STATE, state);
+	}
+
+	private _storeFollowEvents(enabled: boolean): void {
+		this.storageService.store(STORAGE_FOLLOW_EVENTS, enabled, StorageScope.APPLICATION, StorageTarget.USER);
 	}
 	// test-workbench_change end
 
