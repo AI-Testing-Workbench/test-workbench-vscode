@@ -1737,7 +1737,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// test-workbench_change start: 桌宠/编辑器聊天窗口首页完全替换为 TestAgent 吉祥物 + 标语
 		if (ChatContextKeys.inChatEditor.getValue(this.contextKeyService)) {
 			return {
-				title: localize('agentTitle', "Work With TestAgent"),
+				title: 'Work With TestAgent',
 				message: '',
 				mascot: true,
 			};
@@ -1759,7 +1759,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			return {
 				// test-workbench_change start: 首页欢迎语与 Agents 窗口保持一致
-				title: providerTitle ?? localize('agentTitle', "Work With TestAgent"),
+				title: providerTitle ?? 'Work With TestAgent',
 				// test-workbench_change end
 				message,
 				icon: providerIcon ?? Codicon.sendToRemoteAgent,
@@ -1769,7 +1769,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// test-workbench_change start: 首页欢迎语与 Agents 窗口保持一致
-		const title = localize('agentTitle', "Work With TestAgent");
+		const title = 'Work With TestAgent';
 		// test-workbench_change end
 
 		return {
