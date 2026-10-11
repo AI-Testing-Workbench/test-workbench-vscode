@@ -26,6 +26,50 @@
 	}
 }
 
+/* test-workbench_change start
+ * 桌宠/编辑器聊天窗口（.chat-editor-relative）的空态没有“最近会话/建议提示”那一套，
+ * 一旦加上了 chat-view-getting-started-disabled（chat 初始化完成后），上面这条规则会把
+ * 欢迎语整段隐藏，导致首页一片空白（启动时 entitlement 未就绪 -> 文案先出现，
+ * 随后被隐藏 = “闪一下就没了”）。这里在编辑器场景下恢复欢迎文案的显示。
+ * 仅影响编辑器聊天，Chat view 的行为保持不变。 */
+.chat-editor-relative .interactive-session.chat-view-getting-started-disabled {
+	.chat-welcome-view .chat-welcome-view-icon,
+	.chat-welcome-view .chat-welcome-view-title,
+	.chat-welcome-view .chat-welcome-view-message,
+	.chat-welcome-view .chat-welcome-view-disclaimer,
+	.chat-welcome-view .chat-welcome-view-tips {
+		display: block;
+	}
+}
+/* test-workbench_change end */
+
+/* test-workbench_change start
+ * 桌宠/编辑器聊天窗口首页：TestAgent 吉祥物（TSCode face，点击切换表情）+ 大号黑色标语。
+ * 图标与 Agents 窗口欢迎页保持一致（80px、悬浮动画）。 */
+.chat-editor-relative .interactive-session .chat-welcome-view > .chat-welcome-view-icon.chat-welcome-view-icon-mascot {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 80px;
+	min-height: 80px;
+	cursor: pointer;
+	user-select: none;
+	animation: chat-welcome-tscode-float 3.2s ease-in-out infinite;
+}
+
+.chat-editor-relative .interactive-session .chat-welcome-view > .chat-welcome-view-title {
+	font-size: 32px;
+	font-weight: 600;
+	letter-spacing: 0.3px;
+	color: var(--vscode-foreground);
+}
+
+@keyframes chat-welcome-tscode-float {
+	0%, 100% { transform: translateY(0); }
+	50% { transform: translateY(-4px); }
+}
+/* test-workbench_change end */
+
 /* Chat welcome container */
 .interactive-session .chat-welcome-view-container {
 	display: flex;

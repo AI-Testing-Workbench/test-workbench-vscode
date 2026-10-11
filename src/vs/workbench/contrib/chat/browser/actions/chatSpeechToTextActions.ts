@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js'; // test-workbench_change: 移除未使用的 MenuId
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -19,14 +19,16 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_ENABLED } from '../../../agentsVoice/common/agentsVoice.js';
+import { AgentsVoiceStorageKeys, AGENTS_VOICE_ENABLED } from '../../../agentsVoice/common/agentsVoice.js'; // test-workbench_change: 移除未使用的 AGENTS_VOICE_CONNECTED
 import { NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
-import { SegmentedVoiceInputModePillInactive } from '../voiceInputMode/voiceInputModeContextKeys.js';
+// test-workbench_change start: 菜单已注释，暂时不再需要
+// import { SegmentedVoiceInputModePillInactive } from '../voiceInputMode/voiceInputModeContextKeys.js';
+// test-workbench_change end
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js'; // test-workbench_change: 移除未使用的 DictationSettingId
 import { buildMicrophoneOptions, IDictationOnboardingService, RESET_DICTATION_ONBOARDING_COMMAND, SHOW_DICTATION_ONBOARDING_COMMAND } from '../speechToText/dictationOnboarding.js';
 import { cancelDictation, isDictating, startDictation, stopDictation } from '../speechToText/dictationSession.js';
 
@@ -36,14 +38,16 @@ import { cancelDictation, isDictating, startDictation, stopDictation } from '../
 export const ChatSpeechToTextConfigured = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(ChatContextKeys.speechToTextConfigured.key));
 /** True while the selected dictation backend is preparing. */
 export const ChatSpeechToTextPreparing = ContextKeyExpr.has(ChatContextKeys.speechToTextPreparing.key);
-const ChatSpeechToTextMaiBackend = ContextKeyExpr.has(ChatContextKeys.speechToTextUsesMai.key);
-/**
- * True unless the user has hidden the chat-input dictation microphone button via
- * {@link DictationSettingId.ShowButton}. Gates only the toolbar button; the
- * Cmd/Ctrl+I dictation shortcut stays available so dictation can still be
- * launched when the button is hidden.
- */
-const ChatSpeechToTextButtonShown = ContextKeyExpr.notEquals(`config.${DictationSettingId.ShowButton}`, false);
+// test-workbench_change start: 菜单已注释，以下仅供被注释菜单使用的符号一并注释
+// const ChatSpeechToTextMaiBackend = ContextKeyExpr.has(ChatContextKeys.speechToTextUsesMai.key);
+// /**
+//  * True unless the user has hidden the chat-input dictation microphone button via
+//  * {@link DictationSettingId.ShowButton}. Gates only the toolbar button; the
+//  * Cmd/Ctrl+I dictation shortcut stays available so dictation can still be
+//  * launched when the button is hidden.
+//  */
+// const ChatSpeechToTextButtonShown = ContextKeyExpr.notEquals(`config.${DictationSettingId.ShowButton}`, false);
+// test-workbench_change end
 
 /** Releases shorter than this are treated as an accidental tap and discarded. */
 const HOLD_TO_TALK_THRESHOLD_MS = 500;
@@ -149,12 +153,14 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 				icon: Codicon.micFilled,
 				title: localize2('chat.speechToText.stop', "Stop Dictation").value,
 			},
-			menu: [{
-				id: MenuId.ChatExecute,
-				order: -11,
-				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextButtonShown, ChatSpeechToTextPreparing.negate(), AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
-				group: 'navigation',
-			}],
+			// test-workbench_change start: 屏蔽聊天输入工具栏的“听写”麦克风按钮
+			// menu: [{
+			// 	id: MenuId.ChatExecute,
+			// 	order: -11,
+			// 	when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextButtonShown, ChatSpeechToTextPreparing.negate(), AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
+			// 	group: 'navigation',
+			// }],
+			// test-workbench_change end
 			keybinding: {
 				// Outrank the legacy "Start Voice Chat" action, which binds the
 				// same Cmd+I in the chat input at WorkbenchContrib weight. When
@@ -205,12 +211,14 @@ export class ChatSpeechToTextPreparingAction extends Action2 {
 			f1: false,
 			icon: Codicon.micDownloadCompact,
 			precondition: ChatSpeechToTextPreparing,
-			menu: [{
-				id: MenuId.ChatExecute,
-				order: -11,
-				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextButtonShown, ChatSpeechToTextPreparing, ChatSpeechToTextMaiBackend.negate(), AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
-				group: 'navigation',
-			}],
+			// test-workbench_change start: 屏蔽“听写”准备中的麦克风按钮
+			// menu: [{
+			// 	id: MenuId.ChatExecute,
+			// 	order: -11,
+			// 	when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextButtonShown, ChatSpeechToTextPreparing, ChatSpeechToTextMaiBackend.negate(), AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
+			// 	group: 'navigation',
+			// }],
+			// test-workbench_change end
 		});
 	}
 
@@ -233,12 +241,14 @@ export class ChatSpeechToTextConnectingAction extends Action2 {
 			f1: false,
 			icon: Codicon.loadingCompact,
 			precondition: ChatSpeechToTextPreparing,
-			menu: [{
-				id: MenuId.ChatExecute,
-				order: -11,
-				when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextButtonShown, ChatSpeechToTextPreparing, ChatSpeechToTextMaiBackend, AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
-				group: 'navigation',
-			}],
+			// test-workbench_change start: 屏蔽“听写”连接中的麦克风按钮
+			// menu: [{
+			// 	id: MenuId.ChatExecute,
+			// 	order: -11,
+			// 	when: ContextKeyExpr.and(ChatSpeechToTextConfigured, ChatSpeechToTextButtonShown, ChatSpeechToTextPreparing, ChatSpeechToTextMaiBackend, AGENTS_VOICE_CONNECTED.negate(), SegmentedVoiceInputModePillInactive),
+			// 	group: 'navigation',
+			// }],
+			// test-workbench_change end
 		});
 	}
 

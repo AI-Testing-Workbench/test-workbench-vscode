@@ -1734,6 +1734,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
+		// test-workbench_change start: 桌宠/编辑器聊天窗口首页完全替换为 TestAgent 吉祥物 + 标语
+		if (ChatContextKeys.inChatEditor.getValue(this.contextKeyService)) {
+			return {
+				title: localize('agentTitle', "Work With TestAgent"),
+				message: '',
+				mascot: true,
+			};
+		}
+		// test-workbench_change end
 		if (this.isLockedToCodingAgent) {
 			// Check for provider-specific customizations from chat sessions service
 			const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
@@ -1749,7 +1758,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._lockedAgent?.prefix) + DISCLAIMER));
 
 			return {
-				title: providerTitle ?? localize('codingAgentTitle', "Delegate to {0}", this._lockedAgent?.prefix),
+				// test-workbench_change start: 首页欢迎语与 Agents 窗口保持一致
+				title: providerTitle ?? localize('agentTitle', "Work With TestAgent"),
+				// test-workbench_change end
 				message,
 				icon: providerIcon ?? Codicon.sendToRemoteAgent,
 				additionalMessage,
@@ -1757,14 +1768,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			};
 		}
 
-		let title: string;
-		if (this.input.currentModeKind === ChatModeKind.Ask) {
-			title = localize('chatDescription', "Ask about your code");
-		} else if (this.input.currentModeKind === ChatModeKind.Edit) {
-			title = localize('editsTitle', "Edit in context");
-		} else {
-			title = localize('agentTitle', "Build with Agent");
-		}
+		// test-workbench_change start: 首页欢迎语与 Agents 窗口保持一致
+		const title = localize('agentTitle', "Work With TestAgent");
+		// test-workbench_change end
 
 		return {
 			title,

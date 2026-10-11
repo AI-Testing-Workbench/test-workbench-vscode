@@ -1298,20 +1298,25 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._initializationLoadingSpinner, localize('initializing', "Initializing...")));
 		this._register(autorun(reader => this._updateInitializationLoadingState(this.options.loading.read(reader))));
 
+		// test-workbench_change start: 全局屏蔽 Agents 窗口新会话输入框的“听写”麦克风按钮
 		// Dictation mic button. Shares the STT service, mic
 		// device, and gating (backend support + `dictation.enabled`)
 		// with the main chat input; inserts the transcript into this composer's
 		// editor. Placed before the voice controls so dictation leads the
 		// mic-related group.
-		try {
-			dictationButton = this._createSpeechToTextButton(toolbar, visible => {
-				dictationActionVisible = visible;
+		const dictationButtonEnabled = false;
+		if (dictationButtonEnabled) {
+			try {
+				dictationButton = this._createSpeechToTextButton(toolbar, visible => {
+					dictationActionVisible = visible;
+					updateVoiceInputActionBorder();
+				});
 				updateVoiceInputActionBorder();
-			});
-			updateVoiceInputActionBorder();
-		} catch (error) {
-			this.logService.error('Failed to create new-session dictation control:', error);
+			} catch (error) {
+				this.logService.error('Failed to create new-session dictation control:', error);
+			}
 		}
+		// test-workbench_change end
 
 		// Voice controls (mic/stop/settings/disconnect). The hand-built toolbar
 		// can't use the shared `MenuId.ChatExecute`, so a dedicated menu is used.

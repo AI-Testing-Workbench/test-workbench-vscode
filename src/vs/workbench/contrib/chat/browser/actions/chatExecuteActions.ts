@@ -529,28 +529,34 @@ export class OpenSessionTargetPickerAction extends Action2 {
 			f1: false,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ChatContextKeys.chatSessionIsEmpty, ChatContextKeys.inAgentSessionsWelcome), ChatContextKeys.currentlyEditingInput.negate(), ChatContextKeys.currentlyEditing.negate()),
 			menu: [
-				{
-					id: MenuId.ChatInput,
-					order: 0,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.enabled,
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.chatSessionIsEmpty,
-						IsSessionsWindowContext),
-					group: 'navigation',
-				},
-				{
-					id: MenuId.ChatInputSecondary,
-					order: 0,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.enabled,
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-						ChatContextKeys.inQuickChat.negate(),
-						IsSessionsWindowContext.negate(),
-						ChatContextKeys.chatSessionIsEmpty),
-					group: 'navigation',
-				},
+				// test-workbench_change start: 本 fork 只接入 TestAgent，会话目标
+				// “Set Session Target(TestAgent)”单选按钮没有意义，注释掉不显示。
+				// {
+				// 	id: MenuId.ChatInput,
+				// 	order: 0,
+				// 	when: ContextKeyExpr.and(
+				// 		ChatContextKeys.enabled,
+				// 		ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+				// 		ChatContextKeys.inQuickChat.negate(),
+				// 		ChatContextKeys.chatSessionIsEmpty,
+				// 		IsSessionsWindowContext),
+				// 	group: 'navigation',
+				// },
+				// test-workbench_change end
+				// test-workbench_change start: 本 fork 只接入 TestAgent，编辑器窗口的
+				// “Set Session Target(TestAgent)”单选按钮没有意义，注释掉不显示。
+				// {
+				// 	id: MenuId.ChatInputSecondary,
+				// 	order: 0,
+				// 	when: ContextKeyExpr.and(
+				// 		ChatContextKeys.enabled,
+				// 		ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+				// 		ChatContextKeys.inQuickChat.negate(),
+				// 		IsSessionsWindowContext.negate(),
+				// 		ChatContextKeys.chatSessionIsEmpty),
+				// 	group: 'navigation',
+				// },
+				// test-workbench_change end
 			]
 		});
 	}

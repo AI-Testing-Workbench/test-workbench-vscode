@@ -24,6 +24,8 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
+// test-workbench_change: TestAgent 吉祥物（TSCode face），与 Agents 窗口欢迎页一致
+import { createTscodeFaceSvg, pickRandomTscodeFaceType, TSCODE_FACE_TYPES } from '../../../welcomeGettingStarted/browser/tscodeFaceIcon.js';
 
 const $ = dom.$;
 
@@ -127,6 +129,8 @@ export interface IChatViewWelcomeContent {
 	tips?: IMarkdownString;
 	readonly inputPart?: HTMLElement;
 	readonly useLargeIcon?: boolean;
+	/** test-workbench_change: render the TestAgent mascot (TSCode face) instead of the codicon. */
+	readonly mascot?: boolean;
 }
 
 export interface IChatViewWelcomeRenderOptions {
@@ -156,7 +160,24 @@ export class ChatViewWelcomePart extends Disposable {
 			if (content.useLargeIcon) {
 				icon.classList.add('large-icon');
 			}
-			if (content.icon) {
+			if (content.mascot) {
+				// test-workbench_change start: TestAgent 吉祥物（TSCode face），点击切换表情
+				icon.classList.add('chat-welcome-view-icon-mascot');
+				let faceType = pickRandomTscodeFaceType();
+				const renderFace = () => {
+					dom.clearNode(icon);
+					const svg = createTscodeFaceSvg(faceType, 80, false);
+					svg.style.pointerEvents = 'none';
+					icon.appendChild(svg);
+				};
+				renderFace();
+				this._register(dom.addDisposableListener(icon, dom.EventType.CLICK, (e) => {
+					dom.EventHelper.stop(e);
+					faceType = TSCODE_FACE_TYPES[(TSCODE_FACE_TYPES.indexOf(faceType) + 1) % TSCODE_FACE_TYPES.length];
+					renderFace();
+				}));
+				// test-workbench_change end
+			} else if (content.icon) {
 				if (ThemeIcon.isThemeIcon(content.icon)) {
 					const iconElement = renderIcon(content.icon);
 					icon.appendChild(iconElement);
@@ -178,13 +199,16 @@ export class ChatViewWelcomePart extends Disposable {
 			const title = dom.append(this.element, $('.chat-welcome-view-title'));
 			title.textContent = content.title;
 
-			const message = dom.append(this.element, $('.chat-welcome-view-message'));
+			// test-workbench_change: 吉祥物首页只保留标语，不渲染正文
+			if (!content.mascot) {
+				const message = dom.append(this.element, $('.chat-welcome-view-message'));
 
-			if (typeof content.message === 'string') {
-				dom.append(message, $('p', undefined, content.message));
-			} else {
-				const messageResult = this.renderMarkdownMessageContent(content.message, options);
-				dom.append(message, messageResult.element);
+				if (typeof content.message === 'string') {
+					dom.append(message, $('p', undefined, content.message));
+				} else {
+					const messageResult = this.renderMarkdownMessageContent(content.message, options);
+					dom.append(message, messageResult.element);
+				}
 			}
 
 			// Additional message
@@ -224,6 +248,7 @@ export class ChatViewWelcomePart extends Disposable {
 			this.content.primaryAction?.label !== content.primaryAction?.label ||
 			this.content.primaryAction?.href !== content.primaryAction?.href ||
 			this.content.additionalMessage !== content.additionalMessage ||
+			this.content.mascot !== content.mascot ||
 			this.content.tips?.value !== content.tips?.value);
 	}
 

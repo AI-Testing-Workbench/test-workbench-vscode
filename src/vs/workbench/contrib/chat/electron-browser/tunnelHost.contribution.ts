@@ -12,9 +12,11 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
-import { IsSessionsWindowContext, RemoteNameContext } from '../../../common/contextkeys.js';
+// test-workbench_change start: 菜单已注释，仅保留类型所需导入
+// import { IsSessionsWindowContext, RemoteNameContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { ChatContextKeyExprs, ChatContextKeys } from '../common/actions/chatContextKeys.js';
+// import { ChatContextKeyExprs, ChatContextKeys } from '../common/actions/chatContextKeys.js';
+// test-workbench_change end
 import { IRemoteTunnelStartOptions, RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { getRemoteTunnelAccessState, ToggleRemoteConnectionsActionViewItem } from './toggleRemoteConnectionsActionViewItem.js';
 
@@ -101,17 +103,21 @@ registerAction2(class ToggleRemoteConnectionsAction extends Action2 {
 			category: CATEGORY,
 			icon: Codicon.radioTower,
 			toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
-			menu: {
-				id: MenuId.ChatInputSecondary,
-				order: 10,
-				group: 'navigation',
-				when: ContextKeyExpr.and(
-					ChatContextKeys.enabled,
-					IsSessionsWindowContext.toNegated(),
-					RemoteNameContext.isEqualTo(''),
-					ChatContextKeyExprs.isAgentHostSession,
-				)
-			}
+			// test-workbench_change start
+			// 屏蔽编辑器模式下的 "Allow connections from other machines"
+			// （Allow Remote Connections）按钮：不注册菜单项，因此工具栏不再渲染。
+			// menu: {
+			// 	id: MenuId.ChatInputSecondary,
+			// 	order: 10,
+			// 	group: 'navigation',
+			// 	when: ContextKeyExpr.and(
+			// 		ChatContextKeys.enabled,
+			// 		IsSessionsWindowContext.toNegated(),
+			// 		RemoteNameContext.isEqualTo(''),
+			// 		ChatContextKeyExprs.isAgentHostSession,
+			// 	)
+			// }
+			// test-workbench_change end
 		});
 	}
 

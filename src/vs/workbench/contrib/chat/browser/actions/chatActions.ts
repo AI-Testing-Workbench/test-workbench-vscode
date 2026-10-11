@@ -27,7 +27,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js'; // test-workbench_change: IFileDialogService
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -37,10 +37,15 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import product from '../../../../../platform/product/common/product.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext } from '../../../../common/contextkeys.js'; // test-workbench_change: IsAuxiliaryWindowContext
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js'; // test-workbench_change: IEditorService
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js'; // test-workbench_change
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js'; // test-workbench_change
+import { IWorkspacesService, isRecentFolder } from '../../../../../platform/workspaces/common/workspaces.js'; // test-workbench_change
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js'; // test-workbench_change
+import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js'; // test-workbench_change
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
@@ -875,6 +880,182 @@ export function registerChatActions() {
 			const auxiliary = { compact: true, bounds: { width: 640, height: 640 } };
 
 			await widgetService.openSession(resource, AUX_WINDOW_GROUP, { pinned: true, auxiliary });
+		}
+	});
+	// test-workbench_change end
+
+	// test-workbench_change start
+	// Desktop-pet chat window controls. The compact aux window renders a plain
+	// ChatEditor (no session list), so the user cannot start a fresh
+	// conversation or point the agent at a different project from inside it.
+	// These two inline controls fill that gap without re-architecting the
+	// window:
+	//   - "New Session"    → replaces the editor with a new TestAgent session.
+	//   - "Switch Project" → picks a folder (workspace / recent / file dialog)
+	//                        and opens a new TestAgent session bound to it.
+	// Scoped to auxiliary windows so the regular editor-chat UI is unchanged.
+	const desktopPetWindowWhen = ContextKeyExpr.and(ChatContextKeys.inChatEditor, IsAuxiliaryWindowContext);
+
+	interface IDesktopPetSessionServices {
+		readonly enablementService: IAgentHostEnablementService;
+		readonly chatSessionsService: IChatSessionsService;
+		readonly editorService: IEditorService;
+		readonly editorGroupService: IEditorGroupsService;
+		readonly newSessionFolderService: IAgentHostNewSessionFolderService;
+	}
+
+	function getDesktopPetSessionServices(accessor: ServicesAccessor): IDesktopPetSessionServices {
+		return {
+			enablementService: accessor.get(IAgentHostEnablementService),
+			chatSessionsService: accessor.get(IChatSessionsService),
+			editorService: accessor.get(IEditorService),
+			editorGroupService: accessor.get(IEditorGroupsService),
+			newSessionFolderService: accessor.get(IAgentHostNewSessionFolderService),
+		};
+	}
+
+	async function openDesktopPetSessionInPlace(services: IDesktopPetSessionServices, folder: URI | undefined): Promise<void> {
+		const { enablementService, chatSessionsService, editorService, editorGroupService, newSessionFolderService } = services;
+
+		// An editor window may have Agent Host off; turn it on on demand (same as
+		// the pet entry point) so a TestAgent session resolves here.
+		enablementService.setEnabledOverride?.(true);
+		const sessionType = `agent-host-${TESTAGENT_AGENT_PROVIDER_ID}`;
+
+		// The content provider/editor resolver for a freshly started Agent Host
+		// may not be registered yet; wait for its scheme before opening, else the
+		// session URI is treated as an ordinary text resource.
+		if (!chatSessionsService.getContentProviderSchemes().includes(sessionType)) {
+			const waitStore = new DisposableStore();
+			try {
+				await Promise.race([
+					Event.toPromise(Event.filter(chatSessionsService.onDidChangeContentProviderSchemes, e => e.added.includes(sessionType)), waitStore),
+					timeout(15000),
+				]);
+			} finally {
+				waitStore.dispose();
+			}
+		}
+
+		const resource = getNewChatSessionResource(sessionType);
+		if (folder) {
+			// Record the chosen working directory for the (untitled) session before
+			// it is opened; the Agent Host working-directory resolution reads it
+			// when the provisional backend session is created.
+			newSessionFolderService.setFolder(resource, folder);
+		}
+
+		const options: IChatEditorOptions = { pinned: true, sessionTypeSelectionReason: 'explicitOverride' };
+		const group = editorGroupService.activeGroup;
+		const activeEditor = group.activeEditor;
+		if (activeEditor instanceof ChatEditorInput) {
+			await editorService.replaceEditors([{ editor: activeEditor, replacement: { resource, options } }], group);
+		} else {
+			await editorService.openEditor({ resource, options });
+		}
+	}
+
+	registerAction2(class DesktopPetNewSessionAction extends Action2 {
+		constructor() {
+			super({
+				id: 'desktopPet.newSession',
+				title: localize2('desktopPet.newSession', "New Session"),
+				f1: false,
+				precondition: ChatContextKeys.enabled,
+				// Placed in the execute toolbar (right side of the input, next to
+				// send) to occupy the spot the hidden dictation mic used to take.
+				menu: [{
+					id: MenuId.ChatExecute,
+					group: 'navigation',
+					order: -11,
+					when: desktopPetWindowWhen,
+				}],
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const services = getDesktopPetSessionServices(accessor);
+			await openDesktopPetSessionInPlace(services, undefined);
+		}
+	});
+
+	registerAction2(class DesktopPetSwitchProjectAction extends Action2 {
+		constructor() {
+			super({
+				id: 'desktopPet.switchProject',
+				title: localize2('desktopPet.switchProject', "Switch Project"),
+				f1: false,
+				precondition: ChatContextKeys.enabled,
+				menu: [{
+					id: MenuId.ChatExecute,
+					group: 'navigation',
+					order: -10,
+					when: desktopPetWindowWhen,
+				}],
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			// Resolve every service up front: `accessor` is only valid synchronously.
+			const quickInputService = accessor.get(IQuickInputService);
+			const workspacesService = accessor.get(IWorkspacesService);
+			const workspaceContextService = accessor.get(IWorkspaceContextService);
+			const fileDialogService = accessor.get(IFileDialogService);
+			const sessionServices = getDesktopPetSessionServices(accessor);
+
+			const picks: IQuickPickItem[] = [];
+			const uriByPickId = new Map<string, URI>();
+			const addFolder = (uri: URI) => {
+				const id = uri.toString();
+				if (uriByPickId.has(id)) {
+					return;
+				}
+				uriByPickId.set(id, uri);
+				picks.push({ id, label: `$(folder) ${basename(uri)}`, description: uri.fsPath });
+			};
+
+			for (const folder of workspaceContextService.getWorkspace().folders) {
+				addFolder(folder.uri);
+			}
+
+			try {
+				const recentlyOpened = await workspacesService.getRecentlyOpened();
+				for (const recent of recentlyOpened.workspaces) {
+					if (isRecentFolder(recent)) {
+						addFolder(recent.folderUri);
+					}
+				}
+			} catch {
+				// Recent folders are best-effort; ignore failures.
+			}
+
+			const OPEN_FOLDER_ID = 'desktopPet.openFolder';
+			picks.push({ id: OPEN_FOLDER_ID, label: `$(folder-opened) ${localize('desktopPet.openFolder', "Open Folder…")}` });
+
+			const picked = await quickInputService.pick(picks, {
+				placeHolder: localize('desktopPet.pickProject', "Select a project folder for the new session"),
+			});
+			if (!picked) {
+				return;
+			}
+
+			let folder: URI | undefined;
+			if (picked.id === OPEN_FOLDER_ID) {
+				const uris = await fileDialogService.showOpenDialog({
+					canSelectFiles: false,
+					canSelectFolders: true,
+					canSelectMany: false,
+					title: localize('desktopPet.openFolderTitle', "Open Folder"),
+				});
+				folder = uris?.[0];
+			} else if (picked.id) {
+				folder = uriByPickId.get(picked.id);
+			}
+
+			if (!folder) {
+				return;
+			}
+			await openDesktopPetSessionInPlace(sessionServices, folder);
 		}
 	});
 	// test-workbench_change end
