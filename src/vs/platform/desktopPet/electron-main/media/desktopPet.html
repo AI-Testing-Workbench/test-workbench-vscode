@@ -693,7 +693,7 @@
 	pet.addEventListener('lostpointercapture', function () { if (pressed) stopDrag(); });
 	window.addEventListener('blur', function () { if (pressed) stopDrag(); });
 
-	// Right-click opens the native pet context menu (Hide Desktop Pet).
+	// Right-click opens the native pet context menu (Hide TestAgent Pet).
 	pet.addEventListener('contextmenu', function (e) {
 		e.preventDefault();
 		if (ipc) ipc.send('desktopPet:context-menu');

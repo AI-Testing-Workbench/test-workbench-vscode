@@ -29,7 +29,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'desktopPet.toggle',
-			title: nls.localize2('desktopPet.toggle', "Show or Hide Desktop Pet"),
+			title: nls.localize2('desktopPet.toggle', "Show or Hide TestAgent Pet"),
 			f1: true
 		});
 	}

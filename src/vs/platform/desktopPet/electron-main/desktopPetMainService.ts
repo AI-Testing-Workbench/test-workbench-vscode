@@ -35,6 +35,7 @@ export type DesktopPetState =
 	| 'sweeping'
 	| 'attention'
 	| 'notification'
+	| 'complete'
 	| 'error'
 	| 'happy';
 
@@ -113,6 +114,7 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 	private _window: BrowserWindow | undefined;
 	private _enabled = true;
 	private _followEvents = false; // test-workbench_change - right-click toggle; off by default
+	private _lastState: DesktopPetState | undefined; // test-workbench_change - latest state, cached even while following is off
 	private _ready = false;
 	private _hasAppeared = false; // test-workbench_change - once shown in the Agents window the pet stays visible
 	private _ignoring = false;
@@ -207,8 +209,12 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 				click: (item) => {
 					this._followEvents = item.checked;
 					this._storeFollowEvents(item.checked);
-					// Leaving the mode resets the pet to its self-running idle state.
-					if (!item.checked) {
+					if (item.checked) {
+						// Reflect the agent's current state at once instead of
+						// waiting for the next event (e.g. a task already running).
+						this._pushState(this._currentFollowState());
+					} else {
+						// Leaving the mode resets the pet to its self-running idle state.
 						this._pushState('idle');
 					}
 				}
@@ -216,7 +222,7 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 			{ type: 'separator' },
 			// test-workbench_change end
 			{
-				label: localize('desktopPet.hide', "Hide Desktop Pet"),
+				label: localize('desktopPet.hide', "Hide TestAgent Pet"),
 				click: () => {
 					this._enabled = false;
 					this._storeEnabled(false);
@@ -369,10 +375,26 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 	 * menu, so the renderer can forward states unconditionally.
 	 */
 	setState(state: DesktopPetState): void {
+		// Remember the latest state even while following is off, so enabling the
+		// mode can immediately reflect a task that is already running.
+		this._lastState = state;
 		if (!this._followEvents) {
 			return;
 		}
 		this._pushState(state);
+	}
+
+	/**
+	 * The state to show the instant following is enabled. A running task
+	 * (`working`) or a pending prompt (`notification`) is replayed; a finished
+	 * transient flash (`complete`) resolves to idle, and no state yet is idle.
+	 */
+	private _currentFollowState(): DesktopPetState {
+		const state = this._lastState;
+		if (!state || state === 'complete') {
+			return 'idle';
+		}
+		return state;
 	}
 
 	/** Send a state to the pet page regardless of the follow switch (used to reset to idle). */
