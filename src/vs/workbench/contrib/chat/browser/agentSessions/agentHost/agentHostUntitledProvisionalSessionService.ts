@@ -1089,13 +1089,20 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 *   when the `chat.tools.global.autoApprove` policy is off. The local-only
 	 *   `chat.permissions.default` setting is NOT used.
 	 *
-	 * Skipped entirely in the Agents window, where the sessions provider
-	 * supplies config via `request.agentHostSessionConfig` instead.
+	 * In the Agents window the sessions provider normally supplies the full
+	 * config via `request.agentHostSessionConfig`, so only the isolation seed is
+	 * returned there. This matters for the desktop-pet conversation window: it
+	 * is an Agents-window auxiliary window opened directly as a chat editor (no
+	 * sessions provider in the loop), and without the seed the agent host falls
+	 * back to its worktree default for Git repositories.
 	 */
 	private _getInitialConfig(): Record<string, unknown> | undefined {
+		// test-workbench_change start - keep the desktop-pet chat defaulting to
+		// folder isolation instead of the agent host's worktree default.
 		if (this._environmentService.isSessionsWindow) {
-			return undefined;
+			return { [SessionConfigKey.Isolation]: 'folder' };
 		}
+		// test-workbench_change end
 		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
 
 		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
