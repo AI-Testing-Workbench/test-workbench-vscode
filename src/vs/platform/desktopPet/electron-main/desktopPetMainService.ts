@@ -35,7 +35,7 @@ export interface IDesktopPetMainService {
 	openChat(): Promise<void>;
 }
 
-const PET_SIZE = 200;
+const PET_SIZE = 165;
 const SCREEN_MARGIN = 24;
 const CURSOR_POLL_MS = 60;
 const POINTER_EPSILON = 1;
