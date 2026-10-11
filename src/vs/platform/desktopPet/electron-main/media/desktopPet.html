@@ -149,8 +149,9 @@
 	function unitRatio() { return LAYOUT.visibleHeightRatio / LAYOUT.contentBoxHeight; }
 
 	function baseArtRect() {
-		var W = window.innerWidth || 200;
-		var H = window.innerHeight || 200;
+		// Fallback matches PET_SIZE in desktopPetMainService.ts.
+		var W = window.innerWidth || 165;
+		var H = window.innerHeight || 165;
 		var u = unitRatio();
 		var width = W * VIEW_BOX.width * u;
 		var height = H * VIEW_BOX.height * u;

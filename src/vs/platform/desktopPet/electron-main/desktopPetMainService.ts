@@ -129,6 +129,15 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		}
 		this._dragging = true;
 		this._dragOffset = undefined;
+		// Reset any size drift accumulated from previous moves so the pet does
+		// not stay magnified from an earlier drag.
+		const win = this._window;
+		if (win && !win.isDestroyed()) {
+			const [w, h] = win.getSize();
+			if (w !== PET_SIZE || h !== PET_SIZE) {
+				win.setSize(PET_SIZE, PET_SIZE, false);
+			}
+		}
 	};
 
 	private readonly _onDragMove = (event: IpcMainEvent, screenX: number, screenY: number) => {
@@ -143,7 +152,16 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		if (!this._dragOffset) {
 			this._dragOffset = { x: screenX - winX, y: screenY - winY };
 		}
-		win.setPosition(Math.round(screenX - this._dragOffset.x), Math.round(screenY - this._dragOffset.y), false);
+		// Pin the size while moving. On Windows, moving a transparent frameless
+		// window via setPosition lets its bounds drift (grow a little on every
+		// move); the renderer then re-reads window.innerWidth when it swaps back
+		// to idle and magnifies the pet. setBounds forces the fixed pet size.
+		win.setBounds({
+			x: Math.round(screenX - this._dragOffset.x),
+			y: Math.round(screenY - this._dragOffset.y),
+			width: PET_SIZE,
+			height: PET_SIZE
+		}, false);
 	};
 
 	private readonly _onDragEnd = (event: IpcMainEvent) => {
@@ -431,6 +449,18 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		});
 		win.on('hide', () => this._stopCursorTracking());
 		win.on('show', () => this._startCursorTracking());
+		// The pet window must always stay PET_SIZE. On Windows, moving the
+		// transparent frameless window can drift its bounds; snap any unexpected
+		// size change back (the renderer sizes the pet off window.innerWidth).
+		win.on('resize', () => {
+			if (win.isDestroyed()) {
+				return;
+			}
+			const [w, h] = win.getSize();
+			if (Math.round(w) !== PET_SIZE || Math.round(h) !== PET_SIZE) {
+				win.setSize(PET_SIZE, PET_SIZE, false);
+			}
+		});
 		win.webContents.on('render-process-gone', (_e, details) => {
 			this.logService.error('[desktopPet] renderer gone', details.reason);
 		});
