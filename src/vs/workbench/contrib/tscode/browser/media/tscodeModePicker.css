@@ -1,0 +1,169 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+/* test-workbench_change - new file */
+/* TSCode first-run mode picker (首次启动模式选择弹窗) */
+
+.tscode-mode-picker-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 10000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background-color: rgba(0, 0, 0, 0.45);
+}
+
+.tscode-mode-picker-dialog {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+	box-sizing: border-box;
+	width: 720px;
+	max-width: 90vw;
+	padding: 28px;
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, rgba(128, 128, 128, 0.35)));
+	border-radius: 8px;
+	background-color: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+	color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+	box-shadow: 0 8px 32px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.4));
+}
+
+.tscode-mode-picker-title {
+	font-size: 18px;
+	font-weight: 600;
+	text-align: center;
+}
+
+.tscode-mode-picker-subtitle {
+	margin-top: -12px;
+	font-size: 13px;
+	opacity: 0.8;
+	text-align: center;
+}
+
+.tscode-mode-picker-options {
+	display: flex;
+	flex-direction: row;
+	gap: 16px;
+}
+
+.tscode-mode-picker-option {
+	position: relative;
+	overflow: hidden;
+	display: flex;
+	flex: 1 1 0;
+	align-items: center;
+	justify-content: center;
+	min-height: 280px;
+	padding: 24px 16px;
+	border: 1px solid var(--vscode-editorWidget-border, rgba(128, 128, 128, 0.35));
+	border-radius: 6px;
+	background-color: transparent;
+	color: inherit;
+	font-family: inherit;
+	cursor: pointer;
+}
+
+.tscode-mode-picker-option:hover {
+	border-color: var(--vscode-focusBorder, #007fd4);
+	background-color: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06));
+}
+
+.tscode-mode-picker-option:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder, #007fd4);
+}
+
+.tscode-mode-picker-option:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, #007fd4);
+	outline-offset: -1px;
+}
+
+.tscode-mode-picker-option-content {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 10px;
+}
+
+/* beat `.codicon[class*='codicon-']` (16px) from the shared codicon stylesheet */
+.monaco-workbench .tscode-mode-picker-option-icon.codicon {
+	font-size: 48px;
+	line-height: 1;
+}
+
+.tscode-mode-picker-option-label {
+	font-size: 36px;
+	font-weight: 700;
+}
+
+.tscode-mode-picker-option-desc {
+	font-size: 12px;
+	opacity: 0.75;
+}
+
+/* test-workbench_change start - empty-state icon rendered as a background */
+.tscode-mode-picker-option-bg {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	z-index: 0;
+	width: 210px;
+	height: 210px;
+	background-repeat: no-repeat;
+	background-position: center;
+	/* explicit size: some icons (sessions-icon.svg) have no intrinsic width/height, so `contain` would render nothing */
+	background-size: 100% 100%;
+	pointer-events: none;
+}
+
+/* IDE: editor empty-state (letterpress) watermark, theme-aware */
+.tscode-mode-picker-option--letterpress .tscode-mode-picker-option-bg {
+	background-image: url('../../../../browser/parts/editor/media/letterpress-light.svg');
+}
+
+.monaco-workbench.vs-dark .tscode-mode-picker-option--letterpress .tscode-mode-picker-option-bg {
+	background-image: url('../../../../browser/parts/editor/media/letterpress-dark.svg');
+}
+
+.monaco-workbench.hc-light .tscode-mode-picker-option--letterpress .tscode-mode-picker-option-bg {
+	background-image: url('../../../../browser/parts/editor/media/letterpress-hcLight.svg');
+}
+
+.monaco-workbench.hc-black .tscode-mode-picker-option--letterpress .tscode-mode-picker-option-bg {
+	background-image: url('../../../../browser/parts/editor/media/letterpress-hcDark.svg');
+}
+
+/* Agent: sessions empty-state watermark, theme-aware */
+.tscode-mode-picker-option--sessions .tscode-mode-picker-option-bg {
+	width: 150px;
+	height: 150px;
+	background-image: url('../../../../../sessions/browser/media/empty-state-light.svg');
+}
+
+.monaco-workbench.vs-dark .tscode-mode-picker-option--sessions .tscode-mode-picker-option-bg {
+	background-image: url('../../../../../sessions/browser/media/empty-state-dark.svg');
+}
+
+.monaco-workbench.hc-light .tscode-mode-picker-option--sessions .tscode-mode-picker-option-bg {
+	background-image: url('../../../../../sessions/browser/media/empty-state-hcLight.svg');
+}
+
+.monaco-workbench.hc-black .tscode-mode-picker-option--sessions .tscode-mode-picker-option-bg {
+	background-image: url('../../../../../sessions/browser/media/empty-state-hcDark.svg');
+}
+
+/* Hover: show the colored version of the background icon */
+.monaco-workbench .tscode-mode-picker-option--letterpress:hover .tscode-mode-picker-option-bg {
+	background-image: url('../../../../browser/parts/editor/media/tscode-icon.svg');
+}
+
+.monaco-workbench .tscode-mode-picker-option--sessions:hover .tscode-mode-picker-option-bg {
+	background-image: url('../../../../../sessions/browser/media/sessions-icon.svg');
+}
+/* test-workbench_change end */

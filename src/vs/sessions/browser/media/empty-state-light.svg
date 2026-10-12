@@ -1,0 +1,6 @@
+<!-- test-workbench_change: sessions empty-state watermark (light), derived from sessions-icon.svg -->
+<svg width="256" height="256" viewBox="0 0 256 256" opacity="0.1" xmlns="http://www.w3.org/2000/svg">
+<circle cx="128" cy="128" r="112" fill="none" stroke="#333333" stroke-width="12"/>
+<ellipse cx="91" cy="104" rx="15" ry="24" fill="#333333"/>
+<ellipse cx="165" cy="104" rx="15" ry="24" fill="#333333"/>
+</svg>

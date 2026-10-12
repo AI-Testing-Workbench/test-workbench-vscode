@@ -205,7 +205,8 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		}
 		const menu = Menu.buildFromTemplate([
 			{
-				label: localize('desktopPet.openChat', "Open Chat Window"),
+				// allow-any-unicode-next-line
+				label: localize('desktopPet.openChat', "打开聊天窗口"),
 				click: () => {
 					void this.openChat();
 				}
@@ -214,7 +215,8 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 			// test-workbench_change start - follow TestAgent agent events toggle
 			{
 				type: 'checkbox',
-				label: localize('desktopPet.followEvents', "Follow TestAgent Events"),
+				// allow-any-unicode-next-line
+				label: localize('desktopPet.followEvents', "跟随 TestAgent 事件"),
 				checked: this._followEvents,
 				click: (item) => {
 					this._followEvents = item.checked;
@@ -232,7 +234,8 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 			{ type: 'separator' },
 			// test-workbench_change end
 			{
-				label: localize('desktopPet.hide', "Hide TestAgent Pet"),
+				// allow-any-unicode-next-line
+				label: localize('desktopPet.hide', "隐藏 TestAgent-Bot"),
 				click: () => {
 					this._enabled = false;
 					this._storeEnabled(false);

@@ -1074,7 +1074,8 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'desktopPet.newSession',
-				title: localize2('desktopPet.newSession', "New Session"),
+				// allow-any-unicode-next-line
+				title: localize2('desktopPet.newSession', "新建会话"),
 				f1: false,
 				precondition: ChatContextKeys.enabled,
 				// Placed in the execute toolbar (right side of the input, next to
@@ -1098,7 +1099,8 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'desktopPet.switchProject',
-				title: localize2('desktopPet.switchProject', "Switch Project"),
+				// allow-any-unicode-next-line
+				title: localize2('desktopPet.switchProject', "切换工作区"),
 				f1: false,
 				precondition: ChatContextKeys.enabled,
 				menu: [{

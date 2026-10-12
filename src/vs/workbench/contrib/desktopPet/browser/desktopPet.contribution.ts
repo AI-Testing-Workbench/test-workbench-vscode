@@ -65,7 +65,7 @@ registerAction2(class extends Action2 {
 
 // test-workbench_change start - agent-event driven pet states
 // Keep this in sync with `DesktopPetState` in vs/platform/desktopPet and with
-// the `testagent-pet` backend plugin. Only three triggers are forwarded:
+// the `testagent-bot` backend plugin. Only three triggers are forwarded:
 //   working      -> thinking.svg     (held while a turn/tool runs)
 //   complete     -> attention.svg    (turn finished; then idle)
 //   notification -> notification.svg (permission asked / question asked)

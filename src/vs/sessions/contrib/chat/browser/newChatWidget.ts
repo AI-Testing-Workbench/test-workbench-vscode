@@ -547,7 +547,7 @@ export class NewChatWidget extends Disposable {
 		let desktopPetVisible = true;
 		const desktopPetAction = this._register(new Action(
 			'sessions.desktopPet.toggle',
-			localize('desktopPetAction', "TestAgent-Pet"),
+			localize('desktopPetAction', "TestAgent-Bot"),
 			undefined,
 			true,
 			async () => {
@@ -572,7 +572,7 @@ export class NewChatWidget extends Disposable {
 				menuId: Menus.SessionChatBackgroundContext,
 				contextKeyService: this.contextKeyService,
 				getAnchor: () => anchor,
-				getActions: () => (isWeb ? [] : [desktopPetAction]), // test-workbench_change: hide Aquarium / Pet; show TestAgent-Pet on desktop
+				getActions: () => (isWeb ? [] : [desktopPetAction]), // test-workbench_change: hide Aquarium / Pet; show TestAgent-Bot on desktop
 				getCheckedActionsRepresentation: () => 'checkbox',
 			});
 		}));

@@ -377,10 +377,14 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	private async _promptForCommitMessage(): Promise<Record<string, unknown> | undefined> {
 		while (true) {
 			const { confirmed, values } = await this._dialogService.input({
-				message: localize('sessions.commitMessage.message', "Commit message"),
-				detail: localize('sessions.commitMessage.detail', "Enter the commit message for these changes. A message is required to commit."),
-				inputs: [{ placeholder: localize('sessions.commitMessage.placeholder', "Commit message") }],
-				primaryButton: localize('sessions.commitMessage.confirm', "Commit"),
+				// allow-any-unicode-next-line
+				message: localize('sessions.commitMessage.message', "提交信息"),
+				// allow-any-unicode-next-line
+				detail: localize('sessions.commitMessage.detail', "请输入这些更改的提交信息。提交时必须填写提交信息。"),
+				// allow-any-unicode-next-line
+				inputs: [{ placeholder: localize('sessions.commitMessage.placeholder', "提交信息") }],
+				// allow-any-unicode-next-line
+				primaryButton: localize('sessions.commitMessage.confirm', "提交"),
 			});
 			if (!confirmed) {
 				return undefined;
