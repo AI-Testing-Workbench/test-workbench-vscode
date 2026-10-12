@@ -45,6 +45,7 @@ import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../.
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js'; // test-workbench_change
 import { IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js'; // test-workbench_change: persist pet dialog bounds
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js'; // test-workbench_change: persist pet dialog bounds
+import { FocusMode } from '../../../../../platform/native/common/native.js'; // test-workbench_change: bring pet dialog to front
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js'; // test-workbench_change
 import { IWorkspacesService, isRecentFolder } from '../../../../../platform/workspaces/common/workspaces.js'; // test-workbench_change
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js'; // test-workbench_change
@@ -928,6 +929,7 @@ export function registerChatActions() {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 			const auxiliaryWindowService = accessor.get(IAuxiliaryWindowService);
 			const storageService = accessor.get(IStorageService);
+			const hostService = accessor.get(IHostService);
 			enablementService.setEnabledOverride?.(true);
 			const sessionType = `agent-host-${TESTAGENT_AGENT_PROVIDER_ID}`;
 
@@ -941,14 +943,18 @@ export function registerChatActions() {
 				// The pet dialog lives in an auxiliary window, but closing that window
 				// moves its chat editor back into the main window (see AuxiliaryEditorPart).
 				// So "is the dialog open" must be checked against an auxiliary window, not
-				// just the session. While it is up, reveal/focus it (this raises the
-				// auxiliary window to the front) so only one dialog ever exists.
+				// just the session. While it is up, bring the window to the front so only
+				// one dialog ever exists.
 				if (desktopPetChatResource) {
 					const identifier = editorService.findEditors(desktopPetChatResource)[0];
 					const group = identifier ? editorGroupsService.getGroup(identifier.groupId) : undefined;
-					const isDialogOpen = !!group && !!auxiliaryWindowService.getWindow(group.windowId);
-					if (isDialogOpen) {
-						await widgetService.openSession(desktopPetChatResource, AUX_WINDOW_GROUP, { pinned: true, revealIfOpened: true, auxiliary: DESKTOP_PET_AUXILIARY });
+					const auxiliaryWindow = group ? auxiliaryWindowService.getWindow(group.windowId) : undefined;
+					if (auxiliaryWindow) {
+						// Focus the window directly. Going through the editor reveal path
+						// (openSession with `revealIfOpened`) awaits a focus transfer that
+						// can never settle when the window cannot take focus, which would
+						// wedge this action and stop the pet from opening the dialog again.
+						await hostService.focus(auxiliaryWindow.window, { mode: FocusMode.Force });
 						trackDesktopPetBounds(storageService, editorService, editorGroupsService, auxiliaryWindowService, desktopPetChatResource);
 						return;
 					}
