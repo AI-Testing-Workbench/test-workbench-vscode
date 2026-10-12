@@ -313,8 +313,8 @@ function makeEyes(p, mode, openness, offX, offY) {
     const baseH = 5;
     const minH = 0.3;
     const h = Math.max(minH, baseH * openness);
-    lEye = `<ellipse cx="${lcx}" cy="${cy}" rx="${(Math.max(0.08, h * 0.276)).toFixed(2)}" ry="${(Math.max(0.15, h * 0.43)).toFixed(2)}" fill="#2979ff" stroke="#fff" stroke-width="0.08" stroke-opacity="0.7"/>`;
-    rEye = `<ellipse cx="${rcx}" cy="${cy}" rx="${(Math.max(0.08, h * 0.276)).toFixed(2)}" ry="${(Math.max(0.15, h * 0.43)).toFixed(2)}" fill="#2979ff" stroke="#fff" stroke-width="0.08" stroke-opacity="0.7"/>`;
+    lEye = `<ellipse cx="${lcx}" cy="${cy}" rx="${(Math.max(0.08, h * 0.276)).toFixed(2)}" ry="${(Math.max(0.15, h * 0.43)).toFixed(2)}" fill="#2979ff"/>`;
+    rEye = `<ellipse cx="${rcx}" cy="${cy}" rx="${(Math.max(0.08, h * 0.276)).toFixed(2)}" ry="${(Math.max(0.15, h * 0.43)).toFixed(2)}" fill="#2979ff"/>`;
   }
 
   return `<g class="eyes" transform="translate(${offX.toFixed(2)} ${offY.toFixed(2)})">${lEye}${rEye}</g>`;

@@ -226,17 +226,17 @@
 		var swap = function () {
 			if (myToken !== token || pending !== el) return;
 			var previous = current;
-			if (fadeMs > 0) {
-				el.style.transition = 'opacity ' + fadeMs + 'ms ease-in';
-				void el.offsetHeight;
-			} else {
-				el.style.transition = 'none';
-			}
+			// Show the incoming frame instantly and keep the outgoing one
+			// underneath for a beat. Animating the opacity of an <object> (an
+			// embedded SVG document) promotes it to its own compositing layer,
+			// which flashes a blank frame on first paint — that is the flicker
+			// seen when swapping states (e.g. drag -> idle). With the incoming
+			// frame opaque on top, the outgoing one only has to be removed.
+			el.style.transition = 'none';
 			el.style.opacity = '1';
 			if (previous && previous !== el) {
-				previous.style.transition = 'opacity ' + fadeMs + 'ms ease-out';
-				previous.style.opacity = '0';
-				setTimeout(function () { release(previous); }, fadeMs);
+				var previousEl = previous;
+				setTimeout(function () { release(previousEl); }, Math.max(fadeMs, 0));
 			}
 			pending = null;
 			current = el;

@@ -28,7 +28,7 @@
     <circle cx="12" cy="12" r="10" fill="url(#bodyGrad)"/>
     <circle cx="12" cy="12" r="10.75" fill="none" stroke="url(#borderGrad)" stroke-width="1.5"/>
     <!-- Happy curved eyes ^_^ (Cloudling base eye size / spacing) -->
-    <path d="M7.776 11.104 Q8.928 8.8 10.08 11.104" stroke="#2979ff" stroke-width="1.075" fill="none" stroke-linecap="round"/>
-    <path d="M13.92 11.104 Q15.072 8.8 16.224 11.104" stroke="#2979ff" stroke-width="1.075" fill="none" stroke-linecap="round"/>
+    <path d="M7.54 11.104 Q8.92 8.8 10.30 11.104" stroke="#2979ff" stroke-width="1.25" fill="none" stroke-linecap="round"/>
+    <path d="M13.70 11.104 Q15.08 8.8 16.46 11.104" stroke="#2979ff" stroke-width="1.25" fill="none" stroke-linecap="round"/>
   </g>
 </svg>

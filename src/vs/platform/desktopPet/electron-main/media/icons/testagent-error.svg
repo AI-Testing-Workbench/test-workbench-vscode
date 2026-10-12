@@ -29,10 +29,10 @@
     <circle cx="12" cy="12" r="10" fill="url(#bodyGrad)"/>
     <circle cx="12" cy="12" r="10.75" fill="none" stroke="url(#borderGrad)" stroke-width="1.5"/>
     <!-- Sad curved eyes (Cloudling base eye size / spacing) -->
-    <path d="M7.776 11.104 Q8.928 12.64 10.08 11.104" stroke="#ff1744" stroke-width="1.075" fill="none" stroke-linecap="round"/>
-    <path d="M13.92 11.104 Q15.072 12.64 16.224 11.104" stroke="#ff1744" stroke-width="1.075" fill="none" stroke-linecap="round"/>
+    <path d="M7.54 11.104 Q8.92 12.64 10.30 11.104" stroke="#ff1744" stroke-width="1.25" fill="none" stroke-linecap="round"/>
+    <path d="M13.70 11.104 Q15.08 12.64 16.46 11.104" stroke="#ff1744" stroke-width="1.25" fill="none" stroke-linecap="round"/>
     <!-- Tears -->
-    <ellipse class="tear" cx="8.928" cy="12.256" rx="0.845" ry="1.382" fill="rgba(41,121,255,0.5)"/>
-    <ellipse class="tear" cx="15.072" cy="12.256" rx="0.845" ry="1.382" fill="rgba(41,121,255,0.5)" style="animation-delay: 0.3s"/>
+    <ellipse class="tear" cx="8.92" cy="12.256" rx="0.845" ry="1.382" fill="rgba(41,121,255,0.5)"/>
+    <ellipse class="tear" cx="15.08" cy="12.256" rx="0.845" ry="1.382" fill="rgba(41,121,255,0.5)" style="animation-delay: 0.3s"/>
   </g>
 </svg>

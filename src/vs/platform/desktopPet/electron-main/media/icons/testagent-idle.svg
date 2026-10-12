@@ -33,10 +33,6 @@
         <stop offset="0.5" stop-color="#7A9DFF"/>
         <stop offset="1" stop-color="#3941FF"/>
       </linearGradient>
-      <radialGradient id="hi-grad" cx="0.45" cy="0.25" r="0.55">
-        <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
-        <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-      </radialGradient>
       <filter id="drop" x="-40%" y="-40%" width="180%" height="180%">
         <feDropShadow class="cloud-drop-shadow" id="drop-shadow" dx="0" dy="0.6" stdDeviation="0.8" flood-color="#3941FF" flood-opacity="0.18"/>
       </filter>
@@ -44,10 +40,6 @@
         <feGaussianBlur stdDeviation="0.16"/>
       </filter>
       <path id="cloud-shape" d="M 12 2 A 10 10 0 1 1 12 22 A 10 10 0 1 1 12 2 Z"/>
-      <clipPath id="cloud-clip">
-        <use href="#cloud-shape"/>
-      
-      </clipPath>
     </defs>
 
     <!-- 云朵 layer (rotate + breath scale + distance scale, 都围绕 12,12) -->
@@ -55,7 +47,6 @@
       <!-- edge-system removed for clean testagent style -->
       <g filter="url(#drop)">
         <use href="#cloud-shape" fill="url(#body-grad)"/>
-        <rect x="1" y="2" width="22" height="11" fill="url(#hi-grad)" clip-path="url(#cloud-clip)"/>
         <circle id="testagent-border-circle" cx="12" cy="12" r="10.75" fill="none" stroke="url(#testagent-border)" stroke-width="1.5"/>
       </g>
     </g>

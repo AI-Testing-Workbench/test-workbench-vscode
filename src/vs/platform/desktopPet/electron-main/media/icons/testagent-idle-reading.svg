@@ -124,8 +124,8 @@
       </g>
       <g id="eyeLayer">
         <g id="capsuleEyes">
-          <ellipse id="capL" cx="8.92" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff" stroke="#fff" stroke-width="0.08" stroke-opacity="0.55"/>
-          <ellipse id="capR" cx="15.08" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff" stroke="#fff" stroke-width="0.08" stroke-opacity="0.55"/>
+          <ellipse id="capL" cx="8.92" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff"/>
+          <ellipse id="capR" cx="15.08" cy="9.95" rx="1.38" ry="2.15" fill="#2979ff"/>
         </g>
       </g>
     </g>

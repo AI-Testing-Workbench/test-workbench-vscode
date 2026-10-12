@@ -212,7 +212,7 @@ function buildParams() {
 function setEyeCapsule(g, widenFactor = 1, heightFactor = 1, tilt = 0) {
   const rx = 1.38 * widenFactor;
   const ry = 2.15 * heightFactor;
-  g.innerHTML = `<ellipse cx="0" cy="0" rx="${rx.toFixed(3)}" ry="${ry.toFixed(3)}" fill="${EYE_GRAD}" stroke="#fff" stroke-width="0.08" stroke-opacity="0.55" transform="rotate(${tilt.toFixed(3)})"/>`;
+  g.innerHTML = `<ellipse cx="0" cy="0" rx="${rx.toFixed(3)}" ry="${ry.toFixed(3)}" fill="${EYE_GRAD}" transform="rotate(${tilt.toFixed(3)})"/>`;
 }
 function setEyeGT(g) {
   // > chevron 向右
