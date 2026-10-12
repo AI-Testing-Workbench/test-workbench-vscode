@@ -18,7 +18,8 @@
 		'desktopPet:drag-start',
 		'desktopPet:drag-move',
 		'desktopPet:drag-end',
-		'desktopPet:context-menu'
+		'desktopPet:context-menu',
+		'desktopPet:click' // test-workbench_change - open/focus the conversation dialog
 	]);
 
 	const ALLOWED_ON = new Set<string>([

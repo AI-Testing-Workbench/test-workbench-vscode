@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js'; // test-workbench_change: persist pet dialog bounds
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
@@ -42,6 +43,8 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../commo
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js'; // test-workbench_change: IEditorService
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js'; // test-workbench_change
+import { IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js'; // test-workbench_change: persist pet dialog bounds
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js'; // test-workbench_change: persist pet dialog bounds
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js'; // test-workbench_change
 import { IWorkspacesService, isRecentFolder } from '../../../../../platform/workspaces/common/workspaces.js'; // test-workbench_change
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js'; // test-workbench_change
@@ -842,6 +845,70 @@ export function registerChatActions() {
 	// override only starts the backend / registers the testagent session type —
 	// it does not flip the `agentHostEnabled` UI context key, so the editor Chat
 	// view stays hidden.
+	//
+	// The pet owns at most one dialog: the session resource it opened is
+	// remembered so a further activation reveals that same compact window (and
+	// raises it to the front) instead of spawning a second one.
+	const DESKTOP_PET_AUXILIARY: IChatEditorOptions['auxiliary'] = { compact: true, bounds: { width: 640, height: 640 } };
+	let desktopPetChatResource: URI | undefined;
+	let desktopPetChatOpening = false;
+
+	// The pet dialog's bounds are persisted so it reopens where the user last left
+	// it: VS Code only persists auxiliary window bounds on shutdown, not when a
+	// dialog is closed at runtime, so without this every reopen falls back to the
+	// default position (top-left on Windows).
+	const DESKTOP_PET_CHAT_BOUNDS_KEY = 'desktopPet.chatWindowBounds';
+
+	type DesktopPetChatBounds = { x: number; y: number; width: number; height: number };
+
+	function readDesktopPetBounds(storageService: IStorageService): DesktopPetChatBounds | undefined {
+		const stored = storageService.getObject(DESKTOP_PET_CHAT_BOUNDS_KEY, StorageScope.APPLICATION) as Partial<DesktopPetChatBounds> | undefined;
+		if (stored && typeof stored.x === 'number' && typeof stored.y === 'number' && typeof stored.width === 'number' && typeof stored.height === 'number') {
+			return { x: stored.x, y: stored.y, width: stored.width, height: stored.height };
+		}
+		return undefined;
+	}
+
+	// Poll the dialog's live bounds while it is open and persist changes. We poll
+	// rather than rely on an auxiliary window close event because moving a window
+	// emits no event and the close event does not reach the renderer reliably.
+	let desktopPetBoundsPollId: number | undefined;
+	function stopDesktopPetBoundsPoll(): void {
+		if (desktopPetBoundsPollId !== undefined) {
+			mainWindow.clearInterval(desktopPetBoundsPollId);
+			desktopPetBoundsPollId = undefined;
+		}
+	}
+
+	function trackDesktopPetBounds(storageService: IStorageService, editorService: IEditorService, editorGroupsService: IEditorGroupsService, auxiliaryWindowService: IAuxiliaryWindowService, resource: URI): void {
+		const groupId = editorService.findEditors(resource)[0]?.groupId;
+		const windowId = groupId !== undefined ? editorGroupsService.getGroup(groupId)?.windowId : undefined;
+		if (windowId === undefined) {
+			return;
+		}
+
+		stopDesktopPetBoundsPoll();
+		let last: string | undefined;
+		const read = () => {
+			const auxiliaryWindow = auxiliaryWindowService.getWindow(windowId);
+			if (!auxiliaryWindow) {
+				stopDesktopPetBoundsPoll(); // the dialog is gone
+				return;
+			}
+
+			const bounds = auxiliaryWindow.createState().bounds;
+			if (bounds && typeof bounds.x === 'number' && typeof bounds.y === 'number' && typeof bounds.width === 'number' && typeof bounds.height === 'number') {
+				const key = `${bounds.x},${bounds.y},${bounds.width},${bounds.height}`;
+				if (key !== last) {
+					last = key;
+					storageService.store(DESKTOP_PET_CHAT_BOUNDS_KEY, { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }, StorageScope.APPLICATION, StorageTarget.USER);
+				}
+			}
+		};
+		read();
+		desktopPetBoundsPollId = mainWindow.setInterval(read, 700);
+	}
+
 	registerAction2(class DesktopPetOpenChatWindowAction extends Action2 {
 		constructor() {
 			super({
@@ -857,29 +924,71 @@ export function registerChatActions() {
 			const enablementService = accessor.get(IAgentHostEnablementService);
 			const chatSessionsService = accessor.get(IChatSessionsService);
 			const widgetService = accessor.get(IChatWidgetService);
+			const editorService = accessor.get(IEditorService);
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+			const auxiliaryWindowService = accessor.get(IAuxiliaryWindowService);
+			const storageService = accessor.get(IStorageService);
 			enablementService.setEnabledOverride?.(true);
 			const sessionType = `agent-host-${TESTAGENT_AGENT_PROVIDER_ID}`;
 
-			// test-workbench_change: 刚开启 Agent Host 时,testagent 的会话类型/内容提供者
-			// 还在异步注册,编辑器解析器尚未为该 scheme 注册 —— 此时直接 openSession 会被
-			// 当成普通文本资源打开,报 "Unable to resolve resource agent-host-testagent:..."。
-			// 等内容提供者 scheme 注册完成(与编辑器解析器注册同一事件)后再打开,避免竞态。
-			if (!chatSessionsService.getContentProviderSchemes().includes(sessionType)) {
-				const waitStore = new DisposableStore();
-				try {
-					await Promise.race([
-						Event.toPromise(Event.filter(chatSessionsService.onDidChangeContentProviderSchemes, e => e.added.includes(sessionType)), waitStore),
-						timeout(15000),
-					]);
-				} finally {
-					waitStore.dispose();
-				}
+			// Serialize activations: a click that arrives while a previous one is
+			// still resolving must not open a second dialog.
+			if (desktopPetChatOpening) {
+				return;
 			}
+			desktopPetChatOpening = true;
+			try {
+				// The pet dialog lives in an auxiliary window, but closing that window
+				// moves its chat editor back into the main window (see AuxiliaryEditorPart).
+				// So "is the dialog open" must be checked against an auxiliary window, not
+				// just the session. While it is up, reveal/focus it (this raises the
+				// auxiliary window to the front) so only one dialog ever exists.
+				if (desktopPetChatResource) {
+					const identifier = editorService.findEditors(desktopPetChatResource)[0];
+					const group = identifier ? editorGroupsService.getGroup(identifier.groupId) : undefined;
+					const isDialogOpen = !!group && !!auxiliaryWindowService.getWindow(group.windowId);
+					if (isDialogOpen) {
+						await widgetService.openSession(desktopPetChatResource, AUX_WINDOW_GROUP, { pinned: true, revealIfOpened: true, auxiliary: DESKTOP_PET_AUXILIARY });
+						trackDesktopPetBounds(storageService, editorService, editorGroupsService, auxiliaryWindowService, desktopPetChatResource);
+						return;
+					}
 
-			const resource = getNewChatSessionResource(sessionType);
-			const auxiliary = { compact: true, bounds: { width: 640, height: 640 } };
+					// The dialog was closed: remove the chat editor it left behind in the
+					// main window so a single fresh dialog can open at the stored position.
+					if (identifier) {
+						await editorService.closeEditor(identifier, { preserveFocus: true });
+					}
+					desktopPetChatResource = undefined;
+				}
 
-			await widgetService.openSession(resource, AUX_WINDOW_GROUP, { pinned: true, auxiliary });
+				// test-workbench_change: 刚开启 Agent Host 时,testagent 的会话类型/内容提供者
+				// 还在异步注册,编辑器解析器尚未为该 scheme 注册 —— 此时直接 openSession 会被
+				// 当成普通文本资源打开,报 "Unable to resolve resource agent-host-testagent:..."。
+				// 等内容提供者 scheme 注册完成(与编辑器解析器注册同一事件)后再打开,避免竞态。
+				if (!chatSessionsService.getContentProviderSchemes().includes(sessionType)) {
+					const waitStore = new DisposableStore();
+					try {
+						await Promise.race([
+							Event.toPromise(Event.filter(chatSessionsService.onDidChangeContentProviderSchemes, e => e.added.includes(sessionType)), waitStore),
+							timeout(15000),
+						]);
+					} finally {
+						waitStore.dispose();
+					}
+				}
+
+				const resource = getNewChatSessionResource(sessionType);
+				desktopPetChatResource = resource;
+
+				// Restore the position/size the dialog was last closed at, if any.
+				const storedBounds = readDesktopPetBounds(storageService);
+				const auxiliary: IChatEditorOptions['auxiliary'] = storedBounds ? { compact: true, bounds: storedBounds } : DESKTOP_PET_AUXILIARY;
+
+				await widgetService.openSession(resource, AUX_WINDOW_GROUP, { pinned: true, auxiliary });
+				trackDesktopPetBounds(storageService, editorService, editorGroupsService, auxiliaryWindowService, resource);
+			} finally {
+				desktopPetChatOpening = false;
+			}
 		}
 	});
 	// test-workbench_change end

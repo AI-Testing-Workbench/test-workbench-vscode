@@ -105,29 +105,6 @@
 		reactions: {
 			drag: { file: 'testagent-drag.svg', duration: 500 }
 		},
-		// Each click advances to the next animation in this list (round-robin).
-		clickAnimations: [
-			'testagent-attention.svg',
-			'testagent-notification.svg',
-			'testagent-building.svg',
-			'testagent-juggling.svg',
-			'testagent-conducting.svg',
-			'testagent-idle.svg',
-			'testagent-idle-reading.svg',
-			'testagent-idle-to-dozing.svg',
-			'testagent-idle-to-sleeping.svg',
-			'testagent-dengyan.svg',
-			'testagent-drag.svg',
-			'testagent-error.svg',
-			'testagent-float.svg',
-			'testagent-happy.svg',
-			'testagent-sweeping.svg',
-			'testagent-thinking.svg',
-			'testagent-xuanzhuan.svg',
-			'testagent-yantiao.svg',
-			'idle-follow.svg',
-			'idle-look.svg'
-		],
 		timings: {
 			// Idle → yawn (idle-to-dozing) → hold doze pose.
 			dozeTimeout: 20000,
@@ -513,29 +490,6 @@
 		armSleep();
 	}
 
-	// ── Reactions ──
-	function playReaction(reaction) {
-		if (!reaction || !reaction.file) return;
-		reacting = true;
-		awake = true;
-		idleAnimActive = false;
-		sleepPending = false;
-		clearIdleAnim();
-		clearSleepTimers();
-		show(reaction.file, { fadeMs: 100, force: true });
-		if (reactTimer) clearTimeout(reactTimer);
-		// Hold for whole animation cycles so the reaction finishes cleanly.
-		var holdMs = alignToCycles(reaction.file, reaction.duration || 3000);
-		reactTimer = setTimeout(function () {
-			reactTimer = null;
-			reacting = false;
-			showIdle(120);
-			lastActivityAt = Date.now();
-			scheduleIdleAnim();
-			armSleep();
-		}, holdMs);
-	}
-
 	// ── Agent-event driven state (TestAgent "follow events" mode) ──
 	// Three triggers are forwarded: `working` (held until the agent moves on),
 	// `notification` (permission/question, held until the user responds) and
@@ -546,8 +500,8 @@
 	var lastExternalState = null;
 	var externalReturnTimer = null;
 	// test-workbench_change - true while the pet is displaying an agent-driven
-	// state (working / notification / complete). While true, the click-to-switch
-	// animation is suppressed and a drag restores the followed state on release.
+	// state (working / notification / complete). While true, a drag restores the
+	// followed state on release instead of resetting the pet to idle.
 	var agentActive = false;
 
 	function clearExternalReturn() {
@@ -566,8 +520,8 @@
 		clearExternalReturn();
 		clearIdleAnim();
 		clearSleepTimers();
-		// An agent event takes over the pet: drop any pending click reaction so
-		// its timer cannot fire later and reset the pet to idle mid-follow.
+		// An agent event takes over the pet: drop any pending transient timer so
+		// it cannot fire later and reset the pet to idle mid-follow.
 		if (reactTimer) { clearTimeout(reactTimer); reactTimer = null; }
 
 		if (state === 'idle' || state === 'sleeping' || state === 'yawning') {
@@ -629,7 +583,6 @@
 	var pressed = false;
 	var didDrag = false;
 	var startX = 0, startY = 0, lastX = 0, lastY = 0;
-	var clickIndex = 0;
 
 	pet.addEventListener('pointerdown', function (e) {
 		if (e.button !== 0) return;
@@ -699,19 +652,14 @@
 		if (ipc) ipc.send('desktopPet:context-menu');
 	});
 
-	// Each click advances to the next animation in the round-robin list and
-	// plays it immediately (further clicks keep advancing). The conversation
-	// window is opened from the pet's native context menu, not on click.
+	// test-workbench_change start - clicking the pet opens the conversation
+	// dialog instead of switching animations. The main process owns the dialog
+	// so only one ever exists; each click brings it to the front if it is
+	// already open.
 	function handleClick() {
-		// test-workbench_change - an active agent event owns the pet; a click
-		// must not switch away from the followed animation.
-		if (agentActive) return;
-		var list = THEME.clickAnimations || [];
-		if (!list.length) return;
-		var file = list[clickIndex % list.length];
-		clickIndex = (clickIndex + 1) % list.length;
-		playReaction({ file: file, duration: ANIM_PERIOD_MS[file] || 3000 });
+		if (ipc) ipc.send('desktopPet:click');
 	}
+	// test-workbench_change end
 
 	window.addEventListener('beforeunload', function () {
 		clearIdleAnim();

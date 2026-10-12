@@ -185,6 +185,16 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 	};
 	// test-workbench_change end
 
+	// test-workbench_change start - clicking the pet opens (or raises) the
+	// conversation dialog. Only one dialog ever exists; see DesktopPetOpenChatWindowAction.
+	private readonly _onClick = (event: IpcMainEvent) => {
+		if (!this._isPetSender(event)) {
+			return;
+		}
+		void this.openChat();
+	};
+	// test-workbench_change end
+
 	private readonly _onContextMenu = (event: IpcMainEvent) => {
 		if (!this._isPetSender(event)) {
 			return;
@@ -613,6 +623,7 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		ipcMain.on('desktopPet:drag-move', this._onDragMove);
 		ipcMain.on('desktopPet:drag-end', this._onDragEnd);
 		ipcMain.on('desktopPet:context-menu', this._onContextMenu);
+		ipcMain.on('desktopPet:click', this._onClick); // test-workbench_change
 	}
 
 	private _removeIpc(): void {
@@ -620,6 +631,7 @@ export class DesktopPetMainService extends Disposable implements IDesktopPetMain
 		ipcMain.removeListener('desktopPet:drag-move', this._onDragMove);
 		ipcMain.removeListener('desktopPet:drag-end', this._onDragEnd);
 		ipcMain.removeListener('desktopPet:context-menu', this._onContextMenu);
+		ipcMain.removeListener('desktopPet:click', this._onClick); // test-workbench_change
 	}
 
 	private _isPetSender(event: IpcMainEvent): boolean {
