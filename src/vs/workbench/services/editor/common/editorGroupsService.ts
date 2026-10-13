@@ -678,7 +678,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Opens a new window with a full editor part instantiated
 	 * in there at the optional position and size on screen.
 	 */
-	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle>; compact?: boolean; alwaysOnTop?: boolean }): Promise<IAuxiliaryEditorPart>;
+	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle>; compact?: boolean; alwaysOnTop?: boolean; hideOnClose?: boolean; closeEditorsOnClose?: boolean /* test-workbench_change */ }): Promise<IAuxiliaryEditorPart>;
 
 	/**
 	 * Creates a modal editor part that shows in a modal overlay

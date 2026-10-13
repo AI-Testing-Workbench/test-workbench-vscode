@@ -5,6 +5,7 @@
 
 import { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
 import { Event } from '../../../base/common/event.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
@@ -13,6 +14,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IStateService } from '../../state/node/state.js';
 import { hasNativeTitlebar, TitlebarStyle } from '../../window/common/window.js';
 import { IBaseWindow, WindowMode } from '../../window/electron-main/window.js';
+import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BaseWindow } from '../../windows/electron-main/windowImpl.js';
 
 export interface IAuxiliaryWindow extends IBaseWindow {
@@ -38,11 +40,13 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		private readonly webContents: WebContents,
 		private readonly windowOptions: BrowserWindowConstructorOptions | undefined,
 		private readonly disableMaximize: boolean,
+		private readonly hideOnClose: boolean, // test-workbench_change
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStateService stateService: IStateService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService // test-workbench_change
 	) {
 		super(configurationService, stateService, environmentMainService, logService);
 
@@ -118,6 +122,33 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			if (this.disableMaximize) {
 				this._register(Event.fromNodeEventEmitter(window, 'maximize')(() => window.unmaximize()));
 			}
+
+			// test-workbench_change start - the desktop-pet conversation popup must
+			// not be destroyed while its owner workbench window is minimized:
+			// destroying a `window.open` popup makes Electron/Chromium focus the
+			// opener, which restores (reopens) the minimized owner. Hide instead;
+			// the window is really closed once quit is requested or its owner closes.
+			if (this.hideOnClose) {
+				const onClose = (e: Electron.Event) => {
+					if (this.lifecycleMainService.quitRequested) {
+						return; // allow close while quitting
+					}
+
+					const owner = this.parentId !== -1 ? this.windowsMainService.getWindowById(this.parentId) : undefined;
+					const ownerWin = owner?.win;
+					if (!ownerWin || ownerWin.isDestroyed()) {
+						return; // allow close when the owner is gone
+					}
+
+					if (ownerWin.isMinimized()) {
+						e.preventDefault();
+						window.hide();
+					}
+				};
+				window.on('close', onClose);
+				this._register(toDisposable(() => window.removeListener('close', onClose)));
+			}
+			// test-workbench_change end
 		}
 	}
 

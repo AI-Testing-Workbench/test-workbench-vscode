@@ -850,7 +850,7 @@ export function registerChatActions() {
 	// The pet owns at most one dialog: the session resource it opened is
 	// remembered so a further activation reveals that same compact window (and
 	// raises it to the front) instead of spawning a second one.
-	const DESKTOP_PET_AUXILIARY: IChatEditorOptions['auxiliary'] = { compact: true, bounds: { width: 640, height: 640 } };
+	const DESKTOP_PET_AUXILIARY: IChatEditorOptions['auxiliary'] = { compact: true, bounds: { width: 640, height: 640 }, hideOnClose: true, closeEditorsOnClose: true };
 	let desktopPetChatResource: URI | undefined;
 	let desktopPetChatOpening = false;
 
@@ -988,7 +988,7 @@ export function registerChatActions() {
 
 				// Restore the position/size the dialog was last closed at, if any.
 				const storedBounds = readDesktopPetBounds(storageService);
-				const auxiliary: IChatEditorOptions['auxiliary'] = storedBounds ? { compact: true, bounds: storedBounds } : DESKTOP_PET_AUXILIARY;
+				const auxiliary: IChatEditorOptions['auxiliary'] = storedBounds ? { compact: true, bounds: storedBounds, hideOnClose: true, closeEditorsOnClose: true } : DESKTOP_PET_AUXILIARY;
 
 				await widgetService.openSession(resource, AUX_WINDOW_GROUP, { pinned: true, auxiliary });
 				trackDesktopPetBounds(storageService, editorService, editorGroupsService, auxiliaryWindowService, resource);

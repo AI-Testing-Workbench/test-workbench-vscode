@@ -333,6 +333,21 @@ export interface IEditorOptions {
 		 * Show the editor always on top of other windows.
 		 */
 		alwaysOnTop?: boolean;
+
+		/**
+		 * test-workbench_change - Hide the window instead of closing it when the
+		 * owning workbench window is minimized. Used by the TestAgent desktop-pet
+		 * conversation popup: destroying a `window.open` popup focuses its opener,
+		 * which restores (reopens) a minimized workbench window.
+		 */
+		hideOnClose?: boolean;
+
+		/**
+		 * test-workbench_change - When the auxiliary window is closed, dispose its
+		 * editors instead of moving them back into the main window. Used by the
+		 * TestAgent desktop-pet conversation popup, which is a throwaway window.
+		 */
+		closeEditorsOnClose?: boolean;
 	};
 
 	/**
