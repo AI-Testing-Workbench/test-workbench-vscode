@@ -467,6 +467,13 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			win.restore();
 		}
 
+		// test-workbench_change - a hidden window (e.g. the desktop-pet conversation
+		// popup that hid itself instead of closing while its owner was minimized)
+		// must be shown again when it is asked to take focus.
+		if (!win.isVisible()) {
+			win.show();
+		}
+
 		win.focus();
 
 		// When focusing the window, the workbench should always be the view that receives focus.

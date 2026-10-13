@@ -36,7 +36,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 	private readonly windows = new Map<number /* webContents ID */, AuxiliaryWindow>();
 
-	private readonly pendingWindowOptionsQueue: { readonly options: BrowserWindowConstructorOptions; readonly disableMaximize: boolean }[] = [];
+	private readonly pendingWindowOptionsQueue: { readonly options: BrowserWindowConstructorOptions; readonly disableMaximize: boolean; readonly hideOnClose: boolean }[] = [];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -93,18 +93,19 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	}
 
 	createWindow(details: HandlerDetails): BrowserWindowConstructorOptions {
-		const { state, overrides, disableMaximize } = this.computeWindowStateAndOverrides(details);
+		const { state, overrides, disableMaximize, hideOnClose } = this.computeWindowStateAndOverrides(details);
 		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, state, overrides, {
 			preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload-aux.js').fsPath
 		});
-		this.pendingWindowOptionsQueue.push({ options, disableMaximize });
+		this.pendingWindowOptionsQueue.push({ options, disableMaximize, hideOnClose });
 		return options;
 	}
 
-	private computeWindowStateAndOverrides(details: HandlerDetails): { readonly state: IWindowState; readonly overrides: IDefaultBrowserWindowOptionsOverrides; readonly disableMaximize: boolean } {
+	private computeWindowStateAndOverrides(details: HandlerDetails): { readonly state: IWindowState; readonly overrides: IDefaultBrowserWindowOptionsOverrides; readonly disableMaximize: boolean; readonly hideOnClose: boolean } {
 		const windowState: IWindowState = {};
 		const overrides: IDefaultBrowserWindowOptionsOverrides = {};
 		let disableMaximize = false;
+		let hideOnClose = false; // test-workbench_change
 
 		const features = details.features.split(','); // for example: popup=yes,left=270,top=14.5,width=1024,height=768
 		for (const feature of features) {
@@ -146,6 +147,9 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 				case 'window-not-resizable':
 					overrides.notResizable = true;
 					break;
+				case 'window-hide-on-close': // test-workbench_change - hide instead of close while owner is minimized
+					hideOnClose = true;
+					break;
 				case 'window-disable-maximize':
 					disableMaximize = true;
 					break;
@@ -161,7 +165,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 		this.logService.trace('[aux window] using window state', state);
 
-		return { state, overrides, disableMaximize };
+		return { state, overrides, disableMaximize, hideOnClose };
 	}
 
 	registerWindow(webContents: WebContents): void {
@@ -169,7 +173,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 		const pendingWindowOptions = this.pendingWindowOptionsQueue.shift();
 
-		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents, pendingWindowOptions?.options, pendingWindowOptions?.disableMaximize ?? false);
+		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents, pendingWindowOptions?.options, pendingWindowOptions?.disableMaximize ?? false, pendingWindowOptions?.hideOnClose ?? false);
 
 		this.windows.set(auxiliaryWindow.id, auxiliaryWindow);
 		disposables.add(toDisposable(() => this.windows.delete(auxiliaryWindow.id)));

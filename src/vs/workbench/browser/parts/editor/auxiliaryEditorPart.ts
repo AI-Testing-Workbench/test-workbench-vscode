@@ -37,6 +37,13 @@ import { GroupIdentifier } from '../../../common/editor.js';
 
 export interface IAuxiliaryEditorPartOpenOptions extends IAuxiliaryWindowOpenOptions {
 	readonly state?: IEditorPartUIState;
+
+	/**
+	 * test-workbench_change - Dispose the editors when the auxiliary window is
+	 * closed instead of moving them back into the main window. Used by the
+	 * TestAgent desktop-pet conversation popup.
+	 */
+	readonly closeEditorsOnClose?: boolean;
 }
 
 export interface ICreateAuxiliaryEditorPartResult {
@@ -196,7 +203,7 @@ export class AuxiliaryEditorPart {
 		editorPartContainer.style.position = 'relative';
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
-		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, options?.state, label));
+		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, options?.state, label, Boolean(options?.closeEditorsOnClose)));
 		editorPart.updateOptions({ compact });
 		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer);
@@ -263,6 +270,9 @@ export class AuxiliaryEditorPart {
 		}));
 		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
 		disposables.add(auxiliaryWindow.onBeforeUnload(event => {
+			if (options?.closeEditorsOnClose) { // test-workbench_change - this part discards its editors on close
+				return;
+			}
 			for (const group of editorPart.groups) {
 				for (const editor of group.editors) {
 					// Closing an auxiliary window with opened editors
@@ -351,6 +361,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		editorPartsView: IEditorPartsView,
 		private readonly state: IEditorPartUIState | undefined,
 		groupsLabel: string,
+		private readonly closeEditorsOnClose: boolean, // test-workbench_change
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -453,6 +464,17 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 			for (const group of this.groups) {
 				group.closeAllEditors({ excludeConfirming: true, force: true });
 			}
+
+			// test-workbench_change start - the desktop-pet chat popup discards its
+			// editors on close. Do not merge remaining (confirming) editors into the
+			// main window, which would raise that window and move the chat there; the
+			// leftover editors are disposed together with this part instead.
+			if (this.closeEditorsOnClose) {
+				this._onWillClose.fire();
+
+				return true;
+			}
+			// test-workbench_change end
 
 			// Then merge remaining to main part
 			result = this.mergeGroupsToMainPart();

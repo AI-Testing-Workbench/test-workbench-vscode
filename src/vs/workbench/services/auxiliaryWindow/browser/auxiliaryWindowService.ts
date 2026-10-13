@@ -58,6 +58,13 @@ export interface IAuxiliaryWindowOpenOptions {
 	readonly disableMaximize?: boolean;
 	readonly noBackgroundThrottling?: boolean;
 	readonly backgroundColor?: string;
+
+	/**
+	 * test-workbench_change - Hide the window instead of closing it when the
+	 * owning workbench window is minimized. Used by the TestAgent desktop-pet
+	 * conversation popup (see `IEditorOptions.auxiliary.hideOnClose`).
+	 */
+	readonly hideOnClose?: boolean;
 }
 
 export interface IAuxiliaryWindowService {
@@ -381,6 +388,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			options?.notResizable ? 'window-not-resizable=yes' : undefined,
 			options?.disableMaximize ? 'window-disable-maximize=yes' : undefined,
 			options?.noBackgroundThrottling ? 'window-no-background-throttling=yes' : undefined,
+			options?.hideOnClose ? 'window-hide-on-close=yes' : undefined, // test-workbench_change
 			options?.backgroundColor && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(options.backgroundColor) ? `window-background-color=${options.backgroundColor}` : undefined,
 		]);
 
