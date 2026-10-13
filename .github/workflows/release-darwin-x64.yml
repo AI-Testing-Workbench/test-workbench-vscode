@@ -1,0 +1,126 @@
+# test-workbench_change - new file
+name: Release Build (macOS Intel x64)
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: '打包分支'
+        required: false
+        default: 'dev'
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  VSCODE_QUALITY: stable
+
+jobs:
+  build-darwin-x64:
+    name: Build macOS Intel (x64)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.branch }}
+          lfs: true
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Prepare node_modules cache key
+        run: |
+          mkdir -p .build
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin x64 $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        uses: actions/cache@v5
+        id: node-modules-cache
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-macos-x64-${{ hashFiles('**/package-lock.json') }}"
+
+      - name: Extract node_modules cache
+        if: steps.node-modules-cache.outputs.cache-hit == 'true'
+        run: tar -xzf .build/node_modules_cache/cache.tgz
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          for i in {1..5}; do
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          npm_config_arch: x64
+          VSCODE_ARCH: x64
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          npm_config_build_from_source: "false"
+
+      - name: Create node_modules archive
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+
+      - name: Create .build folder
+        run: mkdir -p .build
+
+      - name: Prepare built-in extensions cache key
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
+        id: cache-builtin-extensions
+        uses: actions/cache/restore@v5
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare prebuilt extensions
+        run: node build/prepare-prebuilt-extensions.ts --platform=darwin --arch=x64
+
+      - name: Prepare Electron types
+        run: node build/npm/electronTypes.ts
+
+      - name: Compile core (esbuild)
+        run: npm run gulp core-ci
+
+      - name: Build macOS x64
+        env:
+          VSCODE_ARCH: x64
+        run: npm run gulp vscode-darwin-x64-min-ci
+
+      - name: Create macOS x64 archive
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent ../VSCode-darwin-x64 .build/VSCode-darwin-x64.zip
+
+      - name: Upload x64 Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-darwin-x64
+          path: .build/VSCode-darwin-x64.zip
