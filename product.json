@@ -310,7 +310,7 @@
 	"tsCodeGatewayBaseUrl": "aHR0cHM6Ly90ZXN0aHViLWdhdGV3YXkucGFhcy5jbWJjaGluYS5jbg==",
 	"defaultColorTheme": "Light 2026",
 	"defaultIconTheme": "office-material-icon-theme",
-	"gitVersion": "1.5.0",
+	"gitVersion": "1.5.1",
 	"commit": "12934b91e86ec2d0537879d544ee923f6a8e1b75",
 	"date": "2026-05-08T15:23:12+08:00",
 	"extensionsGallery": {
@@ -326,6 +326,7 @@
 	"extensionsAutoInstallUrl": "aHR0cHM6Ly90c2NvZGUtZ2F0ZXdheS5wYWFzdWF0LmNtYmNoaW5hLmNuL2F1dG8taW5zdGFsbC1leHRlbnNpb25z",
 	"extensionsAutoInstall": [
 		"test-tech.test-task-manager",
-		"test-tech.testcase-select"
+		"test-tech.testcase-select",
+		"test-tech.tscode-remote-ssh"
 	]
 }
