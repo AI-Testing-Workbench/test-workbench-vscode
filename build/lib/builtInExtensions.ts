@@ -73,8 +73,11 @@ function getExtensionDownloadStream(extension: IExtensionDefinition) {
 
 	if (extension.vsix) {
 		input = ext.fromVsix(path.join(root, extension.vsix), extension);
-	} else if (productjson.extensionsGallery?.serviceUrl) {
-		input = ext.fromMarketplace(productjson.extensionsGallery.serviceUrl, extension);
+	// test-workbench_change start - built-in extensions always download from GitHub releases,
+	// never from the configured extensions gallery (internal marketplace).
+	// } else if (productjson.extensionsGallery?.serviceUrl) {
+	// 	input = ext.fromMarketplace(productjson.extensionsGallery.serviceUrl, extension);
+	// test-workbench_change end
 	} else {
 		input = ext.fromGithub(extension);
 	}
@@ -94,8 +97,11 @@ export function getExtensionStream(extension: IExtensionDefinition) {
 }
 
 function syncMarketplaceExtension(extension: IExtensionDefinition): Stream {
-	const galleryServiceUrl = productjson.extensionsGallery?.serviceUrl;
-	const source = ansiColors.blue(galleryServiceUrl ? '[marketplace]' : '[github]');
+	// test-workbench_change start - built-in extensions always download from GitHub releases
+	// const galleryServiceUrl = productjson.extensionsGallery?.serviceUrl;
+	// const source = ansiColors.blue(galleryServiceUrl ? '[marketplace]' : '[github]');
+	const source = ansiColors.blue('[github]');
+	// test-workbench_change end
 	if (isUpToDate(extension)) {
 		log(source, `${extension.name}@${extension.version}`, ansiColors.green('✔︎'));
 		return es.readArray([]);
