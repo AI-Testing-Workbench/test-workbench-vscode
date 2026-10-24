@@ -156,6 +156,15 @@ async function checkRuntime() {
 	if (!await exists(join(out, 'app', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'))) {
 		problems.push('missing dsh CLI entry');
 	}
+	// test-workbench_change start
+	// pi-ai imports this dotfile at startup. Packaging filters that ignore
+	// dotfiles silently drop it, which makes dsh-llm-pi-ai fail to import.
+	const piAiRoot = join(out, 'app', 'node_modules', '@earendil-works', 'pi-ai');
+	const piAiManifest = join(piAiRoot, 'dist', 'providers', 'data', '.manifest.json');
+	if (await exists(join(piAiRoot, 'package.json')) && !await exists(piAiManifest)) {
+		problems.push('missing @earendil-works/pi-ai model manifest');
+	}
+	// test-workbench_change end
 	if (!await exists(join(out, 'web', 'index.html'))) {
 		problems.push('missing web frontend');
 	}

@@ -355,7 +355,9 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			'resources/dsh-agent/**',
 			'!resources/dsh-agent/previous/**'
 		], { base: '.', dot: true })
-			.pipe(filter(['**', '!**/*.map']))
+			// test-workbench_change: keep dotfiles — @earendil-works/pi-ai imports
+			// dist/providers/data/.manifest.json, which minimatch drops by default.
+			.pipe(filter(['**', '!**/*.map'], { dot: true }))
 			.pipe(util.setExecutableBit(['**/node/bin/node', '**/node/node.exe']));
 		// test-workbench_change end
 

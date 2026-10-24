@@ -4,6 +4,17 @@ This file records changes to the dsh Agent integration. Code changes follow the
 repository's `test-workbench_change` marker convention; this file is the
 human-readable counterpart.
 
+## 2026-10-24 — Package dsh dotfiles (pi-ai import fix)
+
+- `build/gulpfile.vscode.ts`: the dsh runtime copy now filters with
+  `{ dot: true }`. The previous filter dropped
+  `@earendil-works/pi-ai/dist/providers/data/.manifest.json`, so the packaged
+  app logged `llm-pi-ai (...): failed to import` and the Models settings surface
+  could not save the preview-notice acknowledgement.
+- `scripts/dsh-agent/prepare-runtime.mjs --check`: fails when the pi-ai package
+  is staged but its `.manifest.json` is missing, so packaging regressions are
+  caught before an installer is uploaded.
+
 ## 2026-10-24 — Trae Agent window research (docs only)
 
 - Added `docs/dsh-agent/trae-agent-window-research-and-plan.md`:

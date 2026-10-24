@@ -60,6 +60,10 @@ under `resources/app`.
 - On Windows, `patchWin32DependenciesTask` skips `*/resources/dsh-agent/**`:
   the runtime carries Mach-O/ELF `.node` prebuilds for other platforms and
   `rcedit` only understands PE files.
+- The gulp copy keeps dotfiles (`filter(..., { dot: true })`). `pi-ai` imports
+  `dist/providers/data/.manifest.json`; dropping it makes `dsh-llm-pi-ai` fail
+  to import and the Models settings surface logs `failed to import`.
+  `prepare-runtime --check` verifies the manifest in the packaged app.
 - `dshAgentPreload.js` is listed in `vscodeResourceIncludes`, so
   `core-ci` → package includes it.
 
