@@ -95,6 +95,27 @@ async function readPin() {
 	}
 }
 
+/**
+ * The build Node and the packaged Host Node must be the same version. CI runs
+ * `prepare-runtime.mjs` from the repository while `.nvmrc` drives setup-node,
+ * so checking the pair here catches drift before a 500 MB runtime copy.
+ */
+async function readBuildNodeVersion() {
+	try {
+		return (await readFile(join(root, '.nvmrc'), 'utf8')).trim().replace(/^v/, '');
+	} catch {
+		return undefined;
+	}
+}
+
+async function nodePinMismatch(pin) {
+	const buildNode = await readBuildNodeVersion();
+	if (pin?.node && buildNode && pin.node !== buildNode) {
+		return `.nvmrc pins Node ${buildNode}, but resources/dsh-agent/runtime.json pins ${pin.node}`;
+	}
+	return undefined;
+}
+
 async function readVersion(packageDir) {
 	const manifest = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf8'));
 	if (!manifest.name || !manifest.version) {
@@ -109,9 +130,13 @@ async function readVersion(packageDir) {
 async function checkRuntime() {
 	const problems = [];
 	const pin = await readPin();
+	const pinProblem = await nodePinMismatch(pin);
+	if (pinProblem) {
+		problems.push(pinProblem);
+	}
 	const nodePath = process.platform === 'win32' ? join(out, 'node', 'node.exe') : join(out, 'node', 'bin', 'node');
 	if (!await exists(nodePath)) {
-		problems.push('node executable');
+		problems.push('missing node executable');
 	} else if (pin?.node) {
 		const stagedNode = execFileSync(nodePath, ['--version'], { encoding: 'utf8' }).trim().replace(/^v/, '');
 		if (stagedNode !== pin.node) {
@@ -126,19 +151,19 @@ async function checkRuntime() {
 		}
 	}
 	if (!await exists(join(out, 'plugin', 'dsh-client-tscode', 'package.json'))) {
-		problems.push('dsh-client-tscode plugin');
+		problems.push('missing dsh-client-tscode plugin');
 	}
 	if (!await exists(join(out, 'app', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'))) {
-		problems.push('dsh CLI entry');
+		problems.push('missing dsh CLI entry');
 	}
 	if (!await exists(join(out, 'web', 'index.html'))) {
-		problems.push('web frontend');
+		problems.push('missing web frontend');
 	}
 	if (!await exists(join(out, 'VERSION'))) {
-		problems.push('VERSION');
+		problems.push('missing VERSION');
 	}
 	if (problems.length > 0) {
-		console.error(`[dsh-agent] runtime incomplete at ${out}: missing ${problems.join(', ')}`);
+		console.error(`[dsh-agent] runtime check failed at ${out}: ${problems.join(', ')}`);
 		process.exitCode = 1;
 		return;
 	}
@@ -153,11 +178,15 @@ async function prepare() {
 	const dshVersion = await readVersion(dshDir);
 	const nodeVersion = execFileSync(nodeExe, ['--version'], { encoding: 'utf8' }).trim().replace(/^v/, '');
 	const pin = await readPin();
+	const pinProblem = await nodePinMismatch(pin);
+	if (pinProblem) {
+		throw new Error(pinProblem);
+	}
 	if (pin?.dsh && dshVersion !== pin.dsh) {
 		throw new Error(`dsh ${dshVersion} does not match the pinned runtime ${pin.dsh}`);
 	}
-	if (!/^22\.22\./.test(nodeVersion) || (pin?.node && nodeVersion !== pin.node)) {
-		throw new Error(`Node ${pin?.node ?? '22.22.x'} is required at ${nodeExe} (found ${nodeVersion})`);
+	if (pin?.node ? nodeVersion !== pin.node : !/^24\.18\./.test(nodeVersion)) {
+		throw new Error(`Node ${pin?.node ?? '24.18.x'} is required at ${nodeExe} (found ${nodeVersion})`);
 	}
 	// `--dsh` must live in a dedicated npm prefix. Copying its whole node_modules
 	// preserves hoisted dependencies; copying only the dsh package would miss them.

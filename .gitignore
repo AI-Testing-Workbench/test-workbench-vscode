@@ -55,6 +55,9 @@ dist
 /resources/dsh-agent/web/
 /resources/dsh-agent/previous/
 /resources/dsh-agent/plugin/*/node_modules/
+/resources/dsh-agent/VERSION
+/resources/dsh-agent/THIRD_PARTY_NOTICES
+/resources/dsh-agent/licenses/
 
 # Throwaway Code OSS dev profiles created by the launch skill
 .v[0-9]*/

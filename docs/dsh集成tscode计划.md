@@ -31,7 +31,7 @@ tscode Electron App
 │   ├─ 加载 dsh Web 前端（原样复用）
 │   ├─ 独立 session partition
 │   └─ preload：boot 注入 + tscode 桥接
-├─ dsh Host 子进程（独立 Node 22.22.1）
+├─ dsh Host 子进程（独立 Node 24.18.0）
 │   ├─ dsh-desktop-host / dsh web
 │   ├─ DSH_HOME=~/.tscode-dsh
 │   └─ 独立 profile + 插件
@@ -44,7 +44,7 @@ tscode Electron App
 | --- | --- | --- |
 | 窗口形态 | 同一 Electron 应用内的独立 BrowserWindow | 最接近 Trae Agent 模式，单应用体验 |
 | dsh 前端 | 原样使用 dsh-web-frontend | 保留全部 dsh UI 与插件 |
-| Host 运行时 | 独立 Node 22.22.1 | 规避 Electron 39.8.7 指纹不兼容 |
+| Host 运行时 | 独立 Node 24.18.0 | 规避 Electron 43.7.3 的 Electron/V8 指纹不兼容；不是单纯的 Node 版本问题，详见 §14 |
 | Host 启动器 | dsh-desktop-host（生产）/ dsh web（开发） | desktop-host 提供 ready/injections/profile |
 | 通信 | 自定义协议 + HTTP/WebSocket 代理 | 避免 token 暴露，控制认证与 CSP |
 | IDE 集成 | dsh 客户端插件 + preload 白名单 API | 保持「一切皆插件」 |
@@ -94,7 +94,7 @@ tscode Electron App
 | 任务 | 产出 | 预估 |
 | --- | --- | --- |
 | A1 固定 dsh 版本与构建 | 可复现的 dsh runtime tarball | 3d |
-| A2 独立 Node 22.22.1 打包 | 每平台 Node runtime | 2d |
+| A2 独立 Node 24.18.0 runtime 打包 | 每平台 Node runtime | 2d |
 | A3 DSH_HOME 与 profile 初始化 | `~/.tscode-dsh` + 默认 profile | 3d |
 | A4 Host 启动器封装 | spawn、ready、fatal、shutdown | 5d |
 | A5 进程监督与重启 | 重试、退避、安全模式 | 4d |
@@ -416,7 +416,7 @@ v1 默认禁用：
 
 ```text
 resources/dsh-agent/
-  node/                 # Node 22.22.1
+  node/                 # Node 24.18.0
   app/                  # dsh runtime + profile
   web/                  # dsh-web-frontend dist
   host/                 # dsh-desktop-host
@@ -439,6 +439,10 @@ resources/dsh-agent/
   proxy.log
   crash-*.json
 ```
+
+> 当前实现：Host stderr 写入 tscode main log 的 `[dshAgent:host]`，崩溃报告写入
+> `<userData>/logs/dsh-agent/crash-*.json`；独立的 `host.log` / `proxy.log` 仍是
+> 后续可选的拆分目标，`docs/dsh-agent/operations.md` 按实际实现描述。
 
 崩溃报告包含：
 
@@ -472,7 +476,7 @@ resources/dsh-agent/
 | 风险 | 等级 | 影响 | 缓解 |
 | --- | --- | --- | --- |
 | dsh 预发布 API 变动 | 高 | 前端/Host 不兼容 | 固定版本、vendor、契约测试、升级窗口 |
-| Electron Node 指纹不兼容 | 高 | 无法共享 Node | 独立 Node sidecar，已验证 |
+| Electron/V8 指纹不兼容 | 高 | 无法共享 Electron 内置 Node | 独立 Node sidecar；`node-addon-require-builtin` 按精确 Electron/V8 构建匹配，见 §14 |
 | 原生依赖平台差异 | 高 | Host 启动失败 | 每平台 CI + 冒烟测试 |
 | WebSocket/认证问题 | 中高 | 会话断连 | 集成测试 + 重连 + 诊断 |
 | Host 崩溃 | 中高 | Agent 不可用 | 监督、重启、安全模式 |
@@ -535,6 +539,7 @@ resources/dsh-agent/
 - [ ] Beta 指标达标（待真实用户）
 - [x] 用户 / 管理员 / 排障文档完成（`docs/dsh-agent/`）
 - [x] Feature flag / kill switch 可用
+- [x] Node runtime 版本单源化（`.nvmrc` 与 `runtime.json` 均为 24.18.0；`prepare-runtime` 校验一致性）
 - [ ] 支持团队完成培训
 - [ ] GA 放量计划批准
 
@@ -585,7 +590,7 @@ resources/dsh-agent/
 
 ### 13.3 验证结果
 
-已在 macOS arm64 + Electron 39.8.7 + Node 22.22.1 + dsh 0.2.0-rc.2 上执行：
+已在 macOS arm64 + Electron 43.7.3 + Node 22.22.1 + dsh 0.2.0-rc.2 上执行（初版记录；当前 pin 已升级到 Node 24.18.0，复验见 §14.2）：
 
 ```bash
 npx tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck   # 0 errors
@@ -616,4 +621,140 @@ GUI 手动验证（CDP）：
 - E3/E4/E5 签名、公证、安装包与 G5/G6 Beta/GA 需要证书、发布管线与用户数据；
   已接入构建，但 macOS 必须在签名时 deep-sign 打包内的 `node` 与原生模块，
   Windows 需确认 `node.exe`/`.node` 的签名策略。
-- A6 原生依赖（koffi/node-pty/sharp/flock）需在目标平台执行带工具的会话。
+- A6 原生依赖（koffi/node-pty/sharp/flock）已在 macOS arm64 下用 Node 22.22.1 与 staged Node 24.18.0 完成直接加载/调用验证，并通过 staged runtime 的 smoke/GUI；Windows/x64 和真实工具会话仍待 E2E。
+
+---
+
+## 14. 技术复盘：Electron 43 与 Host Node 运行时（2026-10-24）
+
+### 14.1 结论
+
+- **保留独立 Node sidecar，不改为 Electron 内置 Node。** 当前 Electron 43.7.3
+  仍无法运行 dsh，原因不是 Node 版本，而是 `node-addon-require-builtin@0.1.9`
+  对 Electron/V8 构建做精确指纹匹配。
+- **已将 Host Node 从 22.22.1 升级到 24.18.0。** `.nvmrc`、`runtime.json` 和
+  `prepare-runtime.mjs` 的校验已对齐，发布 CI 中因版本漂移导致的 staging 失败
+  已消除。
+- 完整决策与替代方案见 `docs/dsh-agent/adr-0002-node-runtime.md`；变更记录见
+  `docs/dsh-agent/changelog.md`。
+
+### 14.2 实测证据
+
+dsh 启动链路：`dsh-app-boot` → `requireBuiltin("internal/modules/esm/loader")`
+→ `node-addon-require-builtin`。该原生模块按 V8 内部布局做指纹校验，因此只支持
+精确的 Electron/V8 构建。
+
+当前 Electron 43.7.3：
+
+```text
+Node 24.21.0
+V8 15.0.245.31-electron.0
+NODE_MODULE_VERSION 148
+```
+
+用 `ELECTRON_RUN_AS_NODE=1` 启动 `dsh web` 的结果：
+
+```text
+unsupported Electron runtime fingerprint:
+Node 24.21.0, V8 15.0.245.31-electron.0
+(supported Electron versions: 43.0.0, 44.0.0, 44.7.0, 45.0.0-alpha.6)
+```
+
+注意支持表里是 `43.0.0`，当前是 `43.7.3`；V8 patch 不同即不匹配。**因此
+“Electron 已经 43+”本身不能解除限制。**
+
+2026-10-24 复验结果：
+
+| 项目 | 结果 |
+| --- | --- |
+| `npm run compile-client` | 0 errors |
+| dshAgent 单元测试 | 32 passing |
+| `e2e-smoke.mjs`（Host Node 22.22.1） | PASS；Host ready 868ms |
+| `e2e-smoke.mjs`（Host Node 24.18.0） | PASS；Host ready 578ms |
+| GUI（Electron 43.7.3 + Node 22.22.1） | 窗口渲染、桥接、主题、目录选择、openFile/openDiff/reveal 全部通过 |
+| GUI（Host 强制 Node 24.18.0） | `status: ready`；Host 进程确认为 Node 24.18.0 |
+| staged Runtime（Node 24.18.0） | `prepare-runtime` staging + `--check` 通过；staged smoke 与 GUI 均通过 |
+| Node 24.18.0 + npm 11 安装 dsh | staging/smoke 通过；`node-pty` 仍可 spawn；npm 仅提示 `allow-scripts` 警告 |
+| 关闭/重开窗口 | Host 存活；重开复用同一进程 |
+| `kill -9` Host | 自动重启，`restartCount: 1`；crash JSON 写入 `<userData>/logs/dsh-agent/` |
+| SIGTERM 应用 | app 与 Host 均退出，无孤儿进程 |
+| 原生依赖 | `node-pty`、`sharp`、`koffi`、`flock` 在 Node 24.18.0 下直接调用通过 |
+
+### 14.3 方案对比
+
+| 方案 | 结果 | 取舍 |
+| --- | --- | --- |
+| 独立 Node 22.22.1（旧 pin） | 已验证可用 | 需要 CI 单独提供 Node 22.22.1；与 `.nvmrc` 漂移 |
+| 独立 Node 24.18.0（当前 pin） | macOS arm64 全链路通过 | **已采用**；与 `.nvmrc` 对齐，CI 可直接复用 |
+| Electron 43.7.3 内置 Node | `dsh web` 启动失败 | 不可用 |
+| 固定 Electron 43.0.0 / 44.0.0 / 44.7.0 | 指纹可能匹配 | 锁死 Electron 安全升级，不可维护 |
+| 去掉 sidecar 改用系统 Node | 版本不可控 | 不可用于发布 |
+
+### 14.4 优化计划
+
+**P0（下次发布构建前）**
+
+- [x] `resources/dsh-agent/runtime.json`：`node` 从 `22.22.1` 改为 `24.18.0`。
+- [x] `scripts/dsh-agent/prepare-runtime.mjs`：Node 校验改为精确匹配
+      `runtime.json` 的 pin，并校验 `.nvmrc` 与 `runtime.json` 一致；CI 调用
+      `prepare-runtime` 时自动生效。
+- [x] macOS arm64 用 staged Node 24.18.0 重跑 staging、`--check`、smoke 与 GUI。
+- [x] 更新 `docs/dsh-agent/README.md`、`resources/dsh-agent/README.md`、
+      `docs/dsh-agent/release.md`、`docs/dsh-agent/operations.md` 中的版本说明。
+
+**P1（全平台启用前）**
+
+- [ ] macOS x64 / Windows x64 用 bundled Node 24.18.0 重跑 `e2e-smoke.mjs`。
+- [ ] Windows 原生依赖验证：`node-pty` ConPTY、`sharp`、`koffi`、文件锁路径。
+- [ ] 带 API Key 跑真实工具调用、权限审批、取消（F3）。
+- [ ] 复核 Linux glibc 基线（Linux 仍为 beta）。
+- [ ] `npm run dsh-agent:size` 记录安装包体积变化。
+
+**P2（后续优化）**
+
+- [ ] 首帧 503 竞态：`dshAgentMainService.ts:172-176` 当前先 `load()` 再
+      `startHost()`，首帧会显示 503 错误页并产生控制台错误；建议改为 Host
+      ready 后首次加载，或先显示明确的 loading 页。
+- [ ] 仅当 dsh 发布支持当前 Electron/V8 构建的
+      `node-addon-require-builtin` 时，再评估是否移除 sidecar。
+- [ ] sidecar 稳定后再评估 Node 载荷裁剪。
+
+### 14.5 变更记录
+
+2026-10-24 分两步完成：
+
+**第一步：文档与分析（已完成）**
+
+- 新增 `docs/dsh-agent/adr-0002-node-runtime.md`。
+- 新增 `docs/dsh-agent/changelog.md`。
+- `docs/dsh-agent/adr-0001-agent-window.md` 增加 2026-10-24 修订，保留原决策。
+- 修正文档中的 Electron 版本：39.8.7 → 43.7.3。
+- 更新本计划 §0.1、§0.2、§2 A2、§7.1、§8、§11、§13.3、§13.4。
+- 记录本轮复验结果和 Node 24.18.0 评估结论。
+
+**第二步：Node 24.18.0 实施（已完成 macOS arm64 验证）**
+
+- `resources/dsh-agent/runtime.json`：Node pin 改为 `24.18.0`。
+- `scripts/dsh-agent/prepare-runtime.mjs`：
+  - Node 校验改为与 `runtime.json` 精确匹配；
+  - 增加 `.nvmrc` 与 `runtime.json` 一致性检查；
+  - 更新 `--check` 的失败信息格式。
+- `.gitignore` 补充生成的 `VERSION`、`THIRD_PARTY_NOTICES`、`licenses/`，避免本地 staging 污染工作区。
+- 使用临时 npm prefix 安装 dsh 并 staging 到临时目录，`prepare-runtime --check` 通过。
+- 分别用 Node 22 的 npm 10、Node 24.18.0 的 npm 11 安装 dsh 并 staging，均通过。
+- 使用 staged Node 24.18.0 运行 `e2e-smoke.mjs`，PASS；`node-pty` spawn 正常（npm 11 仅提示 `allow-scripts` 警告）。
+- 使用 staged Node 24.18.0 + staged dsh 启动 GUI，`status: ready`，桥接/插件/主题正常。
+- 文档同步更新为当前 pin `24.18.0`，并在 `docs/dsh-agent/changelog.md` 记录。
+
+文档漂移说明：本计划 §7.3 原列的 `host.log` / `proxy.log` 当前未单独落地；
+实际为 tscode main log 的 `[dshAgent:host]` 条目与
+`<userData>/logs/dsh-agent/crash-*.json`，`docs/dsh-agent/operations.md`
+已按实际实现描述。§7.3 作为后续可选的日志拆分目标保留。
+
+### 14.6 仍待验证
+
+- macOS x64 / Windows x64 的 Node 24.18.0 冒烟与原生依赖（含 Windows 文件锁路径）。
+- 真实模型工具调用、权限审批、取消（需要 API Key）。
+- Linux glibc 基线与 beta 支持。
+- 签名 / 公证 / 安装包 / 更新回滚（E3–E6）。
+- 安全评审（D6）与 IPC fuzz（F6）。

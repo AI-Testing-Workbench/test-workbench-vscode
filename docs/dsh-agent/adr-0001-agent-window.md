@@ -12,16 +12,18 @@ installer, and one update channel.
 
 Two constraints dominate:
 
-1. Electron 39.8.7 carries a Node build that is incompatible with dsh's native
-   dependencies and runtime fingerprint expectations.
+1. Electron's embedded Node/V8 build cannot host dsh. The Electron build shipped
+   when this ADR was written was 39.8.7; the fork now ships 43.7.3, which still
+   fails dsh's exact Electron/V8 fingerprint check. See ADR 0002 for the current
+   evidence and runtime plan.
 2. The dsh frontend boots from a server-rendered index containing
    `__DSH_BOOT__`; its client modules, plugin bundles, and WebSocket mux assume
    a single authority.
 
 ## Decision
 
-Run a **separate dsh Host child process** under a bundled **Node 22.22.1** and
-host the dsh web frontend in a **dedicated BrowserWindow** inside tscode.
+Run a **separate dsh Host child process** under a bundled **Node 24.18.0**
+and host the dsh web frontend in a **dedicated BrowserWindow** inside tscode.
 
 - The window uses the custom standard scheme `dsh-agent://app`.
 - The Host runs `dsh web --no-open --host 127.0.0.1 --port 0` with
@@ -62,3 +64,21 @@ dsh frontend and lose upstream compatibility.
 - Fork changes are isolated under `src/vs/platform/dshAgent`,
   `src/vs/workbench/contrib/dshAgent`, `resources/dsh-agent`, and
   `scripts/dsh-agent`, with `test-workbench_change` markers at shared hooks.
+
+## Amendment 2026-10-24
+
+The sidecar decision in this ADR remains valid, but its runtime rationale and
+version are updated:
+
+- The fork now ships Electron 43.7.3 (embedded Node 24.21.0, V8
+  `15.0.245.31-electron.0`), not Electron 39.8.7.
+- The incompatibility is the exact Electron/V8 fingerprint check in
+  `node-addon-require-builtin`, used by `dsh-app-boot` to reach Node's internal
+  ESM/CJS loaders. Electron 43.7.3 is not in its supported version table, so
+  `ELECTRON_RUN_AS_NODE` cannot host dsh.
+- See `docs/dsh-agent/adr-0002-node-runtime.md` for the evidence, alternatives,
+  and the Node 22.22.1 → 24.18.0 migration (applied 2026-10-24, verified on
+  macOS arm64).
+
+This amendment does not change the window, protocol, authentication, proxy, or
+trust decisions in the original ADR.

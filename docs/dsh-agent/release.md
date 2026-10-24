@@ -83,7 +83,12 @@ under `resources/app`.
   artifact to the packaging job instead of cross-staging on arm64.
 - Set `npm_config_arch` explicitly on cross-arch builds so optional native
   dependencies match the target.
-- Linux is beta. The bundle uses the official Node 22.22.1 binary, which may
+- Node 24.18.0 ships npm 11, which may print `allow-scripts` warnings for dsh's
+  native packages. The runtime uses bundled N-API prebuilds, so the staged
+  smoke and `node-pty` still work (verified 2026-10-24). If a future dependency
+  needs a postinstall build, approve that script explicitly in the install step.
+- Linux is beta. The bundle uses the official Node 24.18.0 binary, which may
   raise the minimum glibc above the 2.28 baseline used by the remote server.
+  Re-check this when the pin changes.
 - `resources/dsh-agent/previous` is a local rollback snapshot and is excluded
   from packages.

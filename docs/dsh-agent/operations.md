@@ -15,6 +15,17 @@ the workspace path. They never contain prompts, code, or file contents.
 `redactDshAgentLog` strips tokens, cookies, bearer headers, and `*_key=` values
 before anything is logged or persisted.
 
+## Runtime pin
+
+The current Host pin is Node 24.18.0 (`resources/dsh-agent/runtime.json`),
+matching `.nvmrc`. `prepare-runtime.mjs` rejects a mismatch between the two.
+The pin is implemented and validated on macOS arm64; macOS x64 and Windows x64
+validation is still pending (see `adr-0002-node-runtime.md`).
+
+Electron's embedded Node cannot host dsh: `dsh-app-boot` uses
+`node-addon-require-builtin`, which validates an exact Electron/V8 fingerprint;
+Electron 43.7.3 is not in its supported table.
+
 ## Restart policy
 
 | Failure | Behaviour |

@@ -2,12 +2,13 @@
 
 Status: implementation for the v1 plan is in the repository. This document is
 the operator/developer entry point; see `docs/dsh集成tscode计划.md` for the
-program plan.
+program plan, `docs/dsh-agent/adr-0002-node-runtime.md` for the Electron/Node
+runtime analysis, and `docs/dsh-agent/changelog.md` for change history.
 
 ## What ships
 
 - A dedicated `BrowserWindow` loading the dsh web frontend at `dsh-agent://app`.
-- An isolated Host child process: bundled Node 22.22.1 + pinned dsh runtime,
+- An isolated Host child process: bundled Node 24.18.0 + pinned dsh runtime,
   `DSH_HOME=~/.tscode-dsh`.
 - A custom protocol that serves the Host index and proxies HTTP (`/api`,
   `/plugins`, `/connect`) with an authority cookie that never reaches the page.
@@ -27,7 +28,8 @@ program plan.
 ## Quick start (development)
 
 ```bash
-# Node 22.22.1 and a global `dsh` must be on PATH.
+# Node 24.18.0 (matching .nvmrc) and a global `dsh` must be on PATH.
+nvm use   # reads .nvmrc
 ./scripts/code.sh
 ```
 
@@ -37,7 +39,7 @@ Command Palette.
 To use the packaging path instead of PATH:
 
 ```bash
-node scripts/dsh-agent/prepare-runtime.mjs --dsh <path-to-@deepseek-ai/dsh> --node <node-22.22.1>
+node scripts/dsh-agent/prepare-runtime.mjs --dsh <path-to-@deepseek-ai/dsh> --node <node-24.18.0>
 node scripts/dsh-agent/prepare-runtime.mjs --check
 ```
 
@@ -46,7 +48,7 @@ node scripts/dsh-agent/prepare-runtime.mjs --check
 ```text
 tscode main process
 ├─ DshAgentMainService
-│  ├─ DshAgentHostProcess ──spawn──> node 22.22.1 dsh web --no-open --host 127.0.0.1 --port 0
+│  ├─ DshAgentHostProcess ──spawn──> node 24.18.0 dsh web --no-open --host 127.0.0.1 --port 0
 │  │                                  DSH_HOME=~/.tscode-dsh
 │  ├─ session(partition=persist:tscode-dsh-agent)
 │  │  ├─ protocol.handle('dsh-agent') ──HTTP proxy + CSP──> Host
@@ -84,7 +86,7 @@ tscode main process
 | `dsh.agentWindow.requireTrustedWorkspace` | `true` | application | Refuse to start in an untrusted folder |
 | `dsh.agentWindow.autoRestart` | `true` | application | Restart the Host after an unexpected exit |
 | `dsh.agentWindow.profile` | `web` | application | dsh profile name |
-| `dsh.agentWindow.nodePath` | `""` | machine | Override Node (22.22.1) |
+| `dsh.agentWindow.nodePath` | `""` | machine | Override Node (current pin 24.18.0) |
 | `dsh.agentWindow.dshEntry` | `""` | machine | Override `@deepseek-ai/dsh/lib/bin.js` |
 | `dsh.agentWindow.dshHome` | `""` | machine | Override `DSH_HOME` |
 
@@ -126,16 +128,21 @@ and verifies traversal rejection. It does not require Electron.
 
 ## Verified on 2026-10-24
 
-Environment: macOS arm64, Electron 39.8.7, Node 22.22.1, dsh 0.2.0-rc.2.
+Environment: macOS arm64, Electron 43.7.3, Node 24.18.0, dsh 0.2.0-rc.2.
 
-- `tsgo` typecheck, full `npm run compile`, and the Node suite
-  (8915 passing, 0 failing) are clean.
+- `npm run compile-client` is clean.
+- The dshAgent unit tests pass (32 passing).
 - `scripts/dsh-agent/e2e-smoke.mjs` passes against a real `dsh web`: token
   exchange, boot graph, plugin bundle, WS mux handshake, traversal rejection.
-- CDP manual run: dsh UI renders, the bridge returns workspace/editor/selection
+- GUI/CDP run: dsh UI renders, the bridge returns workspace/editor/selection
   context, `openFile`/`openDiff`/`revealInExplorer` work, the workspace picker
-  returns the IDE root, themes stay in sync, close hides, reopen reuses, and
-  Cmd+Q/SIGTERM leave no Host process.
+  returns the IDE root, themes stay in sync, close hides, reopen reuses the
+  Host, `kill -9` restarts it with a crash report, and SIGTERM leaves no Host
+  process.
+- Runtime evaluation: staging with Node 24.18.0 and `prepare-runtime.mjs
+  --check` pass; `e2e-smoke.mjs` and the GUI pass against the staged runtime.
+  `node-pty`, `sharp`, `koffi`, and `flock` also load and execute under Node
+  24.18.0. See `adr-0002-node-runtime.md`.
 
 Remaining verification requires an API key (model tool calls, approvals,
 cancellation), signing certificates, Windows/x64 CI, and a security review.

@@ -7,7 +7,7 @@ document and the client plugin source.
 ```text
 resources/dsh-agent/
   node/
-    bin/node                 # Node 22.22.1 (node.exe on Windows)
+    bin/node                 # Node 24.18.0 (node.exe on Windows)
   app/
     node_modules/            # pinned dsh plus its hoisted dependencies
   web/
@@ -28,9 +28,16 @@ so the installed path is `<appRoot>/resources/dsh-agent` (on macOS
 
 ## Why Node is bundled separately
 
-Electron 39.8.7 carries a different Node build than dsh expects. The Host runs
-under the staged Node 22.22.1 process so native modules (`koffi`, `node-pty`,
-`sharp`, `flock`) see the runtime they were built for.
+Electron's embedded Node cannot host dsh. `dsh-app-boot` uses
+`node-addon-require-builtin` to reach Node's internal ESM/CJS loaders, and that
+addon validates an exact Electron/V8 fingerprint. Electron 43.7.3 (Node 24.21.0,
+V8 15.0.245.31-electron.0) is not in its supported table, so the Host runs under
+the staged Node 24.18.0 process instead. This also gives native modules (`koffi`,
+`node-pty`, `sharp`, `flock`) the runtime they were built for.
+
+Node 24.18.0 is the current pin and matches `.nvmrc`; `prepare-runtime.mjs`
+rejects a mismatch. It has been validated on macOS arm64 (staging, smoke, GUI,
+and native modules); see `docs/dsh-agent/adr-0002-node-runtime.md`.
 
 ## Staging
 
@@ -46,6 +53,9 @@ node scripts/dsh-agent/e2e-smoke.mjs
 node scripts/dsh-agent/size-report.mjs
 ```
 
+`--node` must point to Node 24.18.0 (the version in `.nvmrc`); the script fails
+before staging when it does not match `runtime.json`.
+
 `--keep-previous` snapshots the current `app/node`, `app/web`, and plugin
 payload under `previous/`. `node scripts/dsh-agent/rollback-runtime.mjs` swaps
 them back. Normal release rollback also works by reinstalling the previous app
@@ -53,5 +63,6 @@ build, because the runtime ships inside the application.
 
 ## Development
 
-Without staged resources, the Agent resolves `node` and `dsh` from `PATH` (Node
-22.22.1 + the globally installed `dsh`). This is the default for `./scripts/code.sh`.
+Without staged resources, the Agent resolves `node` and `dsh` from `PATH`
+(Node 24.18.0, plus the globally installed `dsh`). This is the default for
+`./scripts/code.sh`.
