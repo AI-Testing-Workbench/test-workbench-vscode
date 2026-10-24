@@ -71,6 +71,12 @@ export interface IProductConfiguration {
 	readonly commit?: string;
 	readonly gitVersion?: string; // test-workbench_change
 
+	/** dsh Agent window rollout flags; a release can flip these without a code change. */
+	readonly dshAgent?: { // test-workbench_change
+		readonly enabled?: boolean;
+		readonly killSwitch?: boolean;
+	};
+
 	readonly nameShort: string;
 	readonly nameLong: string;
 

@@ -19,11 +19,13 @@ permissions:
 
 env:
   VSCODE_QUALITY: stable
+  DSH_AGENT_VERSION: 0.2.0-rc.2 # test-workbench_change
 
 jobs:
   build-darwin-x64:
     name: Build macOS Intel (x64)
-    runs-on: macos-latest
+    # The staged Node and dsh native modules must be Intel-native; macos-latest is arm64.
+    runs-on: macos-15-intel # test-workbench_change
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -110,10 +112,40 @@ jobs:
       - name: Compile core (esbuild)
         run: npm run gulp core-ci
 
+      - name: Restore dsh Agent runtime cache
+        uses: actions/cache@v5
+        id: dsh-agent-runtime-cache
+        with:
+          path: .build/dsh-runtime
+          key: dsh-agent-runtime-darwin-x64-${{ env.DSH_AGENT_VERSION }}
+
+      - name: Install dsh Agent runtime
+        if: steps.dsh-agent-runtime-cache.outputs.cache-hit != 'true'
+        run: npm install --prefix .build/dsh-runtime --no-save --no-package-lock "@deepseek-ai/dsh@${DSH_AGENT_VERSION}"
+        env:
+          npm_config_arch: x64
+
+      - name: Stage dsh Agent runtime
+        run: |
+          node scripts/dsh-agent/prepare-runtime.mjs --dsh .build/dsh-runtime/node_modules/@deepseek-ai/dsh --node "$(which node)"
+          node scripts/dsh-agent/prepare-runtime.mjs --check
+
+      - name: Smoke dsh Agent runtime
+        env:
+          TSCODE_DSH_AGENT_DSH_ENTRY: ${{ github.workspace }}/resources/dsh-agent/app/node_modules/@deepseek-ai/dsh/lib/bin.js
+          TSCODE_DSH_AGENT_SMOKE_NODE: ${{ github.workspace }}/resources/dsh-agent/node/bin/node
+        run: node scripts/dsh-agent/e2e-smoke.mjs
+
       - name: Build macOS x64
         env:
           VSCODE_ARCH: x64
         run: npm run gulp vscode-darwin-x64-min-ci
+
+      - name: Verify dsh Agent runtime in package
+        run: |
+          RUNTIME=$(find ../VSCode-darwin-x64 -path '*/Contents/Resources/app/resources/dsh-agent/VERSION' -print -quit)
+          test -n "$RUNTIME"
+          node scripts/dsh-agent/prepare-runtime.mjs --check --out "$(dirname "$RUNTIME")"
 
       - name: Create macOS x64 archive
         run: |

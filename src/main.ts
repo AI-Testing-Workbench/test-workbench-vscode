@@ -102,7 +102,13 @@ protocol.registerSchemesAsPrivileged([
 	{
 		scheme: 'vscode-file',
 		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true, codeCache: true }
+	},
+	// test-workbench_change start
+	{
+		scheme: 'dsh-agent',
+		privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true, codeCache: true }
 	}
+	// test-workbench_change end
 ]);
 
 // Global app listeners

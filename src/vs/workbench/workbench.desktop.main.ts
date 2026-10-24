@@ -189,6 +189,7 @@ import './contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
 // Chat
 import './contrib/chat/electron-browser/chat.contribution.js';
+import './contrib/dshAgent/electron-browser/dshAgent.contribution.js'; // test-workbench_change
 
 // Encryption
 import './contrib/encryption/electron-browser/encryption.contribution.js';

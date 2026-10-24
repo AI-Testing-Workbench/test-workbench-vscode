@@ -328,5 +328,9 @@
 		"test-tech.test-task-manager",
 		"test-tech.testcase-select",
 		"test-tech.tscode-remote-ssh"
-	]
+	],
+	"dshAgent": {
+		"enabled": true,
+		"killSwitch": false
+	}
 }

@@ -96,6 +96,7 @@ const vscodeResourceIncludes = [
 	'out-build/vs/base/parts/sandbox/electron-browser/preload.js',
 	'out-build/vs/base/parts/sandbox/electron-browser/preload-aux.js',
 	'out-build/vs/platform/browserView/electron-browser/preload-browserView.js',
+	'out-build/vs/platform/dshAgent/electron-browser/dshAgentPreload.js', // test-workbench_change
 
 	// Node Scripts
 	'out-build/vs/base/node/{terminateProcess.sh,cpuUsage.sh,ps.sh}',
@@ -516,6 +517,16 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'node_modules/vsda/**' // retain copy of `vsda` in node_modules for internal use
 			], 'node_modules.asar'));
 
+		// test-workbench_change start
+		// The staged dsh Agent runtime lives next to the application payload.
+		const dshAgentResources = gulp.src([
+			'resources/dsh-agent/**',
+			'!resources/dsh-agent/previous/**'
+		], { base: '.', dot: true })
+			.pipe(filter(['**', '!**/*.map']))
+			.pipe(util.setExecutableBit(['**/node/bin/node', '**/node/node.exe']));
+		// test-workbench_change end
+
 		const mergeStreams = [
 			packageJsonStream,
 			productJsonStream,
@@ -523,7 +534,8 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			api,
 			telemetry,
 			sources,
-			deps
+			deps,
+			dshAgentResources // test-workbench_change
 		];
 		if (packageSubJsonStream) {
 			mergeStreams.push(packageSubJsonStream);

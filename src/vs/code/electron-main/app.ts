@@ -100,6 +100,10 @@ import { isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from '../../platfo
 import { getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
 import { ICodeWindow } from '../../platform/window/electron-main/window.js';
 import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
+// test-workbench_change start
+import { DshAgentMainService } from '../../platform/dshAgent/electron-main/dshAgentMainService.js';
+import { DSH_AGENT_MAIN_CHANNEL } from '../../platform/dshAgent/common/dshAgent.js';
+// test-workbench_change end
 import { ActiveWindowManager } from '../../platform/windows/node/windowTracker.js';
 import { hasWorkspaceFileExtension } from '../../platform/workspace/common/workspace.js';
 import { IWorkspacesService } from '../../platform/workspaces/common/workspaces.js';
@@ -157,6 +161,9 @@ export class CodeApplication extends Disposable {
 	};
 
 	private windowsMainService: IWindowsMainService | undefined;
+	// test-workbench_change start
+	private dshAgentMainService: DshAgentMainService | undefined;
+	// test-workbench_change end
 	private auxiliaryWindowsMainService: IAuxiliaryWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
 
@@ -616,6 +623,19 @@ export class CodeApplication extends Disposable {
 
 		// Transient profiles handler
 		this._register(appInstantiationService.createInstance(UserDataProfilesHandler));
+
+		// test-workbench_change start
+		// The Agent window is optional; construction only registers IPC and lifecycle hooks.
+		this.dshAgentMainService = this._register(appInstantiationService.invokeFunction(accessor => new DshAgentMainService(
+			accessor.get(ILogService),
+			accessor.get(IWindowsMainService),
+			this.environmentMainService,
+			accessor.get(IConfigurationService),
+			this.lifecycleMainService,
+			this.productService,
+			accessor.get(ITelemetryService)
+		)));
+		// test-workbench_change end
 
 		// Init Channels
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
@@ -1304,6 +1324,14 @@ export class CodeApplication extends Disposable {
 		// Workspaces
 		const workspacesChannel = ProxyChannel.fromService(accessor.get(IWorkspacesService), disposables);
 		mainProcessElectronServer.registerChannel('workspaces', workspacesChannel);
+
+		// test-workbench_change start
+		// dsh Agent window controls and IDE context for the embedded Agent.
+		if (this.dshAgentMainService) {
+			const dshAgentChannel = ProxyChannel.fromService(this.dshAgentMainService, disposables);
+			mainProcessElectronServer.registerChannel(DSH_AGENT_MAIN_CHANNEL, dshAgentChannel);
+		}
+		// test-workbench_change end
 
 		// Menubar
 		const menubarChannel = ProxyChannel.fromService(accessor.get(IMenubarMainService), disposables);

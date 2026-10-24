@@ -43,3 +43,10 @@ dist
 .github/prompts/*.local.prompt.md
 .agents/skills/.local/
 .github/skills/.local/
+
+# test-workbench_change - staged dsh Agent runtime
+/resources/dsh-agent/node/
+/resources/dsh-agent/app/
+/resources/dsh-agent/web/
+/resources/dsh-agent/previous/
+/resources/dsh-agent/plugin/*/node_modules/
