@@ -4,6 +4,17 @@ This file records changes to the dsh Agent integration. Code changes follow the
 repository's `test-workbench_change` marker convention; this file is the
 human-readable counterpart.
 
+## 2026-10-24 — Trae Agent window research (docs only)
+
+- Added `docs/dsh-agent/trae-agent-window-research-and-plan.md`:
+  - Trae Agent Solo Lite window entry, bootstrap, React + workbench services,
+    and the service/UI boundary.
+  - Correction: Trae shares VS Code's service layer and extension host, not its
+    visible terminal/explorer/editor components.
+  - tscode + dsh comparison, key conclusions, P0/P1/P2 evolution plan, metrics,
+    risks, and open questions.
+- No runtime or code changes in this entry.
+
 ## 2026-10-24 — Node 24.18.0 runtime pin (implemented)
 
 - Changed `resources/dsh-agent/runtime.json` from Node 22.22.1 to Node 24.18.0.

@@ -57,6 +57,9 @@ under `resources/app`.
   downloads the dsh dependency tree (~500 MB); later runs restore it.
 - `gulpfile.vscode.ts` copies `resources/dsh-agent/**` (without `previous/`)
   into the app root and preserves the executable bit on Node.
+- On Windows, `patchWin32DependenciesTask` skips `*/resources/dsh-agent/**`:
+  the runtime carries Mach-O/ELF `.node` prebuilds for other platforms and
+  `rcedit` only understands PE files.
 - `dshAgentPreload.js` is listed in `vscodeResourceIncludes`, so
   `core-ci` → package includes it.
 

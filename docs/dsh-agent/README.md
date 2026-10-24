@@ -3,7 +3,9 @@
 Status: implementation for the v1 plan is in the repository. This document is
 the operator/developer entry point; see `docs/dsh集成tscode计划.md` for the
 program plan, `docs/dsh-agent/adr-0002-node-runtime.md` for the Electron/Node
-runtime analysis, and `docs/dsh-agent/changelog.md` for change history.
+runtime analysis, `docs/dsh-agent/trae-agent-window-research-and-plan.md` for
+the Trae Agent-window comparison and evolution plan, and
+`docs/dsh-agent/changelog.md` for change history.
 
 ## What ships
 

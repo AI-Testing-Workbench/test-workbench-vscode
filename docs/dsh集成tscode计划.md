@@ -635,7 +635,9 @@ GUI 手动验证（CDP）：
 - **已将 Host Node 从 22.22.1 升级到 24.18.0。** `.nvmrc`、`runtime.json` 和
   `prepare-runtime.mjs` 的校验已对齐，发布 CI 中因版本漂移导致的 staging 失败
   已消除。
-- 完整决策与替代方案见 `docs/dsh-agent/adr-0002-node-runtime.md`；变更记录见
+- 完整决策与替代方案见 `docs/dsh-agent/adr-0002-node-runtime.md`；Trae Agent
+  窗口对比与演进计划见
+  `docs/dsh-agent/trae-agent-window-research-and-plan.md`；变更记录见
   `docs/dsh-agent/changelog.md`。
 
 ### 14.2 实测证据
