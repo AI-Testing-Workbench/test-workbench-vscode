@@ -500,8 +500,9 @@ jobs:
             exit 1
           fi
           echo "Scanning native modules under $SERVER_DIR"
-          find "$SERVER_DIR" -name "*.node" -not -path "*prebuilds*" | head -10
-          if [ -z "$(find "$SERVER_DIR" -name "*.node" -not -path "*prebuilds*" | head -1)" ]; then
+          # The bundled dsh Agent runtime has its own glibc baseline; skip it.
+          find "$SERVER_DIR" -name "*.node" -not -path "*prebuilds*" -not -path "*/resources/dsh-agent/*" | head -10
+          if [ -z "$(find "$SERVER_DIR" -name "*.node" -not -path "*prebuilds*" -not -path "*/resources/dsh-agent/*" | head -1)" ]; then
             echo "ERROR: no .node files found under $SERVER_DIR" >&2
             exit 1
           fi
@@ -565,8 +566,9 @@ jobs:
             exit 1
           fi
           echo "Scanning native modules under $CLIENT_DIR"
-          find "$CLIENT_DIR" -name "*.node" -not -path "*prebuilds*" | head -10
-          if [ -z "$(find "$CLIENT_DIR" -name "*.node" -not -path "*prebuilds*" | head -1)" ]; then
+          # The bundled dsh Agent runtime has its own glibc baseline; skip it.
+          find "$CLIENT_DIR" -name "*.node" -not -path "*prebuilds*" -not -path "*/resources/dsh-agent/*" | head -10
+          if [ -z "$(find "$CLIENT_DIR" -name "*.node" -not -path "*prebuilds*" -not -path "*/resources/dsh-agent/*" | head -1)" ]; then
             echo "ERROR: no .node files found under $CLIENT_DIR" >&2
             exit 1
           fi

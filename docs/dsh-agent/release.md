@@ -87,8 +87,12 @@ under `resources/app`.
   native packages. The runtime uses bundled N-API prebuilds, so the staged
   smoke and `node-pty` still work (verified 2026-10-24). If a future dependency
   needs a postinstall build, approve that script explicitly in the install step.
-- Linux is beta. The bundle uses the official Node 24.18.0 binary, which may
-  raise the minimum glibc above the 2.28 baseline used by the remote server.
-  Re-check this when the pin changes.
+- Linux is beta. The bundled Node 24.18.0 binary tops out at `GLIBC_2.28`, but
+  dsh's speech dependency `sherpa-onnx-linux-x64` (1.13.8) requires
+  `GLIBC_2.32` / `GLIBCXX_3.4.29`. The VS Code glibc gate therefore skips
+  `*/resources/dsh-agent/*`; the runtime is validated by `prepare-runtime
+  --check` and the smoke test instead. On a glibc < 2.32 host the core agent
+  still runs, but speech-to-text may fail to load. Re-check both baselines when
+  the dsh or Node pin changes.
 - `resources/dsh-agent/previous` is a local rollback snapshot and is excluded
   from packages.

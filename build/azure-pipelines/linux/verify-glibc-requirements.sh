@@ -10,7 +10,14 @@ elif [ "$VSCODE_ARCH" == "armhf" ]; then
 fi
 
 # Get all files with .node extension from server folder
-files=$(find $SEARCH_PATH -name "*.node" -not -path "*prebuilds*" -not -path "*extensions/node_modules/@parcel/watcher*" -o -type f -executable -name "node")
+# test-workbench_change start
+# The bundled dsh Agent runtime is a third-party payload with its own glibc
+# baseline (sherpa-onnx needs GLIBC 2.32), so it is not held to the VS Code
+# 2.28 sysroot requirement. It is validated by prepare-runtime --check instead.
+files=$(find "$SEARCH_PATH" \
+  \( \( -name "*.node" -not -path "*prebuilds*" -not -path "*extensions/node_modules/@parcel/watcher*" \) -o \( -type f -executable -name "node" \) \) \
+  -not -path "*/resources/dsh-agent/*")
+# test-workbench_change end
 
 echo "Verifying requirements for files: $files"
 

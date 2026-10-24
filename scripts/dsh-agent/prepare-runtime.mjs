@@ -219,8 +219,14 @@ async function prepare() {
 			await rm(join(out, entry), { recursive: true, force: true });
 		}
 	}
-	await mkdir(join(out, 'node', process.platform === 'win32' ? '' : 'bin'), { recursive: true });
-	const nodeTarget = join(out, 'node', process.platform === 'win32' ? 'node.exe' : 'bin', 'node');
+	// test-workbench_change start
+	// Windows keeps `node/node.exe`, macOS/Linux use `node/bin/node`. Do not append
+	// another path segment to the Windows target: it resolves to `node.exe/node`.
+	const nodeTarget = process.platform === 'win32'
+		? join(out, 'node', 'node.exe')
+		: join(out, 'node', 'bin', 'node');
+	await mkdir(dirname(nodeTarget), { recursive: true });
+	// test-workbench_change end
 	await copyFile(nodeExe, nodeTarget);
 	await chmod(nodeTarget, 0o755);
 
