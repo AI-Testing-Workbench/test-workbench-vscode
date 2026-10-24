@@ -575,14 +575,21 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 
 	return async () => {
 		const versionedResourcesFolder = util.getVersionedResourcesFolder('win32', commit!);
+		// test-workbench_change start
+		// The bundled dsh Agent runtime ships prebuilt binaries for every platform
+		// (Mach-O/ELF .node files under node-pty/prebuilds) plus its own rg.exe.
+		// rcedit only understands PE files, so keep the runtime out of this patch.
+		const dshAgentIgnore = '**/resources/dsh-agent/**';
+		const isDshAgentPath = (file: string) => /(^|[\\/])resources[\\/]dsh-agent[\\/]/.test(file);
 		const deps = (await Promise.all([
-			glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' }),
-			glob('**/rg.exe', { cwd }),
+			glob('**/*.node', { cwd, ignore: ['extensions/node_modules/@parcel/watcher/**', dshAgentIgnore] }),
+			glob('**/rg.exe', { cwd, ignore: dshAgentIgnore }),
 			glob('**/tgrep.exe', { cwd }),
 			glob('**/*explorer_command*.dll', { cwd }),
 			// TODO@anthonykim1 Remove once @github/copilot ships OneAuthInterop.dll with complete version information.
 			glob('**/OneAuthInterop.dll', { cwd }),
-		])).flatMap(o => o);
+		])).flatMap(o => o).filter(dep => !isDshAgentPath(dep));
+		// test-workbench_change end
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));
 		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'product.json'), 'utf8'));
 		const baseVersion = packageJson.version.replace(/-.*$/, '');
