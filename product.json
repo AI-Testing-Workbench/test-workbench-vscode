@@ -298,8 +298,13 @@
 	"extensionsAutoInstallUrl": "aHR0cHM6Ly90c2NvZGUtZ2F0ZXdheS5wYWFzdWF0LmNtYmNoaW5hLmNuL2F1dG8taW5zdGFsbC1leHRlbnNpb25z",
 	"extensionsAutoInstall": [
 		"test-tech.test-task-manager",
-		"test-tech.testcase-select"
+		"test-tech.testcase-select",
+		"test-tech.tscode-remote-ssh"
 	],
 	"sessionsWindowAllowedExtensions": [],
-	"voiceWsUrl": "wss://falcon-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice"
+	"voiceWsUrl": "wss://falcon-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice",
+	"dshAgent": {
+		"enabled": true,
+		"killSwitch": false
+	}
 }

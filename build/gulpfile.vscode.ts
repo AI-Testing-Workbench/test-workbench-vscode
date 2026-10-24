@@ -349,6 +349,16 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'node_modules/zod/**'
 			], 'node_modules.asar'));
 
+		// test-workbench_change start
+		// The staged dsh Agent runtime lives next to the application payload.
+		const dshAgentResources = gulp.src([
+			'resources/dsh-agent/**',
+			'!resources/dsh-agent/previous/**'
+		], { base: '.', dot: true })
+			.pipe(filter(['**', '!**/*.map']))
+			.pipe(util.setExecutableBit(['**/node/bin/node', '**/node/node.exe']));
+		// test-workbench_change end
+
 		const mergeStreams = [
 			packageJsonStream,
 			productJsonStream,
@@ -356,7 +366,8 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			api,
 			telemetry,
 			sources,
-			deps
+			deps,
+			dshAgentResources // test-workbench_change
 		];
 		let all = es.merge(...mergeStreams);
 

@@ -1,0 +1,4 @@
+# dsh-client-tscode bundle patch: one insert registering the dual-face plugin.
+- insert:
+    - id: tscode-bridge
+      name: 'dsh-client-tscode'

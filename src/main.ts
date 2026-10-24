@@ -125,7 +125,13 @@ protocol.registerSchemesAsPrivileged([
 	{
 		scheme: 'vscode-managed-remote-resource',
 		privileges: { secure: true, supportFetchAPI: true, corsEnabled: true }
+	},
+	// test-workbench_change start
+	{
+		scheme: 'dsh-agent',
+		privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true, codeCache: true }
 	}
+	// test-workbench_change end
 ]);
 perf.mark('code/didRegisterSchemesAsPrivileged');
 

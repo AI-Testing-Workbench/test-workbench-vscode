@@ -11,6 +11,10 @@
   "private": true,
   "scripts": {
     "test": "node -e \"console.error('Run a test script from the scripts folder, for example: ./scripts/test.sh --run <file>.'); process.exit(1)\"",
+    "dsh-agent:prepare": "node scripts/dsh-agent/prepare-runtime.mjs",
+    "dsh-agent:check": "node scripts/dsh-agent/prepare-runtime.mjs --check",
+    "dsh-agent:smoke": "node scripts/dsh-agent/e2e-smoke.mjs",
+    "dsh-agent:size": "node scripts/dsh-agent/size-report.mjs",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
     "test-browser-no-install": "node test/unit/browser/index.js",
     "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --timeout=5000 --exit",

@@ -95,6 +95,10 @@ extensions/vscode-colorize-tests/test/colorize-fixtures/test6916.js
 extensions/yaml/build/update-grammar.js
 gulpfile.mjs
 local-update-server.cjs
+# test-workbench_change start - dsh agent plugin ships as runtime ESM
+resources/dsh-agent/plugin/dsh-client-tscode/lib/client.js
+resources/dsh-agent/plugin/dsh-client-tscode/lib/index.js
+# test-workbench_change end
 scripts/chat-simulation/common/perf-scenarios.js
 scripts/chat-simulation/common/utils.js
 scripts/chat-simulation/merge-ci-summary.js
@@ -105,6 +109,13 @@ scripts/code-perf.js
 scripts/code-server.js
 scripts/code-sessions-web.js
 scripts/code-web.js
+# test-workbench_change start - dsh agent packaging and verification scripts
+scripts/dsh-agent/e2e-smoke.mjs
+scripts/dsh-agent/install-plugin.mjs
+scripts/dsh-agent/prepare-runtime.mjs
+scripts/dsh-agent/rollback-runtime.mjs
+scripts/dsh-agent/size-report.mjs
+# test-workbench_change end
 scripts/xterm-update.js
 src/vs/base/browser/dompurify/dompurify.js
 src/vs/base/common/marked/marked.js

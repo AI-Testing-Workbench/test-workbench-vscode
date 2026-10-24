@@ -207,6 +207,9 @@ import './contrib/chat/electron-browser/tunnelHost.contribution.js';
 // Copilot Voice
 import './contrib/agentsVoice/electron-browser/agentsVoiceNativeCommands.js';
 
+//dsh
+import './contrib/dshAgent/electron-browser/dshAgent.contribution.js'; // test-workbench_change
+
 // Encryption
 import './contrib/encryption/electron-browser/encryption.contribution.js';
 
