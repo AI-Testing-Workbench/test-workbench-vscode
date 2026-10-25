@@ -312,7 +312,7 @@ jobs:
         id: dsh-agent-runtime-cache
         with:
           path: .build/dsh-runtime
-          key: dsh-agent-runtime-darwin-x64-${{ needs.dsh-runtime.outputs.ref }}
+          key: dsh-agent-runtime-v2-darwin-x64-${{ needs.dsh-runtime.outputs.ref }}
 
       - name: Download dsh fork tarballs
         if: steps.dsh-agent-runtime-cache.outputs.cache-hit != 'true'

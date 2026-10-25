@@ -184,30 +184,45 @@ if (entry === undefined) {
 // Follow install and peer dependencies through the packed set. External
 // dependencies are left to npm, which resolves the platform-specific native
 // packages for the machine running this script.
-const closure = new Set<string>();
-const visit = (name: string): void => {
-	if (closure.has(name)) {
-		return;
-	}
+//
+// Optional-only packages must stay optional at the root as well. Otherwise npm
+// treats a macOS-only package (for example dsh-experimental-cua-macos) as a
+// required dependency on Windows/Linux and fails with EBADPLATFORM.
+const required = new Set<string>();
+const optional = new Set<string>();
+const visit = (name: string, isRequired: boolean): void => {
 	const pkg = packed.get(name);
 	if (pkg === undefined) {
 		return;
 	}
-	closure.add(name);
-	for (const section of ['dependencies', 'optionalDependencies', 'peerDependencies'] as const) {
-		const dependencies = pkg.manifest[section];
-		if (dependencies === undefined) {
-			continue;
-		}
-		for (const dependency of Object.keys(dependencies)) {
-			visit(dependency);
-		}
+	if (required.has(name)) {
+		return;
+	}
+	if (!isRequired && optional.has(name)) {
+		return;
+	}
+	if (isRequired) {
+		required.add(name);
+		optional.delete(name);
+	} else {
+		optional.add(name);
+	}
+	for (const dependency of Object.keys(pkg.manifest.dependencies ?? {})) {
+		visit(dependency, isRequired);
+	}
+	for (const dependency of Object.keys(pkg.manifest.peerDependencies ?? {})) {
+		visit(dependency, isRequired);
+	}
+	for (const dependency of Object.keys(pkg.manifest.optionalDependencies ?? {})) {
+		visit(dependency, false);
 	}
 };
-visit(entryPackage);
-if (!closure.has(webPackage)) {
+visit(entryPackage, true);
+const closure = new Set([...required, ...optional]);
+if (!required.has(webPackage)) {
 	throw new Error(`${webPackage} is not reachable from ${entryPackage}`);
 }
+console.log(`[dsh-agent] closure: ${String(required.size)} required, ${String(optional.size)} optional`);
 
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
@@ -233,10 +248,17 @@ for (const name of closure) {
 }
 
 const dependencies: Record<string, string> = {};
-for (const name of [...closure].sort()) {
+for (const name of [...required].sort()) {
 	const pkg = packed.get(name);
 	if (pkg !== undefined) {
 		dependencies[name] = pathToFileURL(pkg.tarball).href;
+	}
+}
+const optionalDependencies: Record<string, string> = {};
+for (const name of [...optional].sort()) {
+	const pkg = packed.get(name);
+	if (pkg !== undefined) {
+		optionalDependencies[name] = pathToFileURL(pkg.tarball).href;
 	}
 }
 await writeFile(join(out, 'package.json'), JSON.stringify({
@@ -244,6 +266,7 @@ await writeFile(join(out, 'package.json'), JSON.stringify({
 	version: '0.0.0',
 	private: true,
 	dependencies,
+	...(Object.keys(optionalDependencies).length > 0 ? { optionalDependencies } : {}),
 	allowScripts
 }, null, 2) + '\n');
 await writeFile(join(out, 'TARBALL_SHA256SUMS'), `${digestRows.sort().join('\n')}\n`);

@@ -21,6 +21,9 @@ human-readable counterpart.
   validate the resolved artifact instead of the local `runtime.json` pin.
 - Runtime caches are keyed by the resolved fork commit, not the configured
   branch.
+- `install-runtime-from-tarballs.mts` now keeps optional-only dsh packages in
+  `optionalDependencies`. This prevents npm on Windows/Linux from failing with
+  `EBADPLATFORM` on `@deepseek-ai/dsh-experimental-cua-macos`.
 - Required secrets: fork `TSCODE_DISPATCH_TOKEN` (trigger tscode) and tscode
   `DSH_FORK_TOKEN` (read fork artifacts). See `docs/dsh-agent/release.md`.
 
