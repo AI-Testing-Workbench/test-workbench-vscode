@@ -17,7 +17,8 @@ the Trae Agent-window comparison and evolution plan, and
 - A WebSocket fence that rewrites `Origin` and injects the Host cookie for
   `ws://127.0.0.1:<host-port>/...` connections from the Agent window.
 - A bounded preload bridge (`window.tscodeAgent`), a directory-picker bridge
-  (`__DSH_DIRECTORY_PICKER__`), and a dsh client plugin
+  (`__DSH_DIRECTORY_PICKER__`) that opens the IDE's native folder dialog with
+  the current workspace as its default path, and a dsh client plugin
   (`resources/dsh-agent/plugin/dsh-client-tscode`) that is provisioned into the
   profile automatically.
 - Per-window theme emulation so the dsh UI follows the IDE Light/Dark theme

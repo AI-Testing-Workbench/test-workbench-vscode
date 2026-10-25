@@ -4,6 +4,21 @@ This file records changes to the dsh Agent integration. Code changes follow the
 repository's `test-workbench_change` marker convention; this file is the
 human-readable counterpart.
 
+## 2026-10-25 — Fix the dsh “add workspace” no-op
+
+- `DshAgentIpcChannel.PickDirectory` now always opens the IDE's native folder
+  dialog, using the current IDE workspace as `defaultPath`. It no longer returns
+  the IDE root directly.
+- The old fast path made the dsh sidebar's “add workspace” button appear dead
+  once the IDE root was already a dsh workspace: `createWorkspace` received the
+  existing path and the UI closed without a visible change.
+- Cancelling the dialog still returns `null`, which dsh treats as a cancelled
+  pick. Selecting any folder creates a normal dsh workspace and starts a session
+  in it.
+- Verified in the dev app with an isolated `DSH_HOME`: the click now logs
+  `[dshAgent] opening native directory picker` and opens the native sheet
+  instead of silently returning the existing root.
+
 ## 2026-10-25 — Bundle pnpm for the embedded plugin manager
 
 - `resources/dsh-agent/runtime.json` now pins `pnpm` 11.28.8.

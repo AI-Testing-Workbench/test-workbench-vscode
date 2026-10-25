@@ -543,15 +543,19 @@ export class DshAgentMainService extends Disposable implements IDshAgentMainServ
 		});
 		this.handle(DshAgentIpcChannel.PickDirectory, async event => {
 			this.assertBridgeSender(event);
+			// Always ask for a folder. Returning the current IDE root here made the
+			// dsh "add workspace" button a silent no-op once that workspace existed;
+			// the root is only the dialog's starting point.
 			const root = this.context.workspaceFolders[0];
-			if (root) {
-				return root;
-			}
+			const options: Electron.OpenDialogOptions = {
+				properties: ['openDirectory', 'createDirectory'],
+				...(root ? { defaultPath: root } : {})
+			};
+			this.logService.info('[dshAgent] opening native directory picker');
 			const window = this.window;
-			const options: Electron.OpenDialogOptions = { properties: ['openDirectory', 'createDirectory'] };
 			const result = window && !window.isDestroyed()
 				? await dialog.showOpenDialog(window.browserWindow, options)
-				: await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
+				: await dialog.showOpenDialog(options);
 			return result.canceled ? null : result.filePaths[0] ?? null;
 		});
 		this.handle(DshAgentIpcChannel.Status, event => {
