@@ -166,6 +166,10 @@ under `resources/app`.
 - Node 24.18.0 ships npm 11.16, which treats install scripts as opt-in. The
   installer writes the `allowScripts` policy into the generated manifest; do not
   replace it with `--dangerously-allow-all-scripts`.
+- The runtime includes the pnpm version pinned in `runtime.json`. The
+  `.build/dsh-runtime` cache key is versioned (`dsh-agent-runtime-v3-*`); bump it
+  whenever the installer gains a new non-dsh package so a stale cache cannot
+  skip the install step.
 - Linux is beta. The bundled Node 24.18.0 binary tops out at `GLIBC_2.28`, but
   dsh's speech dependency `sherpa-onnx-linux-x64` (1.13.8) requires
   `GLIBC_2.32` / `GLIBCXX_3.4.29`. The VS Code glibc gate therefore skips

@@ -80,11 +80,13 @@ agent presets that mount `@deepseek-ai/dsh-plugin-manager/tools`, and disabling
 the service makes every new session fail with
 `agent-preset/invalid: ... waiting for pluginManager`.
 
-Installed plugins run outside the workspace sandbox. The agent-facing tool
-requires an explicit `danger-full-access` approval for each call (it can persist
-profile changes, so approval is not implied by workspace-write). Users are
-responsible for the trust and provenance of plugins they install; the IDE does
-not add a second allowlist on top of dsh's own install flow.
+Installed plugins run outside the workspace sandbox. Package operations use the
+pinned pnpm bundled in the runtime, not a globally installed one; the shim is on
+the Host's `PATH` and is version-checked at packaging time. The agent-facing
+tool requires an explicit `danger-full-access` approval for each call (it can
+persist profile changes, so approval is not implied by workspace-write). Users
+are responsible for the trust and provenance of plugins they install; the IDE
+does not add a second allowlist on top of dsh's own install flow.
 
 Tool approvals remain owned by dsh's own approval UI. v1 does not mount
 `computer_use`, `browser_use`, or arbitrary remote MCP servers. The dsh sidebar

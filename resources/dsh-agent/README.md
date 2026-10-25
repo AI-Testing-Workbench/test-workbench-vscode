@@ -8,8 +8,9 @@ document and the client plugin source.
 resources/dsh-agent/
   node/
     bin/node                 # Node 24.18.0 (node.exe on Windows)
+    bin/pnpm                 # pnpm shim (pnpm.cmd on Windows)
   app/
-    node_modules/            # pinned dsh plus its hoisted dependencies
+    node_modules/            # pinned dsh, pnpm, and their hoisted dependencies
   web/
     index.html               # dsh web frontend dist (diagnostics/offline page)
   host/
@@ -60,16 +61,22 @@ node scripts/dsh-agent/e2e-smoke.mjs
 node scripts/dsh-agent/size-report.mjs
 ```
 
-`runtime.json` pins both the dsh version and the fork revision:
+`runtime.json` pins the dsh version, Node, pnpm, and the fork revision:
 
 ```json
 {
   "dsh": "0.2.1-rc.3",
   "node": "24.18.0",
+  "pnpm": "11.28.8",
   "format": 1,
   "fork": { "repository": "...", "ref": "<commit>" }
 }
 ```
+
+`install-runtime-from-tarballs.mts` installs the pinned pnpm package into the
+runtime prefix, and `prepare-runtime` exposes it as a `pnpm` shim next to the
+bundled Node. The Host prepends that directory to `PATH`, so the dsh plugin
+manager can inspect and install bundles without a global pnpm.
 
 `prepare-runtime` records the fork revision in `VERSION` and verifies it during
 `--check`. CI passes `--dsh-version` and `--fork-ref` from the resolved fork

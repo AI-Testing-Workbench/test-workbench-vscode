@@ -51,6 +51,11 @@ node scripts/dsh-agent/prepare-runtime.mjs \
 node scripts/dsh-agent/prepare-runtime.mjs --check
 ```
 
+The packaging path also installs the pnpm version pinned in
+`resources/dsh-agent/runtime.json` and exposes it next to the bundled Node, so
+plugin installs in a packaged build do not require a global pnpm. Development
+runs through a global `dsh` still use the caller's pnpm.
+
 ## Architecture
 
 ```text

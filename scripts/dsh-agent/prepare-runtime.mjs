@@ -119,6 +119,37 @@ async function nodePinMismatch(pin) {
 	return undefined;
 }
 
+function pnpmShimPath(runtimeRoot) {
+	return process.platform === 'win32'
+		? join(runtimeRoot, 'node', 'pnpm.cmd')
+		: join(runtimeRoot, 'node', 'bin', 'pnpm');
+}
+
+/**
+ * Expose the staged pnpm package on the same PATH directory as the bundled
+ * Node. The Host prepends that directory for every child process, so the
+ * plugin manager's default `pnpm` command resolves without a global install.
+ */
+async function writePnpmShim(runtimeRoot) {
+	const shim = pnpmShimPath(runtimeRoot);
+	await mkdir(dirname(shim), { recursive: true });
+	if (process.platform === 'win32') {
+		await writeFile(shim, [
+			'@echo off',
+			'"%~dp0node.exe" "%~dp0..\\app\\node_modules\\pnpm\\bin\\pnpm.mjs" %*',
+			''
+		].join('\r\n'));
+		return;
+	}
+	await writeFile(shim, [
+		'#!/bin/sh',
+		'DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)',
+		'exec "$DIR/node" "$DIR/../../app/node_modules/pnpm/bin/pnpm.mjs" "$@"',
+		''
+	].join('\n'));
+	await chmod(shim, 0o755);
+}
+
 async function readVersion(packageDir) {
 	const manifest = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf8'));
 	if (!manifest.name || !manifest.version) {
@@ -153,6 +184,34 @@ async function checkRuntime() {
 		const stagedDsh = JSON.parse(await readFile(dshManifest, 'utf8')).version;
 		if (expectedDshVersion && stagedDsh !== expectedDshVersion) {
 			problems.push(`dsh ${stagedDsh} (expected ${expectedDshVersion})`);
+		}
+	}
+	if (pin?.pnpm) {
+		const pnpmManifest = join(out, 'app', 'node_modules', 'pnpm', 'package.json');
+		if (!await exists(pnpmManifest)) {
+			problems.push(`missing pnpm ${pin.pnpm} package (re-run install-runtime-from-tarballs.mts)`);
+		} else {
+			const stagedPnpm = JSON.parse(await readFile(pnpmManifest, 'utf8')).version;
+			if (stagedPnpm !== pin.pnpm) {
+				problems.push(`pnpm ${stagedPnpm} (expected ${pin.pnpm})`);
+			}
+		}
+		const shim = pnpmShimPath(out);
+		if (!await exists(shim)) {
+			problems.push('missing pnpm shim');
+		} else {
+			try {
+				const shimVersion = execFileSync(shim, ['--version'], {
+					encoding: 'utf8',
+					stdio: ['ignore', 'pipe', 'pipe'],
+					...(process.platform === 'win32' ? { shell: true } : {})
+				}).trim();
+				if (pin.pnpm && shimVersion !== pin.pnpm) {
+					problems.push(`pnpm shim reports ${shimVersion} (expected ${pin.pnpm})`);
+				}
+			} catch (error) {
+				problems.push(`pnpm shim failed: ${error instanceof Error ? error.message : String(error)}`);
+			}
 		}
 	}
 	if (!await exists(join(out, 'plugin', 'dsh-client-tscode', 'package.json'))) {
@@ -209,6 +268,9 @@ async function prepare() {
 	if (pin?.node ? nodeVersion !== pin.node : !/^24\.18\./.test(nodeVersion)) {
 		throw new Error(`Node ${pin?.node ?? '24.18.x'} is required at ${nodeExe} (found ${nodeVersion})`);
 	}
+	if (!pin?.pnpm) {
+		throw new Error('resources/dsh-agent/runtime.json must pin pnpm for the embedded plugin manager');
+	}
 	// `--dsh` must live in a dedicated npm prefix. Copying its whole node_modules
 	// preserves hoisted dependencies; copying only the dsh package would miss them.
 	const dshNodeModules = dirname(dirname(dshDir));
@@ -263,6 +325,16 @@ async function prepare() {
 	}
 	await cp(webDist, join(out, 'web'), { recursive: true });
 
+	const pnpmManifest = join(appRoot, 'pnpm', 'package.json');
+	if (!await exists(pnpmManifest)) {
+		throw new Error(`staged runtime is missing pnpm ${pin.pnpm}; run install-runtime-from-tarballs.mts with the current pin`);
+	}
+	const stagedPnpm = JSON.parse(await readFile(pnpmManifest, 'utf8')).version;
+	if (stagedPnpm !== pin.pnpm) {
+		throw new Error(`staged pnpm is ${stagedPnpm}, expected ${pin.pnpm}`);
+	}
+	await writePnpmShim(out);
+
 	const pluginSource = join(root, 'resources', 'dsh-agent', 'plugin');
 	if (pluginSource !== join(out, 'plugin') && await exists(pluginSource)) {
 		await cp(pluginSource, join(out, 'plugin'), { recursive: true });
@@ -283,7 +355,7 @@ async function prepare() {
 	await writeFile(join(out, 'THIRD_PARTY_NOTICES'), notices + '\n');
 	const fork = expectedForkRevision ? ` / fork ${expectedForkRevision}` : '';
 	await writeFile(join(out, 'VERSION'), `dsh ${dshVersion} / node v${nodeVersion}${fork} / format 1 / ${new Date().toISOString()}\n`);
-	console.log(`[dsh-agent] staged dsh ${dshVersion} and Node ${nodeVersion}${fork} at ${out}`);
+	console.log(`[dsh-agent] staged dsh ${dshVersion}, Node ${nodeVersion}, and pnpm ${stagedPnpm}${fork} at ${out}`);
 }
 
 if (check) {

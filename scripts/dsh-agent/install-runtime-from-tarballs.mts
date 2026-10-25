@@ -50,6 +50,10 @@ interface RuntimeManifest {
 	readonly packages?: RuntimeManifestEntry[];
 }
 
+interface RuntimePin {
+	readonly pnpm?: string;
+}
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const args = process.argv.slice(2);
 const out = resolve(valueOf('--out') ?? join(root, '.build', 'dsh-runtime'));
@@ -181,6 +185,15 @@ if (entry === undefined) {
 	throw new Error(`${entryPackage} is not among the packed tarballs`);
 }
 
+// The embedded Host has no package manager of its own. Install the pinned pnpm
+// package next to dsh so the staged runtime can expose a `pnpm` shim without
+// depending on a globally installed pnpm.
+const pin = await readJson<RuntimePin>(join(root, 'resources', 'dsh-agent', 'runtime.json'));
+const pnpmVersion = pin?.pnpm;
+if (pnpmVersion === undefined) {
+	throw new Error('resources/dsh-agent/runtime.json must pin pnpm for the embedded plugin manager');
+}
+
 // Follow install and peer dependencies through the packed set. External
 // dependencies are left to npm, which resolves the platform-specific native
 // packages for the machine running this script.
@@ -247,7 +260,9 @@ for (const name of closure) {
 	}
 }
 
-const dependencies: Record<string, string> = {};
+const dependencies: Record<string, string> = {
+	pnpm: pnpmVersion
+};
 for (const name of [...required].sort()) {
 	const pkg = packed.get(name);
 	if (pkg !== undefined) {
@@ -271,7 +286,7 @@ await writeFile(join(out, 'package.json'), JSON.stringify({
 }, null, 2) + '\n');
 await writeFile(join(out, 'TARBALL_SHA256SUMS'), `${digestRows.sort().join('\n')}\n`);
 
-console.log(`[dsh-agent] installing ${String(closure.size)} dsh package(s) into ${out}`);
+console.log(`[dsh-agent] installing ${String(closure.size)} dsh package(s) and pnpm@${pnpmVersion} into ${out}`);
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 execFileSync(npm, ['install', '--no-audit', '--no-fund', '--no-save', '--package-lock=false', '--loglevel=warn'], {
 	cwd: out,
@@ -299,4 +314,8 @@ const installedVersion = (JSON.parse(await readFile(join(out, 'node_modules', ..
 if (installedVersion !== entry.manifest.version) {
 	throw new Error(`Installed ${entryPackage} is ${installedVersion}, expected ${entry.manifest.version}`);
 }
-console.log(`[dsh-agent] installed dsh ${installedVersion} with ${String(closure.size)} dsh package(s)`);
+const installedPnpm = (JSON.parse(await readFile(join(out, 'node_modules', 'pnpm', 'package.json'), 'utf8')) as { version: string }).version;
+if (installedPnpm !== pnpmVersion) {
+	throw new Error(`Installed pnpm is ${installedPnpm}, expected ${pnpmVersion}`);
+}
+console.log(`[dsh-agent] installed dsh ${installedVersion} with ${String(closure.size)} dsh package(s) and pnpm ${installedPnpm}`);

@@ -976,7 +976,7 @@ gh api repos/$repo/actions/artifacts/$artifact_id/zip > artifact.zip
 解析出的 `version` / `ref` 作为 `dsh-runtime` job outputs：
 
 - 缓存 key：
-  `dsh-agent-runtime-v2-<platform>-<ref>`；
+  `dsh-agent-runtime-v3-<platform>-<ref>`；
 - staging 校验：
   `prepare-runtime.mjs --dsh-version <version> --fork-ref <ref>`；
 - 打包后校验使用同一组参数。
@@ -997,10 +997,11 @@ gh api repos/$repo/actions/artifacts/$artifact_id/zip > artifact.zip
 4. 生成 `allowScripts`：
    - registry 包按名字；
    - file: tarball 用完整 `file://` URL；
-5. 执行 `npm install`，不省略 optional 依赖；
-6. 显式执行 `@deepseek-ai/dsh-subprocess-local` 的 spawn-helper 修复脚本；
-7. 校验 `@deepseek-ai/dsh/lib/bin.js` 和
-   `@deepseek-ai/dsh-web-frontend/dist/index.html`。
+5. 按 `runtime.json` 的 `pnpm` pin 额外安装 pnpm（不依赖用户全局 pnpm）；
+6. 执行 `npm install`，不省略 optional 依赖；
+7. 显式执行 `@deepseek-ai/dsh-subprocess-local` 的 spawn-helper 修复脚本；
+8. 校验 `@deepseek-ai/dsh/lib/bin.js`、
+   `@deepseek-ai/dsh-web-frontend/dist/index.html` 和 pnpm 版本。
 
 必须遵守：
 
@@ -1017,10 +1018,12 @@ staging 脚本：`scripts/dsh-agent/prepare-runtime.mjs`
 
 - 复制 `node_modules`、Node、web frontend、客户端插件到
   `resources/dsh-agent/`；
+- 在 `node/bin/pnpm`（Windows 为 `node/pnpm.cmd`）生成 pnpm shim，指向
+  `app/node_modules/pnpm`；Host 启动子进程时已把该目录前置到 `PATH`；
 - 生成 `VERSION`、`THIRD_PARTY_NOTICES`、`licenses/`；
 - `VERSION` 记录 dsh 版本、Node 版本、fork commit；
-- `--check` 校验 dsh 版本、Node 版本、fork commit、web、插件和 pi-ai
-  dotfile。
+- `--check` 校验 dsh 版本、Node 版本、fork commit、web、插件、pnpm 版本/
+  shim 和 pi-ai dotfile。
 
 `resources/dsh-agent/runtime.json` 仍是本地构建的默认 pin；CI 通过
 `--dsh-version` / `--fork-ref` 使用实际 artifact 的版本和 commit。

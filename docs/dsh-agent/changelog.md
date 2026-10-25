@@ -4,6 +4,22 @@ This file records changes to the dsh Agent integration. Code changes follow the
 repository's `test-workbench_change` marker convention; this file is the
 human-readable counterpart.
 
+## 2026-10-25 — Bundle pnpm for the embedded plugin manager
+
+- `resources/dsh-agent/runtime.json` now pins `pnpm` 11.28.8.
+- `install-runtime-from-tarballs.mts` installs the pinned pnpm package next to
+  dsh in the runtime prefix and verifies its version.
+- `prepare-runtime.mjs` stages a `pnpm` shim next to the bundled Node
+  (`node/bin/pnpm`, or `node/pnpm.cmd` on Windows) and verifies that it runs.
+  The Host already prepends that directory to `PATH`, so dsh's plugin manager no
+  longer fails with `spawn pnpm ENOENT` in packaged builds.
+- Runtime cache keys move from `v2` to `v3` so every platform reinstalls the
+  closure instead of restoring a cache without pnpm.
+- `e2e-smoke.mjs` prints and validates the bundled pnpm version when present.
+- Verified on macOS arm64 with a PATH that excludes every global pnpm:
+  installed `dsh-better-sidebar` 0.28.0 through the dsh plugin page, enabled it,
+  and confirmed its file/task/side-chat tabs appeared in the right sidebar.
+
 ## 2026-10-25 — Fix new-session failure with dsh 0.2.1 presets
 
 - Stopped disabling `plugin-manager` / `tool-plugin-manager` in the managed

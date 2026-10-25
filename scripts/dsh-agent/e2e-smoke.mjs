@@ -12,6 +12,7 @@
 // Usage: node scripts/dsh-agent/e2e-smoke.mjs [--keep]
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { existsSync, realpathSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -86,6 +87,20 @@ const prepared = await prepareDshAgentProfile({
 assert.equal(prepared.pluginInstalled, true, 'client plugin must be provisioned');
 const stderr = [];
 const hostNode = process.env.TSCODE_DSH_AGENT_SMOKE_NODE ?? process.execPath;
+// Packaged runtimes expose pnpm next to the bundled Node so plugin installs do
+// not depend on a global tool chain. Development runs use the caller's pnpm.
+const pnpmShim = process.platform === 'win32'
+	? join(root, 'resources', 'dsh-agent', 'node', 'pnpm.cmd')
+	: join(root, 'resources', 'dsh-agent', 'node', 'bin', 'pnpm');
+if (existsSync(pnpmShim)) {
+	const version = execFileSync(pnpmShim, ['--version'], {
+		encoding: 'utf8',
+		stdio: ['ignore', 'pipe', 'pipe'],
+		...(process.platform === 'win32' ? { shell: true } : {})
+	}).trim();
+	assert.match(version, /^11\./, `unexpected bundled pnpm version: ${version}`);
+	console.log(`[smoke] bundled pnpm ${version}`);
+}
 const host = new DshAgentHostProcess({
 	command: hostNode,
 	args: [dshEntry, 'web', '--no-open', '--host', '127.0.0.1', '--port', '0'],

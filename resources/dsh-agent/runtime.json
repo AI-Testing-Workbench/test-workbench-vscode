@@ -1,6 +1,7 @@
 {
 	"dsh": "0.2.1-rc.3",
 	"node": "24.18.0",
+	"pnpm": "11.28.8",
 	"format": 1,
 	"fork": {
 		"repository": "https://github.com/AI-Testing-Workbench/testagent-dsh.git",
