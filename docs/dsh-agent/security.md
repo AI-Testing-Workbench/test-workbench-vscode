@@ -69,11 +69,22 @@ this bridge.
 
 ## dsh permissions
 
-The managed profile patch (`~/.tscode-dsh/cordis.patch.yml`) disables:
+The integration keeps dsh's native extension model, including the plugin
+management UI, settings, inventory, official-package inventory, market
+surfaces, `hmr` live configuration reload, and the agent-facing
+`plugin_manager` tool. The managed profile patch therefore disables nothing and
+is removed (or left as `[]`) when it contains no user rows.
 
-`plugin-manager`, `tool-plugin-manager`, `ui-plugin-manager`,
-`ui-settings-plugins`, `plugin-inventory`, `ui-settings-plugin-inventory`,
-`plugin-package-inventory-deepseek`, `hmr`.
+`plugin-manager` and `tool-plugin-manager` must remain enabled: dsh 0.2.1 ships
+agent presets that mount `@deepseek-ai/dsh-plugin-manager/tools`, and disabling
+the service makes every new session fail with
+`agent-preset/invalid: ... waiting for pluginManager`.
+
+Installed plugins run outside the workspace sandbox. The agent-facing tool
+requires an explicit `danger-full-access` approval for each call (it can persist
+profile changes, so approval is not implied by workspace-write). Users are
+responsible for the trust and provenance of plugins they install; the IDE does
+not add a second allowlist on top of dsh's own install flow.
 
 Tool approvals remain owned by dsh's own approval UI. v1 does not mount
 `computer_use`, `browser_use`, or arbitrary remote MCP servers. The dsh sidebar

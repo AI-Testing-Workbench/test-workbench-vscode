@@ -17,6 +17,9 @@
 - [10. 待决策事项](#10-待决策事项)
 - [11. 生产就绪检查清单](#11-生产就绪检查清单)
 - [12. 最终建议](#12-最终建议)
+- [13. 实施记录（2026-10-24）](#13-实施记录2026-10-24)
+- [14. 技术复盘：Electron 43 与 Host Node 运行时（2026-10-24）](#14-技术复盘electron-43-与-host-node-运行时2026-10-24)
+- [15. dsh fork 与 tscode 集成构建（2026-10-25）](#15-dsh-fork-与-tscode-集成构建2026-10-25)
 
 ---
 
@@ -54,10 +57,14 @@ tscode Electron App
 
 - 远程 / SSH / 多根工作区
 - dsh Work / Design 模式（先做 Code 模式）
-- dsh 插件市场 / 第三方插件自由安装
 - 与 VS Code 原生 Chat / Agent Host 的 UI 融合
 - 迁移 dsh Desktop 的历史会话
 - Linux 正式支持（v1 先 macOS / Windows，Linux beta）
+
+> 2026-10-25 产品决策：完整保留 dsh 原生插件扩展能力（插件管理 UI、
+> inventory、market、第三方插件安装、`hmr` 热重载）。原“插件市场 / 第三方
+> 插件自由安装不在 v1 范围”的限制取消。安全控制改为 dsh 原生审批 + 安装来源
+> 校验，详见 §6.3。
 
 ---
 
@@ -383,13 +390,20 @@ tscode Electron App
 
 ### 6.3 dsh 权限收敛
 
-v1 默认禁用：
+2026-10-25 产品决策：**完整保留 dsh 原生插件扩展能力**。插件管理 UI、设置页、
+inventory、官方插件 inventory、market 和 `hmr` 热重载均启用；
+`plugin-manager` 与 `tool-plugin-manager` 也必须保留（dsh 0.2.1 的内置 agent
+preset 会挂载 `@deepseek-ai/dsh-plugin-manager/tools`，禁用 `pluginManager`
+服务会导致所有新会话创建失败：`agent-preset/invalid: ... waiting for
+pluginManager`）。
 
-- `plugin_manager`
-- `plugin_market`
-- `computer_use`
-- `browser_use`
-- 任意远程 MCP
+因此 tscode 不再通过 managed profile patch 禁用任何 dsh 插件；配置文件中的
+managed block 会被移除，没有用户自定义行时保留为合法的 `[]`。
+
+未由 web profile 挂载的 `computer_use`、`browser_use` 和任意远程 MCP 保持不
+启用。第三方插件运行在 workspace sandbox 之外，安装来源与信任由用户负责；
+agent 侧 `plugin_manager` 工具每次调用都要求显式的 `danger-full-access`
+审批，且不会因为 workspace-write 自动放行。
 
 权限走 VS Code / dsh 的审批 UI，两者只保留一套为准。
 
@@ -424,9 +438,13 @@ resources/dsh-agent/
   THIRD_PARTY_NOTICES
 ```
 
+> 2026-10-25 起，`app/` 的 dsh runtime 来源改为 `testagent-dsh` 打包的
+> artifact，不再从公共 npm 安装；详见 §15。
+
 ### 7.2 更新策略
 
 - dsh 随 tscode 应用更新，不做独立更新器
+- dsh runtime 由 fork artifact 提供；tscode 发布时拉取并随安装包一起更新
 - 保留上一版 runtime 目录，支持回滚
 - 更新前检查运行中任务
 - 更新后首次启动做 profile 迁移
@@ -572,7 +590,7 @@ resources/dsh-agent/
 | B1–B8 | `electron-main/dshAgentWindow.ts`、`dshAgentMainService.ts`、`dshAgentProtocol.ts`、`node/dshAgentProxy.ts`、`electron-browser/dshAgentPreload.ts` |
 | C1–C7 | preload 白名单、IPC 校验、`resources/dsh-agent/plugin/dsh-client-tscode`、IDE 命令/快捷键/菜单、上下文与失败降级 |
 | D1–D5 | sandbox/contextIsolation/CSP、导航与权限限制、Workspace Trust 策略、profile 收敛、敏感信息脱敏 |
-| E1–E8 | `scripts/dsh-agent/prepare-runtime.mjs`、`size-report.mjs`、`install-plugin.mjs`、`rollback-runtime.mjs`、`resources/dsh-agent/**`；`release.yml` / `release-darwin-x64.yml` 已加入运行时缓存、安装、冒烟、打包后校验 |
+| E1–E8 | `scripts/dsh-agent/prepare-runtime.mjs`、`size-report.mjs`、`install-plugin.mjs`、`rollback-runtime.mjs`、`resources/dsh-agent/**`；`release.yml` / `release-darwin-x64.yml` 已加入运行时缓存、安装、冒烟、打包后校验。2026-10-25 起 runtime 改为从 `testagent-dsh` 的 artifact 拉取，见 §15 |
 | F1–F2 | `src/vs/platform/dshAgent/test/**`、`scripts/dsh-agent/e2e-smoke.mjs` |
 | G1–G4 | `dsh.agentWindow.*`、`dshAgent` product flags、遥测事件、崩溃报告、`docs/dsh-agent/**` |
 
@@ -764,3 +782,291 @@ Node 24.21.0, V8 15.0.245.31-electron.0
 - Linux glibc 基线与 beta 支持。
 - 签名 / 公证 / 安装包 / 更新回滚（E3–E6）。
 - 安全评审（D6）与 IPC fuzz（F6）。
+
+---
+
+## 15. dsh fork 与 tscode 集成构建（2026-10-25）
+
+### 15.1 结论
+
+- dsh 运行时来源切换为自维护 fork：
+  `AI-Testing-Workbench/testagent-dsh`。
+- tscode 不再从公共 npm 安装 `@deepseek-ai/dsh`，而是拉取 fork 打包好的
+  tarball artifact。
+- 两个仓库保持独立；不使用 submodule、不发布私有 npm、不做 dsh 独立更新器。
+- 用户侧仍然只安装和升级一个 tscode，dsh runtime 随 tscode 安装包一起发布。
+- fork 构建完成后可以触发 tscode 构建；tscode 构建只消费 artifact，不会反向
+  触发 fork。
+
+```text
+testagent-dsh/dev
+  └─ tscode-runtime.yml
+       ├─ pnpm install / build:official
+       ├─ release:pack dsh / vendor / landlock
+       ├─ write manifest.json + sha256
+       ├─ upload artifact: dsh-fork-tarballs
+       └─ gh workflow run release.yml
+            ├─ dsh_fork_repository
+            ├─ dsh_fork_ref
+            └─ dsh_fork_run_id
+
+test-workbench-vscode/release.yml
+  └─ dsh-runtime job
+       ├─ 有 run id：精确拉取该次 fork artifact
+       ├─ 无 run id：拉取目标分支最新成功 artifact（默认 dev）
+       ├─ 无 artifact：回退该分支源码构建
+       ├─ 解析 version / commit
+       ├─ 上传为 tscode artifact
+       └─ 各平台 job 安装、staging、smoke、打包
+```
+
+### 15.2 仓库与分支模型
+
+| 仓库 | 角色 | 当前分支 |
+| --- | --- | --- |
+| `AI-Testing-Workbench/testagent-dsh` | dsh runtime 源码与打包 | `dev` |
+| `AI-Testing-Workbench/test-workbench-vscode` | tscode 产品与集成 | `feat/dev-tscode-dsh`（当前） |
+
+说明：
+
+- fork 的 `dev` 是 runtime 的集成分支；上游同步仍在 fork 内完成。
+- tscode 当前在 `feat/dev-tscode-dsh` 上做集成，尚未合并到 `main`。
+- fork workflow 的 `TSCODE_REF` 指向 tscode 的目标分支；当前测试期为
+  `feat/dev-tscode-dsh`，正式合并后改回 `main`。
+- 两个分支名不要混用：
+  - `TSCODE_REF` = tscode 的分支；
+  - tscode 输入 `dsh_fork_ref` = fork 的分支。
+
+#### 手动触发的前置条件
+
+GitHub 的 `workflow_dispatch` 手动按钮只对**默认分支**上的 workflow 生效。
+fork 当前默认分支为 `master`，因此有两种做法：
+
+1. 把 `.github/workflows/tscode-runtime.yml` 单独提交到 `master`，只用于启用
+   手动按钮；运行时仍可选择 `dev`。
+2. 把 fork 默认分支切换为 `dev`（当前选择 B 方案；需在仓库 Settings 中执行一次）。
+
+切换默认分支不会删除 `master`，但会改变 PR 默认目标和 `origin/HEAD`。
+
+### 15.3 Artifact 契约
+
+fork workflow 产出：
+
+```text
+dist/tscode/
+  dsh/*.tgz
+  dsh/manifest.json
+  vendor/*.tgz
+  vendor/manifest.json
+  landlock/*.tgz
+  landlock/manifest.json
+```
+
+artifact 名称：`dsh-fork-tarballs`，保留 30 天。
+
+`manifest.json` 结构：
+
+```json
+{
+  "schemaVersion": 1,
+  "version": "0.2.1-rc.3",
+  "source": {
+    "repository": "AI-Testing-Workbench/testagent-dsh",
+    "ref": "<40 位 commit>"
+  },
+  "packages": [
+    { "tarball": "deepseek-ai-dsh-0.2.1-rc.3.tgz", "sha256": "<sha256>" }
+  ]
+}
+```
+
+约束：
+
+- `dsh` family 是 fork 的全部可发布包；tscode 安装端只沿
+  `@deepseek-ai/dsh` 的依赖闭包安装，不会把无关的 experimental 包带进
+  runtime。
+- `vendor` 包含 `cordis` / `cosmokit` / `schemastery` 等 vendored 包。
+- `landlock` 目前包含 `@deepseek-ai/node-addon-system` entry；平台 binary
+  仍由 npm 按平台解析。若 fork 修改 `native/system`，必须把对应平台包一并
+  打包。
+- tscode 安装端会校验 manifest 中每个 tarball 的 sha256；没有 manifest 的
+  本地目录只打印 warning，不阻断开发。
+
+### 15.4 Fork 侧：构建与触发
+
+文件：`testagent-dsh/.github/workflows/tscode-runtime.yml`
+
+触发：
+
+- `push` 到 `dev`；
+- `workflow_dispatch`（可选择任意分支，`dispatch_tscode` 默认 `true`）。
+
+构建步骤：
+
+```bash
+pnpm install --frozen-lockfile
+pnpm run build:official
+pnpm run release:pack --family dsh    --out dist/tscode/dsh    --concurrency 8
+pnpm run release:pack --family vendor --out dist/tscode/vendor --concurrency 8
+pnpm --dir native/system run build:ts
+pnpm --dir native/system/packages/entry pack \
+  --pack-destination "$PWD/dist/tscode/landlock"
+```
+
+然后生成 manifest、校验 tarball 内 dsh 版本、上传 artifact。
+
+触发 tscode：
+
+```bash
+gh workflow run release.yml \
+  --repo AI-Testing-Workbench/test-workbench-vscode \
+  --ref "$TSCODE_REF" \
+  -f platforms=all \
+  -f dsh_fork_repository="$GITHUB_REPOSITORY" \
+  -f dsh_fork_ref="$GITHUB_REF_NAME" \
+  -f dsh_fork_run_id="$GITHUB_RUN_ID"
+```
+
+需要的 secret：
+
+| 仓库 | Secret | 权限 |
+| --- | --- | --- |
+| `testagent-dsh` | `TSCODE_DISPATCH_TOKEN` | tscode Actions: Read and write（或 classic `repo` + `workflow`） |
+| `test-workbench-vscode` | `DSH_FORK_TOKEN` | fork Actions: Read-only（或 classic `repo`） |
+
+注意：
+
+- `TSCODE_DISPATCH_TOKEN` 必须放在 fork 仓库，不能放在 tscode。
+- 组织仓库的 fine-grained PAT 可能需要组织审批或 SSO 授权。
+- fork 自身的 artifact 上传使用 `GITHUB_TOKEN`，不需要额外 secret。
+
+### 15.5 tscode 侧：拉取与集成
+
+文件：
+
+- `.github/workflows/release.yml`
+- `.github/workflows/release-darwin-x64.yml`
+- `scripts/dsh-agent/install-runtime-from-tarballs.mts`
+- `scripts/dsh-agent/prepare-runtime.mjs`
+- `resources/dsh-agent/runtime.json`
+
+`workflow_dispatch` 输入：
+
+| 输入 | 默认 | 说明 |
+| --- | --- | --- |
+| `dsh_fork_repository` | `AI-Testing-Workbench/testagent-dsh` | fork 仓库 |
+| `dsh_fork_ref` | `dev` | fork 分支，用于查找最新成功产物 |
+| `dsh_fork_run_id` | 空 | 精确 run id；fork 自动触发时传入，手动时留空 |
+
+解析顺序：
+
+1. `dsh_fork_run_id` 有值：直接下载该 run 的 `dsh-fork-tarballs`；
+2. 否则查询 `dsh_fork_ref` 上最新一次成功的 `tscode-runtime.yml`；
+3. 两者都没有：checkout `dsh_fork_ref` 源码并执行 `build:official` + pack。
+
+下载通过 GitHub API 完成，因为 Actions artifact 不能跨仓库用
+`actions/download-artifact` 直接下载：
+
+```bash
+gh api repos/$repo/actions/runs/$run_id/artifacts \
+  --jq '.artifacts[] | select(.name == "dsh-fork-tarballs") | .id'
+gh api repos/$repo/actions/artifacts/$artifact_id/zip > artifact.zip
+```
+
+解析出的 `version` / `ref` 作为 `dsh-runtime` job outputs：
+
+- 缓存 key：
+  `dsh-agent-runtime-v2-<platform>-<ref>`；
+- staging 校验：
+  `prepare-runtime.mjs --dsh-version <version> --fork-ref <ref>`；
+- 打包后校验使用同一组参数。
+
+### 15.6 安装与 staging
+
+安装脚本：`scripts/dsh-agent/install-runtime-from-tarballs.mts`
+
+流程：
+
+1. 读取 `--from` 目录下的全部 `.tgz`，可选校验 `manifest.json` /
+   `SHA256SUMS`；
+2. 从 `@deepseek-ai/dsh` 出发，沿
+   `dependencies` / `peerDependencies` / `optionalDependencies` 计算闭包；
+3. 区分 required 与 optional：
+   - 只通过 optional 边到达的包写入根 `optionalDependencies`；
+   - 其余写入根 `dependencies`；
+4. 生成 `allowScripts`：
+   - registry 包按名字；
+   - file: tarball 用完整 `file://` URL；
+5. 执行 `npm install`，不省略 optional 依赖；
+6. 显式执行 `@deepseek-ai/dsh-subprocess-local` 的 spawn-helper 修复脚本；
+7. 校验 `@deepseek-ai/dsh/lib/bin.js` 和
+   `@deepseek-ai/dsh-web-frontend/dist/index.html`。
+
+必须遵守：
+
+- **不要加 `--omit=optional`**：`koffi` 依赖
+  `@koromix/koffi-<platform>` 可选包，省略后会尝试源码编译。
+- **可选平台包必须保持 optional**：例如
+  `@deepseek-ai/dsh-experimental-cua-macos` 是
+  `@deepseek-ai/dsh-cua-bundle` 的 optionalDependency。如果被提升为根
+  `dependencies`，Windows/Linux 会报：
+  `npm error notsup Unsupported platform ...`。
+- npm 11.16 默认不执行生命周期脚本；`allowScripts` 必须覆盖需要的包。
+
+staging 脚本：`scripts/dsh-agent/prepare-runtime.mjs`
+
+- 复制 `node_modules`、Node、web frontend、客户端插件到
+  `resources/dsh-agent/`；
+- 生成 `VERSION`、`THIRD_PARTY_NOTICES`、`licenses/`；
+- `VERSION` 记录 dsh 版本、Node 版本、fork commit；
+- `--check` 校验 dsh 版本、Node 版本、fork commit、web、插件和 pi-ai
+  dotfile。
+
+`resources/dsh-agent/runtime.json` 仍是本地构建的默认 pin；CI 通过
+`--dsh-version` / `--fork-ref` 使用实际 artifact 的版本和 commit。
+
+### 15.7 验证记录
+
+已完成的验证：
+
+| 项目 | 结果 |
+| --- | --- |
+| fork `build:official` | 通过 |
+| fork `release:pack` dsh/vendor/landlock | 通过（364 + 9 + 1 个 tarball） |
+| macOS arm64 artifact 安装 | 321 required + 1 optional，共 640 个包 |
+| Linux 解析模拟 `--os=linux` | 通过，不再出现 EBADPLATFORM |
+| Windows 解析模拟 `--os=win32` | 通过，不再出现 EBADPLATFORM |
+| `prepare-runtime` staging + `--check` | 通过 |
+| `e2e-smoke.mjs` | PASS（ready、boot、插件、WS、路径穿越、profile） |
+| dshAgent 单元测试 | 16 passing |
+| workflow YAML / resolver shell | 通过 |
+
+当前待验证：
+
+- Windows x64 / macOS x64 的真实 CI 构建。
+- tscode `feat/dev-tscode-dsh` 合并到 `main` 后的自动触发链路。
+- fork 修改 `native/system` 时的平台包发布策略。
+- 签名、公证与安装包验证（E3–E6）。
+
+### 15.8 常见故障
+
+| 现象 | 原因 | 处理 |
+| --- | --- | --- |
+| `HTTP 422: Unexpected inputs provided` | `TSCODE_REF` 指向的分支没有 `dsh_fork_*` 输入 | 合并 tscode 改动，或把 `TSCODE_REF` 指向当前特性分支 |
+| `HTTP 403: Resource not accessible` | `TSCODE_DISPATCH_TOKEN` 缺少 tscode Actions 写权限 | 重新生成 fine-grained PAT，授予 Actions: Read and write |
+| `HTTP 401: Bad credentials` | token 过期、复制错误或已删除 | 重新生成并更新 fork secret |
+| `HTTP 404: Not Found` | token 看不到仓库，或 workflow 不在目标 ref | 检查 token 仓库范围与 `TSCODE_REF` |
+| `TSCODE_DISPATCH_TOKEN is not configured` | secret 名字错误、放错仓库或加成了 variable | 在 fork 添加 Repository secret |
+| 看不到 **Run workflow** | workflow 不在默认分支 | 把 workflow 文件提交到 `master`，或把默认分支切到 `dev` |
+| `DSH_FORK_TOKEN is not configured` | tscode secret 缺失 | 在 tscode 添加 Repository secret |
+| `npm error notsup Unsupported platform` | 平台专用可选包被当成必需依赖 | 检查安装脚本的 required/optional 分类 |
+| tscode 回退源码构建 | 没有可用 artifact 或 token 权限不足 | 先运行 fork `tscode-runtime`，并检查 `DSH_FORK_TOKEN` |
+
+### 15.9 后续演进
+
+- tscode 集成合并到 `main` 后，把 fork workflow 的 `TSCODE_REF` 改回
+  `main`。
+- 可选：增加 pin 自动更新脚本或 PR，减少手工同步
+  `runtime.json` / `TSCODE_REF`。
+- 若 fork 需要独立发布节奏，可评估私有 registry 替代 artifact 拉取。
+- 保持“用户只安装 tscode”的产品边界，不引入 dsh 独立更新器。

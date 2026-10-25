@@ -4,6 +4,29 @@ This file records changes to the dsh Agent integration. Code changes follow the
 repository's `test-workbench_change` marker convention; this file is the
 human-readable counterpart.
 
+## 2026-10-25 — Fix new-session failure with dsh 0.2.1 presets
+
+- Stopped disabling `plugin-manager` / `tool-plugin-manager` in the managed
+  profile patch. The shipped `standard` preset mounts
+  `@deepseek-ai/dsh-plugin-manager/tools`, so every new session failed with
+  `SessionCreateError: session create failed: agent-preset/invalid:
+  tool-plugin-manager (@deepseek-ai/dsh-plugin-manager/tools): waiting for
+  pluginManager`.
+- The existing managed block is rewritten on the next launch, so installations
+  with the old patch recover without deleting `~/.tscode-dsh`.
+- Restored the full native dsh plugin extension model:
+  `ui-plugin-manager`, `ui-settings-plugins`, `plugin-inventory`,
+  `ui-settings-plugin-inventory`, `plugin-package-inventory-deepseek`, and
+  `hmr` all stay enabled, and so do the agent presets that mount the
+  management tools. `DSH_AGENT_DISABLED_PLUGINS` is now empty; the managed patch
+  block is removed and the file is left as `[]` when it has no user rows. The
+  agent-facing `plugin_manager` tool still requires an explicit
+  `danger-full-access` approval per call.
+- `e2e-smoke.mjs` now creates an agent session and asserts the `standard`
+  preset resolves; this is the regression test for the failure.
+- Updated `docs/dsh-agent/security.md` and the plan's permission table to match
+  the enforced profile.
+
 ## 2026-10-25 — Fork-driven integration builds
 
 - Fork: added `.github/workflows/tscode-runtime.yml`. A push to `dev` (or a

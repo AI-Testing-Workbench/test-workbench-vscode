@@ -32,7 +32,7 @@ suite('dsh Agent profile', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('creates an isolated home with the managed allowlist', async () => {
+	test('creates an isolated home without a managed block', async () => {
 		const directory = await mkdtemp(join(tmpdir(), 'dsh-agent-profile-'));
 		try {
 			const paths = pathsFor(directory);
@@ -40,16 +40,21 @@ suite('dsh Agent profile', () => {
 			assert.strictEqual(prepared.changed, true);
 			assert.strictEqual(prepared.info.profile, 'web');
 			assert.strictEqual(prepared.info.runtimeVersion, '0.2.0-rc.2');
-			const patch = await readFile(join(paths.dshHome, 'cordis.patch.yml'), 'utf8');
-			for (const id of DSH_AGENT_DISABLED_PLUGINS) {
-				assert.ok(patch.includes(`- id: ${id}`), id);
-			}
-			assert.ok(patch.includes('tscode dsh-agent managed'));
+			// Nothing is disabled, so there is no patch file to parse at all.
+			await assert.rejects(() => readFile(join(paths.dshHome, 'cordis.patch.yml')));
 			const info = JSON.parse(await readFile(join(paths.dshHome, 'tscode-agent-profile.json'), 'utf8'));
 			assert.strictEqual(info.format, 1);
+			assert.deepStrictEqual(info.disabledPlugins, []);
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
+	});
+
+	test('preserves dsh plugin management, hot reload, and agent presets', () => {
+		// Plugin extensions are a product feature. The standard preset also mounts
+		// `@deepseek-ai/dsh-plugin-manager/tools`; disabling its service makes
+		// session creation fail with `agent-preset/invalid`.
+		assert.deepStrictEqual(DSH_AGENT_DISABLED_PLUGINS, []);
 	});
 
 	test('provisions the client plugin bundle without pnpm', async () => {
@@ -80,20 +85,20 @@ suite('dsh Agent profile', () => {
 			const paths = pathsFor(directory);
 			await prepareDshAgentProfile(paths, new NullLogService());
 			const patchPath = join(paths.dshHome, 'cordis.patch.yml');
-			const withUserRow = `- id: user-plugin\n  disabled: true\n${await readFile(patchPath, 'utf8')}`;
+			const withUserRow = '- id: user-plugin\n  disabled: true\n';
 			await writeFile(patchPath, withUserRow);
 
 			const second = await prepareDshAgentProfile(paths, new NullLogService());
 			assert.strictEqual(second.changed, false);
 			const patch = await readFile(patchPath, 'utf8');
-			assert.ok(patch.includes('- id: user-plugin'));
-			assert.strictEqual(patch.split('tscode dsh-agent managed').length - 1, 2);
+			assert.strictEqual(patch, withUserRow);
+			assert.ok(!patch.includes('tscode dsh-agent managed'));
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
 	});
 
-	test('replaces an empty user patch without producing invalid YAML', async () => {
+	test('keeps an empty user patch as valid YAML', async () => {
 		const directory = await mkdtemp(join(tmpdir(), 'dsh-agent-profile-'));
 		try {
 			const paths = pathsFor(directory);
@@ -101,10 +106,34 @@ suite('dsh Agent profile', () => {
 			const patchPath = join(paths.dshHome, 'cordis.patch.yml');
 			await writeFile(patchPath, '[]\n');
 			const prepared = await prepareDshAgentProfile(paths, new NullLogService());
+			assert.strictEqual(prepared.changed, false);
+			assert.strictEqual(await readFile(patchPath, 'utf8'), '[]\n');
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('strips a legacy managed block and leaves a valid empty patch', async () => {
+		const directory = await mkdtemp(join(tmpdir(), 'dsh-agent-profile-'));
+		try {
+			const paths = pathsFor(directory);
+			const patchPath = join(paths.dshHome, 'cordis.patch.yml');
+			await mkdir(paths.dshHome, { recursive: true });
+			await writeFile(patchPath, [
+				'# >>> tscode dsh-agent managed: do not edit this block >>>',
+				'- id: plugin-manager',
+				'  disabled: true',
+				'- id: tool-plugin-manager',
+				'  disabled: true',
+				'# <<< tscode dsh-agent managed <<<',
+				''
+			].join('\n'));
+
+			const prepared = await prepareDshAgentProfile(paths, new NullLogService());
 			assert.strictEqual(prepared.changed, true);
 			const patch = await readFile(patchPath, 'utf8');
-			assert.ok(!patch.trim().startsWith('[]'));
-			assert.ok(patch.includes('- id: plugin-manager'));
+			assert.strictEqual(patch, '[]\n');
+			assert.ok(!patch.includes('tscode dsh-agent managed'));
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}

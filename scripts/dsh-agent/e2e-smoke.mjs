@@ -143,6 +143,26 @@ try {
 	});
 	console.log('[smoke] WebSocket mux handshake accepted');
 
+	// Creating a session resolves and mounts the default agent preset. This catches
+	// profile patches that disable a service the shipped preset depends on (for
+	// example `pluginManager`), which otherwise only fails in the UI.
+	const sessionResponse = await forwardDshAgentRequest(new Request('dsh-agent://app/api/session/create', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({
+			type: 'client-request',
+			rpcId: 'smoke-session-create',
+			method: 'session/create',
+			payload: { args: { request: { cwd: home } } }
+		})
+	}), target);
+	assert.equal(sessionResponse.status, 200);
+	const sessionResult = await sessionResponse.json();
+	assert.equal(sessionResult.result?.ok, true, `session create failed: ${JSON.stringify(sessionResult)}`);
+	assert.ok(sessionResult.result.value?.sessionId, 'session create must return a session id');
+	assert.equal(sessionResult.result.value?.agentPreset, 'standard');
+	console.log(`[smoke] agent session created with preset ${sessionResult.result.value.agentPreset}`);
+
 	const traversal = await forwardDshAgentRequest({
 		url: 'dsh-agent://app/%2e%2e%2fetc/passwd',
 		method: 'GET',

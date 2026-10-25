@@ -13,19 +13,20 @@ import { isWindows } from '../../../base/common/platform.js';
 import { ILogService } from '../../log/common/log.js';
 import { IDshAgentPaths } from '../common/dshAgentPaths.js';
 
-/** dsh entry ids disabled by the v1 profile. Keep in sync with the security review. */
-export const DSH_AGENT_DISABLED_PLUGINS: readonly string[] = [
-	// Plugin installation and market surfaces are IDE-owned in v1.
-	'plugin-manager',
-	'tool-plugin-manager',
-	'ui-plugin-manager',
-	'ui-settings-plugins',
-	'plugin-inventory',
-	'ui-settings-plugin-inventory',
-	'plugin-package-inventory-deepseek',
-	// Live configuration reload is unsafe while the IDE does not own approval UX.
-	'hmr'
-];
+/**
+ * dsh entry ids disabled by the managed profile.
+ *
+ * The tscode integration keeps dsh's native extension model, including plugin
+ * management UI, inventory, market, hot reload, and the agent's
+ * `plugin_manager` tool. `plugin-manager` / `tool-plugin-manager` must remain
+ * enabled because shipped agent presets mount the tool; disabling the service
+ * makes every new session fail with `agent-preset/invalid`.
+ *
+ * Keep this list empty unless a profile row genuinely cannot run under the
+ * embedded window. An empty list removes the managed block and leaves the
+ * profile patch as a valid empty YAML array or the user's own rows.
+ */
+export const DSH_AGENT_DISABLED_PLUGINS: readonly string[] = [];
 
 const MANAGED_BEGIN = '# >>> tscode dsh-agent managed: do not edit this block >>>';
 const MANAGED_END = '# <<< tscode dsh-agent managed <<<';
@@ -53,7 +54,7 @@ const PLUGIN_PACKAGE = 'dsh-client-tscode';
 const DEFAULT_BUNDLES = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] as const;
 
 /**
- * Create the isolated dsh home and enforce the v1 plugin allowlist.
+ * Create the isolated dsh home and keep the managed profile patch in sync.
  * The user's own edits outside the managed block are preserved.
  */
 export async function prepareDshAgentProfile(paths: IDshAgentPaths, logService: ILogService): Promise<IDshAgentProfilePreparation> {
@@ -171,24 +172,30 @@ function createProfileInfo(paths: IDshAgentPaths): IDshAgentProfileInfo {
 	};
 }
 
-/** Return the managed patch content. */
+/** Return the managed patch block, or an empty string when nothing is disabled. */
 export function renderManagedPatchBlock(disabledPlugins: readonly string[] = DSH_AGENT_DISABLED_PLUGINS): string {
+	if (disabledPlugins.length === 0) {
+		return '';
+	}
 	const rows = disabledPlugins.map(id => `- id: ${id}\n  disabled: true`);
 	return `${MANAGED_BEGIN}\n${rows.join('\n')}\n${MANAGED_END}\n`;
 }
 
 /**
  * Install or refresh the managed block without disturbing user rows.
+ * When nothing is disabled, remove the block and keep the patch file valid.
  * Returns whether the file changed.
  */
 async function ensureManagedPatchBlock(patchPath: string, logService: ILogService): Promise<boolean> {
 	let existing = '';
+	let fileExists = true;
 	try {
 		existing = await readFile(patchPath, 'utf8');
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
 			throw error;
 		}
+		fileExists = false;
 	}
 
 	const block = renderManagedPatchBlock();
@@ -197,11 +204,31 @@ async function ensureManagedPatchBlock(patchPath: string, logService: ILogServic
 	let next: string;
 	if (begin >= 0 && end > begin) {
 		next = existing.slice(0, begin) + block + existing.slice(end + MANAGED_END.length).replace(/^\r?\n/, '');
-	} else {
+	} else if (block.length > 0) {
 		next = hasUserRows(existing) ? `${existing.replace(/\s*$/, '')}\n${block}` : block;
+	} else {
+		next = existing;
 	}
+
+	if (block.length === 0) {
+		// A comments-only file parses as null and makes dsh reject the profile
+		// patch. Keep user rows, otherwise leave a valid empty array (or no file).
+		if (hasUserRows(next)) {
+			next = `${next.replace(/\s*$/, '')}\n`;
+		} else if (fileExists) {
+			next = '[]\n';
+		} else {
+			next = '';
+		}
+	}
+
 	if (next === existing) {
 		return false;
+	}
+	if (next === '') {
+		await rm(patchPath, { force: true });
+		logService.info(`[dshAgent] profile patch removed from ${patchPath}`);
+		return true;
 	}
 	await writeFileAtomic(patchPath, next);
 	logService.info(`[dshAgent] profile patch written to ${patchPath}`);
