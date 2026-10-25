@@ -755,6 +755,10 @@ Node 24.21.0, V8 15.0.245.31-electron.0
 
 ### 14.6 仍待验证
 
+- Windows x64 设置写入：已定位并修复盘符大小写导致的
+  `@deepseek-ai/dsh-app-boot` 双实例与
+  `profile reload requires the root Include entry`（见
+  `docs/dsh-agent/changelog.md` 2026-10-25）；需在下一构建中复验。
 - macOS x64 / Windows x64 的 Node 24.18.0 冒烟与原生依赖（含 Windows 文件锁路径）。
 - 真实模型工具调用、权限审批、取消（需要 API Key）。
 - Linux glibc 基线与 beta 支持。

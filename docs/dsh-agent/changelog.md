@@ -4,6 +4,24 @@ This file records changes to the dsh Agent integration. Code changes follow the
 repository's `test-workbench_change` marker convention; this file is the
 human-readable counterpart.
 
+## 2026-10-25 — Windows drive-letter module duplication (welcome notice save)
+
+- `src/vs/platform/dshAgent/node/dshAgentPaths.ts`: normalize the Windows drive
+  letter (for example `c:` → `C:`) on the runtime entry, Node executable,
+  `DSH_HOME`, and log directory before spawning the Host.
+- Root cause: the packaged app exposed `appRoot` with a lowercase drive while
+  `os.homedir()` returned an uppercase one. Node module URLs keep that case, so
+  dsh loaded `@deepseek-ai/dsh-app-boot` twice (`file:///c:/...` vs
+  `file:///C:/...`). `ConfigEditor` then read a different `bootstrapIncludes`
+  WeakMap and rejected every settings write with
+  `dsh: profile reload requires the root Include entry`; the welcome notice
+  displayed `暂时无法保存确认状态，请重试。`.
+- Verified on Windows x64 against the installed runtime: a lowercase entry plus
+  an uppercase home reproduces the rejection; normalizing both makes
+  `settings/mutate` return `ok` and the preview notice stays dismissed after a
+  reload.
+- Added unit coverage in `src/vs/platform/dshAgent/test/node/dshAgentPaths.test.ts`.
+
 ## 2026-10-24 — Package dsh dotfiles (pi-ai import fix)
 
 - `build/gulpfile.vscode.ts`: the dsh runtime copy now filters with

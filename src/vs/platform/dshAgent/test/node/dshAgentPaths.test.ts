@@ -12,7 +12,7 @@ import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DEFAULT_DSH_AGENT_WINDOW_SETTINGS } from '../../common/dshAgentPaths.js';
-import { createDshAgentHostEnvironment, resolveDshAgentPaths } from '../../node/dshAgentPaths.js';
+import { createDshAgentHostEnvironment, normalizeDshAgentPath, resolveDshAgentPaths } from '../../node/dshAgentPaths.js';
 
 suite('dsh Agent paths', () => {
 
@@ -43,6 +43,52 @@ suite('dsh Agent paths', () => {
 			assert.strictEqual(paths.webDist, join(runtime, 'web'));
 			assert.ok(paths.runtimeVersion?.includes('0.2.0-rc.2'));
 			assert.strictEqual(paths.logDirectory, join(root, 'user-data', 'logs', 'dsh-agent'));
+		} finally {
+			if (savedNode === undefined) { delete process.env['TSCODE_DSH_AGENT_NODE']; } else { process.env['TSCODE_DSH_AGENT_NODE'] = savedNode; }
+			if (savedEntry === undefined) { delete process.env['TSCODE_DSH_AGENT_DSH_ENTRY']; } else { process.env['TSCODE_DSH_AGENT_DSH_ENTRY'] = savedEntry; }
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('normalizes Windows drive-letter case so dsh modules share one cache key', () => {
+		if (!isWindows) {
+			return;
+		}
+		assert.strictEqual(normalizeDshAgentPath('c:\\Users\\admin\\.tscode-dsh'), 'C:\\Users\\admin\\.tscode-dsh');
+		assert.strictEqual(normalizeDshAgentPath('d:/workspace'), 'D:/workspace');
+		assert.strictEqual(normalizeDshAgentPath('C:\\already'), 'C:\\already');
+		assert.strictEqual(normalizeDshAgentPath('\\\\server\\share'), '\\\\server\\share');
+		assert.strictEqual(normalizeDshAgentPath('/posix/path'), '/posix/path');
+	});
+
+	test('normalizes the packaged runtime and dsh home from mixed-case inputs', async () => {
+		if (!isWindows) {
+			return;
+		}
+		const root = await mkdtemp(join(tmpdir(), 'dsh-agent-case-'));
+		const savedNode = process.env['TSCODE_DSH_AGENT_NODE'];
+		const savedEntry = process.env['TSCODE_DSH_AGENT_DSH_ENTRY'];
+		delete process.env['TSCODE_DSH_AGENT_NODE'];
+		delete process.env['TSCODE_DSH_AGENT_DSH_ENTRY'];
+		try {
+			const runtime = join(root.toLowerCase(), 'resources', 'dsh-agent');
+			const node = join(runtime, 'node', 'node.exe');
+			const entry = join(runtime, 'app', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
+			await mkdir(join(runtime, 'node'), { recursive: true });
+			await mkdir(join(runtime, 'app', 'node_modules', '@deepseek-ai', 'dsh', 'lib'), { recursive: true });
+			await mkdir(join(runtime, 'web'), { recursive: true });
+			await writeFile(node, 'node');
+			await writeFile(entry, 'entry');
+			await writeFile(join(runtime, 'web', 'index.html'), '<html>');
+			const paths = resolveDshAgentPaths(root.toLowerCase(), join(root, 'user-data'), {
+				...DEFAULT_DSH_AGENT_WINDOW_SETTINGS,
+				dshHome: 'c:\\Users\\admin\\.tscode-dsh'
+			});
+			assert.strictEqual(paths.runtimeRoot[0], 'C');
+			assert.strictEqual(paths.node[0], 'C');
+			assert.strictEqual(paths.dshEntry?.[0], 'C');
+			assert.strictEqual(paths.dshHome[0], 'C');
+			assert.strictEqual(paths.dshHome, 'C:\\Users\\admin\\.tscode-dsh');
 		} finally {
 			if (savedNode === undefined) { delete process.env['TSCODE_DSH_AGENT_NODE']; } else { process.env['TSCODE_DSH_AGENT_NODE'] = savedNode; }
 			if (savedEntry === undefined) { delete process.env['TSCODE_DSH_AGENT_DSH_ENTRY']; } else { process.env['TSCODE_DSH_AGENT_DSH_ENTRY'] = savedEntry; }

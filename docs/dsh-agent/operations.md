@@ -54,6 +54,11 @@ continues. Quitting the app joins Host shutdown through
 5. If the window loads but tools fail, check the Host log for approval or
    plugin errors. The managed profile disables plugin installation/HMR; a plugin
    the user installed earlier may be skipped.
+6. A settings write rejected with `profile reload requires the root Include
+   entry` on Windows means the Host paths used two drive-letter cases (`c:` and
+   `C:`), so Node loaded `@deepseek-ai/dsh-app-boot` twice. Confirm the build
+   includes `normalizeDshAgentPath` in `node/dshAgentPaths.ts`; the fix applies
+   to the runtime entry, Node path, and `DSH_HOME` together.
 
 ## Kill switch
 
