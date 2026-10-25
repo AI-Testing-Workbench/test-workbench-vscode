@@ -137,6 +137,7 @@ try {
 	const pluginPath = /src="(plugins\/\?\?[^"]+)"/.exec(html)?.[1]?.replace(/&amp;/g, '&');
 	assert.ok(pluginPath, 'index must reference a plugin bundle');
 	assert.ok(html.includes('dsh-client-tscode/client.js'), 'the tscode client plugin must be loaded');
+	assert.ok(html.includes('dsh-plugin-offline/client.js'), 'the offline plugin client must be loaded');
 	assert.ok(!stderr.some(line => line.includes('did not activate')), 'managed profile must not skip rows');
 	const plugin = await forwardDshAgentRequest(new Request(`dsh-agent://app/${pluginPath}`), target);
 	assert.equal(plugin.status, 200);
@@ -144,6 +145,14 @@ try {
 	const pluginBody = await plugin.text();
 	assert.ok(pluginBody.includes('__ModuleLoader__.load'), 'plugin bundle must be module-loader code');
 	console.log(`[smoke] plugin bundle: ${pluginBody.length} bytes, no-store`);
+
+	// The offline plugin registers exact routes on the profile web server. A 200
+	// proves its Host half activated and can resolve the profile it runs in.
+	const offline = await forwardDshAgentRequest(new Request('dsh-agent://app/dsh-offline/api/v1/bundles'), target);
+	assert.equal(offline.status, 200, 'the offline plugin route must be registered');
+	const offlineResult = await offline.json();
+	assert.equal(offlineResult.ok, true);
+	console.log(`[smoke] offline plugin route: ${offlineResult.bundles?.length ?? 0} bundles`);
 
 	// The window's webRequest fence rewrites Origin to the Host origin and injects
 	// this cookie; verify the Host accepts exactly that handshake.
@@ -192,7 +201,8 @@ try {
 	const manifest = await readFile(readyFile, 'utf8');
 	assert.ok(manifest.includes('dsh-web-app'));
 	assert.ok(manifest.includes('dsh-client-tscode'));
-	console.log('[smoke] isolated dsh profile initialized with the client plugin');
+	assert.ok(manifest.includes('dsh-plugin-offline'));
+	console.log('[smoke] isolated dsh profile initialized with the built-in plugins');
 	console.log('[smoke] PASS');
 } finally {
 	await host.stop().catch(error => console.error('[smoke] stop failed', error));

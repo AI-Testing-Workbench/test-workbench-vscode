@@ -98,6 +98,16 @@ async function readPin() {
 	}
 }
 
+/** Built-in plugin sources vendored under resources/dsh-agent/plugin. */
+async function readBuiltinPluginPins() {
+	try {
+		const pin = JSON.parse(await readFile(join(root, 'resources', 'dsh-agent', 'builtin-plugins.json'), 'utf8'));
+		return Array.isArray(pin.plugins) ? pin.plugins : [];
+	} catch {
+		return [];
+	}
+}
+
 /**
  * The build Node and the packaged Host Node must be the same version. CI runs
  * `prepare-runtime.mjs` from the repository while `.nvmrc` drives setup-node,
@@ -217,6 +227,31 @@ async function checkRuntime() {
 	if (!await exists(join(out, 'plugin', 'dsh-client-tscode', 'package.json'))) {
 		problems.push('missing dsh-client-tscode plugin');
 	}
+	// test-workbench_change start
+	for (const plugin of await readBuiltinPluginPins()) {
+		const pluginDir = join(out, 'plugin', plugin.name);
+		const manifestPath = join(pluginDir, 'package.json');
+		if (!await exists(manifestPath)) {
+			problems.push(`missing built-in plugin ${plugin.name}`);
+			continue;
+		}
+		const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+		if (manifest.version !== plugin.version) {
+			problems.push(`built-in plugin ${plugin.name} ${manifest.version} (expected ${plugin.version})`);
+		}
+		const patch = manifest?.dsh?.bundle?.patch;
+		if (typeof patch !== 'string' || !await exists(join(pluginDir, patch))) {
+			problems.push(`built-in plugin ${plugin.name} has no bundle patch`);
+		}
+		if (typeof manifest.main === 'string' && !await exists(join(pluginDir, manifest.main))) {
+			problems.push(`built-in plugin ${plugin.name} has no main entry`);
+		}
+		const clientEntry = manifest?.dsh?.client === undefined ? undefined : manifest?.exports?.['./client'];
+		if (typeof clientEntry === 'string' && !await exists(join(pluginDir, clientEntry))) {
+			problems.push(`built-in plugin ${plugin.name} has no client entry`);
+		}
+	}
+	// test-workbench_change end
 	if (!await exists(join(out, 'app', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'))) {
 		problems.push('missing dsh CLI entry');
 	}
@@ -341,11 +376,25 @@ async function prepare() {
 	}
 
 	const licenseRows = await collectLicenses(appRoot, join(out, 'licenses'));
+	// test-workbench_change start
+	const builtinRows = [];
+	for (const plugin of await readBuiltinPluginPins()) {
+		try {
+			const manifest = JSON.parse(await readFile(join(out, 'plugin', plugin.name, 'package.json'), 'utf8'));
+			builtinRows.push(`${plugin.name} ${manifest.version} (${manifest.license ?? 'see package'})`);
+		} catch {
+			builtinRows.push(`${plugin.name} ${plugin.version} (see resources/dsh-agent/plugin)`);
+		}
+	}
+	// test-workbench_change end
 	const notices = [
 		'# Third-party notices for the embedded dsh runtime',
 		'',
 		`@deepseek-ai/dsh ${dshVersion}`,
 		`Node.js ${nodeVersion}`,
+		// test-workbench_change start
+		...(builtinRows.length > 0 ? ['', 'Built-in plugins:', ...builtinRows] : []),
+		// test-workbench_change end
 		'',
 		'License texts are collected under licenses/. Packages without a top-level',
 		'LICENSE/COPYING/NOTICE file are listed with their declared license.',

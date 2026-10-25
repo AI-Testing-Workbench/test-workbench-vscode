@@ -61,3 +61,7 @@
 # Vendored third-party libraries
 src/vs/base/common/lit-html/**
 src/vs/base/common/signals-core/**
+
+# test-workbench_change start - vendored dsh plugin runtime payload
+resources/dsh-agent/plugin/dsh-plugin-offline/**
+# test-workbench_change end

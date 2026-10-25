@@ -1028,6 +1028,16 @@ staging 脚本：`scripts/dsh-agent/prepare-runtime.mjs`
 `resources/dsh-agent/runtime.json` 仍是本地构建的默认 pin；CI 通过
 `--dsh-version` / `--fork-ref` 使用实际 artifact 的版本和 commit。
 
+内置插件：
+
+- `resources/dsh-agent/plugin/dsh-client-tscode` 由本仓库维护；
+- `dsh-plugin-offline` 按 `resources/dsh-agent/builtin-plugins.json` 记录的
+  上游仓库、版本与 commit vendor 到同一目录，更新用
+  `node scripts/dsh-agent/sync-builtin-plugins.mjs`；
+- 启动时 `dshAgentProfile` 把两者链接进 `~/.tscode-dsh/profiles/<profile>/node_modules`
+  并追加到 `dsh.profile.bundles`，不经过 pnpm，也不产生 profile `dependencies`；
+- `prepare-runtime.mjs --check` 校验内置插件的版本、bundle patch、main/client 入口。
+
 ### 15.7 验证记录
 
 已完成的验证：

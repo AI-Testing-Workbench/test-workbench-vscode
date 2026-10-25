@@ -98,6 +98,15 @@ local-update-server.cjs
 # test-workbench_change start - dsh agent plugin ships as runtime ESM
 resources/dsh-agent/plugin/dsh-client-tscode/lib/client.js
 resources/dsh-agent/plugin/dsh-client-tscode/lib/index.js
+resources/dsh-agent/plugin/dsh-plugin-offline/client.js
+resources/dsh-agent/plugin/dsh-plugin-offline/index.js
+resources/dsh-agent/plugin/dsh-plugin-offline/src/closure.mjs
+resources/dsh-agent/plugin/dsh-plugin-offline/src/export.mjs
+resources/dsh-agent/plugin/dsh-plugin-offline/src/http.mjs
+resources/dsh-agent/plugin/dsh-plugin-offline/src/import.mjs
+resources/dsh-agent/plugin/dsh-plugin-offline/src/profile.mjs
+resources/dsh-agent/plugin/dsh-plugin-offline/src/tar.mjs
+resources/dsh-agent/plugin/dsh-plugin-offline/src/tool.mjs
 # test-workbench_change end
 scripts/chat-simulation/common/perf-scenarios.js
 scripts/chat-simulation/common/utils.js
@@ -115,6 +124,7 @@ scripts/dsh-agent/install-plugin.mjs
 scripts/dsh-agent/prepare-runtime.mjs
 scripts/dsh-agent/rollback-runtime.mjs
 scripts/dsh-agent/size-report.mjs
+scripts/dsh-agent/sync-builtin-plugins.mjs
 # test-workbench_change end
 scripts/xterm-update.js
 src/vs/base/browser/dompurify/dompurify.js

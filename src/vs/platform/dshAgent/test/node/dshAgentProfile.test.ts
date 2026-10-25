@@ -12,7 +12,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IDshAgentPaths } from '../../common/dshAgentPaths.js';
-import { DSH_AGENT_DISABLED_PLUGINS, prepareDshAgentProfile, removeDshAgentProfileFiles } from '../../node/dshAgentProfile.js';
+import { DSH_AGENT_BUILTIN_PLUGINS, DSH_AGENT_DISABLED_PLUGINS, prepareDshAgentProfile, removeDshAgentProfileFiles } from '../../node/dshAgentProfile.js';
 
 function pathsFor(root: string): IDshAgentPaths {
 	return {
@@ -57,23 +57,43 @@ suite('dsh Agent profile', () => {
 		assert.deepStrictEqual(DSH_AGENT_DISABLED_PLUGINS, []);
 	});
 
-	test('provisions the client plugin bundle without pnpm', async () => {
+	test('provisions the built-in plugin bundles without pnpm', async () => {
 		const directory = await mkdtemp(join(tmpdir(), 'dsh-agent-profile-'));
 		try {
 			const paths = pathsFor(directory);
-			const plugin = join(paths.runtimeRoot, 'plugin', 'dsh-client-tscode');
-			await mkdir(plugin, { recursive: true });
-			await writeFile(join(plugin, 'package.json'), '{"name":"dsh-client-tscode","version":"0.1.0"}');
+			for (const name of DSH_AGENT_BUILTIN_PLUGINS) {
+				const plugin = join(paths.runtimeRoot, 'plugin', name);
+				await mkdir(plugin, { recursive: true });
+				await writeFile(join(plugin, 'package.json'), JSON.stringify({ name, version: '0.1.0' }));
+			}
 			const first = await prepareDshAgentProfile(paths, new NullLogService());
 			assert.strictEqual(first.pluginInstalled, true);
 			const manifest = JSON.parse(await readFile(join(paths.dshHome, 'profiles', 'web', 'package.json'), 'utf8'));
-			assert.ok(manifest.dsh.profile.bundles.includes('dsh-client-tscode'));
+			for (const name of DSH_AGENT_BUILTIN_PLUGINS) {
+				assert.ok(manifest.dsh.profile.bundles.includes(name));
+				assert.ok(await stat(join(paths.dshHome, 'profiles', 'web', 'node_modules', name)));
+			}
 			assert.ok(manifest.dsh.profile.bundles.includes('@deepseek-ai/dsh-base'));
-			const link = join(paths.dshHome, 'profiles', 'web', 'node_modules', 'dsh-client-tscode');
-			assert.ok(await stat(link));
 			const second = await prepareDshAgentProfile(paths, new NullLogService());
 			assert.strictEqual(second.pluginInstalled, true);
 			assert.strictEqual(second.changed, false);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('skips a built-in plugin that is not staged', async () => {
+		const directory = await mkdtemp(join(tmpdir(), 'dsh-agent-profile-'));
+		try {
+			const paths = pathsFor(directory);
+			const client = join(paths.runtimeRoot, 'plugin', 'dsh-client-tscode');
+			await mkdir(client, { recursive: true });
+			await writeFile(join(client, 'package.json'), '{"name":"dsh-client-tscode","version":"0.1.0"}');
+			const prepared = await prepareDshAgentProfile(paths, new NullLogService());
+			assert.strictEqual(prepared.pluginInstalled, true);
+			const manifest = JSON.parse(await readFile(join(paths.dshHome, 'profiles', 'web', 'package.json'), 'utf8'));
+			assert.ok(manifest.dsh.profile.bundles.includes('dsh-client-tscode'));
+			assert.ok(!manifest.dsh.profile.bundles.includes('dsh-plugin-offline'));
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}

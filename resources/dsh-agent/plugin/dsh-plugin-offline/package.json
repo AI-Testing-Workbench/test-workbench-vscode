@@ -1,0 +1,51 @@
+{
+  "name": "dsh-plugin-offline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline air-gap transfer for DSH plugins: export an installed plugin with its whole dependency closure into one tarball, then import that tarball on a network-isolated machine.",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "src",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "docs/DESIGN.md",
+    "README.md",
+    "README.zh-CN.md"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "offline",
+    "air-gap",
+    "tarball",
+    "plugin-manager"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "test:integration": "node --test test/integration/*.test.mjs"
+  }
+}

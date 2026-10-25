@@ -1,0 +1,12 @@
+{
+	"format": 1,
+	"plugins": [
+		{
+			"name": "dsh-plugin-offline",
+			"version": "0.1.0",
+			"repository": "https://github.com/AI-Testing-Workbench/dsh-plugin-offilne.git",
+			"ref": "ae79e0518f615fad43ddd237f66ccfcf0fc2486f",
+			"note": "The vendored copy injects the optional webServer service before registering routes; push that fix, bump ref, and re-run sync-builtin-plugins.mjs."
+		}
+	]
+}

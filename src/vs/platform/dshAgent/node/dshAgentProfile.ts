@@ -50,8 +50,16 @@ export interface IDshAgentProfilePreparation {
 	readonly pluginInstalled: boolean;
 }
 
-const PLUGIN_PACKAGE = 'dsh-client-tscode';
+const CLIENT_PLUGIN_PACKAGE = 'dsh-client-tscode';
 const DEFAULT_BUNDLES = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] as const;
+
+/**
+ * Bundles provisioned from `resources/dsh-agent/plugin` on every launch, in
+ * profile load order. The tscode bridge stays first because it owns the IDE
+ * integration. A built-in whose staged source is absent is skipped, so an older
+ * runtime still starts after the application code moves ahead.
+ */
+export const DSH_AGENT_BUILTIN_PLUGINS: readonly string[] = [CLIENT_PLUGIN_PACKAGE, 'dsh-plugin-offline'];
 
 /**
  * Create the isolated dsh home and keep the managed profile patch in sync.
@@ -65,17 +73,18 @@ export async function prepareDshAgentProfile(paths: IDshAgentPaths, logService: 
 
 	const patchPath = join(paths.dshHome, 'cordis.patch.yml');
 	const patchChanged = await ensureManagedPatchBlock(patchPath, logService);
-	const pluginSource = join(paths.runtimeRoot, 'plugin', PLUGIN_PACKAGE);
-	const profileChanged = await ensureProfileBundles(paths, pluginSource, logService);
+	const profileChanged = await ensureProfileBundles(paths, logService);
 	const info = createProfileInfo(paths);
 	await writeFileAtomic(join(paths.dshHome, 'tscode-agent-profile.json'), JSON.stringify(info, undefined, '\t') + '\n');
 	return { info, changed: patchChanged || profileChanged.changed, pluginInstalled: profileChanged.pluginInstalled };
 }
 
-/** Ensure the profile manifest loads the tscode client plugin without requiring pnpm. */
-async function ensureProfileBundles(paths: IDshAgentPaths, pluginSource: string, logService: ILogService): Promise<{ changed: boolean; pluginInstalled: boolean }> {
+/** Ensure the profile manifest loads the built-in plugins without requiring pnpm. */
+async function ensureProfileBundles(paths: IDshAgentPaths, logService: ILogService): Promise<{ changed: boolean; pluginInstalled: boolean }> {
 	const profileDirectory = join(paths.dshHome, 'profiles', paths.profile);
 	const manifestPath = join(profileDirectory, 'package.json');
+	const pluginSources = new Map(DSH_AGENT_BUILTIN_PLUGINS.map(name => [name, join(paths.runtimeRoot, 'plugin', name)]));
+	const availablePlugins = DSH_AGENT_BUILTIN_PLUGINS.filter(name => existsSync(pluginSources.get(name)!));
 	let manifest: Record<string, unknown>;
 	let changed = false;
 	try {
@@ -83,7 +92,7 @@ async function ensureProfileBundles(paths: IDshAgentPaths, pluginSource: string,
 	} catch (error) {
 		if (error instanceof SyntaxError) {
 			// Never rewrite a profile the user is already editing; dsh will report it.
-			logService.warn(`[dshAgent] profile ${paths.profile} has invalid JSON; the client plugin is not installed`);
+			logService.warn(`[dshAgent] profile ${paths.profile} has invalid JSON; the built-in plugins are not installed`);
 			await ensureProfileFile(join(profileDirectory, 'cordis.yml'), '[]\n');
 			await ensureProfileFile(join(profileDirectory, 'cordis.patch.yml'), '[]\n');
 			return { changed: false, pluginInstalled: false };
@@ -94,7 +103,7 @@ async function ensureProfileBundles(paths: IDshAgentPaths, pluginSource: string,
 		manifest = {
 			name: `dsh-profile-${paths.profile}`,
 			private: true,
-			dsh: { profile: { bundles: [...DEFAULT_BUNDLES, PLUGIN_PACKAGE] } }
+			dsh: { profile: { bundles: [...DEFAULT_BUNDLES, ...availablePlugins] } }
 		};
 		changed = true;
 	}
@@ -103,28 +112,34 @@ async function ensureProfileBundles(paths: IDshAgentPaths, pluginSource: string,
 		? (dsh as { profile: Record<string, unknown> }).profile
 		: undefined;
 	const bundles = profile && Array.isArray(profile.bundles) ? profile.bundles as unknown[] : undefined;
-	if (bundles && !bundles.includes(PLUGIN_PACKAGE) && existsSync(pluginSource)) {
-		bundles.push(PLUGIN_PACKAGE);
-		changed = true;
-	}
-	if (!bundles) {
-		logService.warn(`[dshAgent] profile ${paths.profile} has an unrecognized bundle list; the client plugin is not installed`);
+	if (bundles) {
+		for (const name of availablePlugins) {
+			if (!bundles.includes(name)) {
+				bundles.push(name);
+				changed = true;
+			}
+		}
+	} else {
+		logService.warn(`[dshAgent] profile ${paths.profile} has an unrecognized bundle list; the built-in plugins are not installed`);
 	}
 	if (changed) {
 		await writeFileAtomic(manifestPath, JSON.stringify(manifest, undefined, '\t') + '\n');
 	}
 	await ensureProfileFile(join(profileDirectory, 'cordis.yml'), '[]\n');
 	await ensureProfileFile(join(profileDirectory, 'cordis.patch.yml'), '[]\n');
-	if (!existsSync(pluginSource)) {
-		return { changed, pluginInstalled: false };
+	let pluginInstalled = false;
+	for (const name of availablePlugins) {
+		try {
+			const linked = await ensurePluginLink(profileDirectory, pluginSources.get(name)!, name);
+			changed = changed || linked.changed;
+			if (name === CLIENT_PLUGIN_PACKAGE) {
+				pluginInstalled = true;
+			}
+		} catch (error) {
+			logService.warn(`[dshAgent] could not provision ${name}: ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
-	try {
-		const pluginInstalled = await ensurePluginLink(profileDirectory, pluginSource);
-		return { changed: changed || pluginInstalled.changed, pluginInstalled: true };
-	} catch (error) {
-		logService.warn(`[dshAgent] could not provision the client plugin: ${error instanceof Error ? error.message : String(error)}`);
-		return { changed, pluginInstalled: false };
-	}
+	return { changed, pluginInstalled };
 }
 
 async function ensureProfileFile(path: string, content: string): Promise<void> {
@@ -133,9 +148,9 @@ async function ensureProfileFile(path: string, content: string): Promise<void> {
 	}
 }
 
-async function ensurePluginLink(profileDirectory: string, pluginSource: string): Promise<{ changed: boolean }> {
+async function ensurePluginLink(profileDirectory: string, pluginSource: string, packageName: string): Promise<{ changed: boolean }> {
 	const nodeModules = join(profileDirectory, 'node_modules');
-	const link = join(nodeModules, PLUGIN_PACKAGE);
+	const link = join(nodeModules, packageName);
 	await mkdir(nodeModules, { recursive: true });
 	try {
 		if ((await realpath(link)) === (await realpath(pluginSource))) {

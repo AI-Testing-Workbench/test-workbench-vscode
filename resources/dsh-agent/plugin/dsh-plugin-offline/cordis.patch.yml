@@ -1,0 +1,4 @@
+# dsh-plugin-offline — one Host row: the offline plugin transfer tool.
+- insert:
+    - id: plugin-offline
+      name: 'dsh-plugin-offline'

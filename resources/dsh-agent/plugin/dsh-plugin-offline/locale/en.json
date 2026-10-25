@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Offline Plugin Transfer",
+    "description": "Export an installed plugin and its whole dependency closure into one tarball, then import it on a network-isolated machine."
+  }
+}
