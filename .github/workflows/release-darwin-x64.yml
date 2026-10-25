@@ -15,17 +15,12 @@ on:
         default: 'AI-Testing-Workbench/testagent-dsh'
         type: string
       dsh_fork_ref:
-        description: 'dsh fork branch used to find the latest artifact (ignored when dsh_fork_run_id is set)'
+        description: 'dsh fork branch used to find the latest artifact'
         required: false
         default: 'dev'
         type: string
       dsh_fork_run_id:
-        description: 'Specific dsh fork workflow run id (optional)'
-        required: false
-        default: ''
-        type: string
-      dsh_version:
-        description: 'Expected dsh version (optional)'
+        description: 'Specific dsh fork workflow run id (set automatically by the fork trigger; empty finds the latest branch artifact)'
         required: false
         default: ''
         type: string
@@ -40,7 +35,6 @@ permissions:
 env:
   VSCODE_QUALITY: stable
   # test-workbench_change start
-  DSH_AGENT_VERSION: ${{ github.event.inputs.dsh_version || '' }}
   DSH_AGENT_FORK_REPOSITORY: ${{ github.event.inputs.dsh_fork_repository || 'AI-Testing-Workbench/testagent-dsh' }}
   DSH_AGENT_FORK_REF: ${{ github.event.inputs.dsh_fork_ref || 'dev' }}
   DSH_AGENT_FORK_RUN_ID: ${{ github.event.inputs.dsh_fork_run_id || '' }}
@@ -53,7 +47,6 @@ jobs:
     outputs:
       version: ${{ steps.source.outputs.version }}
       ref: ${{ steps.source.outputs.ref }}
-      repository: ${{ steps.source.outputs.repository }}
     steps:
       - name: Resolve dsh fork artifact
         id: resolve
@@ -107,7 +100,6 @@ jobs:
             exit 0
           fi
           echo "found=true" >> "$GITHUB_OUTPUT"
-          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -199,9 +191,6 @@ jobs:
           } catch {
             // Older fork artifacts may not carry a manifest; the env pin is the fallback.
           }
-          if (process.env.DSH_AGENT_VERSION && version !== process.env.DSH_AGENT_VERSION) {
-            throw new Error(`dsh ${version} does not match the requested version ${process.env.DSH_AGENT_VERSION}`);
-          }
           const ref = manifest.source?.ref || process.env.DSH_AGENT_FORK_REF;
           if (!ref) {
             throw new Error('The dsh artifact does not record a source revision');
@@ -209,8 +198,7 @@ jobs:
           if (!/^[0-9a-f]{40}$/iu.test(ref)) {
             console.log(`::warning::dsh artifact source ref is not a full commit: ${ref}`);
           }
-          const repository = manifest.source?.repository || process.env.DSH_AGENT_FORK_REPOSITORY;
-          appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\nref=${ref}\nrepository=${repository}\n`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\nref=${ref}\n`);
           NODE
 
       - name: Verify dsh runtime artifact

@@ -17,13 +17,19 @@ after packaging.
 
 ## Required steps
 
-The runtime comes from tarballs packed by the dsh fork. The tscode
-`dsh-runtime` job resolves them in this order:
+The runtime comes from tarballs packed by the dsh fork. The fork workflow
+`tscode-runtime.yml` builds and uploads them on every push to `dev`, and can be
+run manually on any branch. The tscode `dsh-runtime` job resolves the artifact
+in this order:
 
-1. the exact fork workflow run id (`dsh_fork_run_id`);
-2. the latest successful `tscode-runtime.yml` run on `dsh_fork_ref`
-   (default `dev`);
+1. the exact fork workflow run id passed by the trigger (`dsh_fork_run_id`);
+2. latest successful `tscode-runtime.yml` run on `dsh_fork_ref` (default
+   `dev`);
 3. a source build from `dsh_fork_ref` when no artifact is available.
+
+The fork workflow triggers tscode after the artifact is uploaded. The tscode
+workflow never triggers the fork; it only pulls the artifact (or builds from
+source as a fallback).
 
 It then uploads the tarballs as a tscode workflow artifact, and every platform
 job downloads that artifact and resolves its own native dependencies while
@@ -59,39 +65,35 @@ inputs:
 | --- | --- | --- |
 | `dsh_fork_repository` | `AI-Testing-Workbench/testagent-dsh` | fork repository |
 | `dsh_fork_ref` | `dev` | fork branch used to find the latest artifact |
-| `dsh_fork_run_id` | empty | exact fork workflow run; overrides the branch lookup |
-| `dsh_version` | empty | optional expected version check |
+| `dsh_fork_run_id` | empty | exact fork workflow run; set automatically by the fork trigger, leave empty for the latest branch artifact |
 
-### Automatic fork trigger
+### Fork build and tscode trigger
 
-The fork's `.github/workflows/tscode-runtime.yml` runs on every push to `dev`
-(and manually for any branch). It builds and packs the runtime, uploads the
-`dsh-fork-tarballs` artifact, then dispatches `release.yml` on the tscode
-`main` branch with the exact run id and commit. The tscode workflow file and
-its `dsh_fork_*` inputs must already be on `main`, because `gh workflow run`
-resolves the workflow from that ref.
+The fork's `.github/workflows/tscode-runtime.yml` runs on pushes to `dev` and
+manual dispatches. It builds and packs the runtime, uploads the
+`dsh-fork-tarballs` artifact (30-day retention), and then triggers tscode's
+release workflow with the exact fork run id and branch.
+
+The tscode workflow only pulls the artifact; it never triggers the fork.
 
 Required secrets:
 
 - fork repository: `TSCODE_DISPATCH_TOKEN`, a token that may run workflows in
-  the tscode repository (fine-grained: Actions write; classic: `repo` +
-  `workflow`);
+  the tscode repository (fine-grained: Actions write; classic: `repo`);
 - tscode repository: `DSH_FORK_TOKEN`, a token that may read fork Actions
   artifacts (fine-grained: Actions read; classic: `repo`).
 
-Both secrets may point at the same token if it has both sets of permissions.
-If `DSH_FORK_TOKEN` is missing, tscode falls back to a source build of
+The fork's own artifact upload uses `GITHUB_TOKEN`. If `DSH_FORK_TOKEN` is
+missing or cannot read the artifact, tscode falls back to a source build of
 `dsh_fork_ref`.
 
 ### Integration builds for a feature branch
 
-1. Push the fork branch.
-2. Run **tscode runtime** (`tscode-runtime.yml`) manually on that branch.
-3. The dispatch step triggers tscode with the branch commit and run id.
-
-Alternatively, run the tscode workflow manually with
-`dsh_fork_ref=<fork branch>` after that branch has a successful
-`tscode-runtime.yml` run.
+1. Push the fork branch, or run **tscode runtime** manually on that branch.
+   The fork workflow triggers tscode with that exact run id.
+2. Alternatively, run the tscode release workflow manually with
+   `dsh_fork_ref=<fork branch>` and leave `dsh_fork_run_id` empty; tscode pulls
+   the latest successful artifact from that branch.
 
 After packaging, verify the runtime survived the gulp/Electron copy:
 
@@ -108,9 +110,9 @@ under `resources/app`.
 ## Current workflow changes
 
 - `release.yml` and `release-darwin-x64.yml` start with a `dsh-runtime` job that
-  downloads the fork artifact (exact run id, or the latest `tscode-runtime.yml`
-  run on `dsh_fork_ref`) and falls back to `build:official` + packing when no
-  artifact is available.
+  downloads the latest successful `tscode-runtime.yml` artifact on
+  `dsh_fork_ref` and falls back to `build:official` + packing when no artifact is
+  available.
 - Windows x64, macOS arm64/x64, and Linux x64 jobs download that artifact,
   install the runtime from the tarballs, stage, smoke, and verify it.
 - `.build/dsh-runtime` is cached by platform/arch + fork revision. The first run

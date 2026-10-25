@@ -4,20 +4,19 @@ This file records changes to the dsh Agent integration. Code changes follow the
 repository's `test-workbench_change` marker convention; this file is the
 human-readable counterpart.
 
-## 2026-10-25 — Automatic fork → tscode integration builds
+## 2026-10-25 — Fork-driven integration builds
 
 - Fork: added `.github/workflows/tscode-runtime.yml`. A push to `dev` (or a
   manual run on any branch) builds and packs the runtime, uploads the
-  `dsh-fork-tarballs` artifact, and dispatches tscode's release workflow with
-  the exact run id and commit.
-- Tscode: `release.yml` and `release-darwin-x64.yml` now expose
-  `dsh_fork_repository`, `dsh_fork_ref` (default `dev`), `dsh_fork_run_id`, and
-  `dsh_version` inputs.
-- The tscode `dsh-runtime` job resolves the artifact in this order: requested
-  run id → latest successful fork `tscode-runtime.yml` run on the selected
-  branch → source build fallback. It re-uploads the tarballs as a tscode
-  workflow artifact and passes the resolved version/commit to every platform
-  job.
+  `dsh-fork-tarballs` artifact, and triggers tscode's release workflow with the
+  exact run id and branch.
+- Tscode: `release.yml` and `release-darwin-x64.yml` expose
+  `dsh_fork_repository`, `dsh_fork_ref` (default `dev`), and
+  `dsh_fork_run_id` (set automatically by the fork trigger) inputs.
+- The tscode `dsh-runtime` job pulls the artifact for the requested run, or the
+  latest successful fork `tscode-runtime.yml` artifact on the selected branch.
+  If neither is available it falls back to a source build. Tscode never triggers
+  the fork.
 - `prepare-runtime.mjs` accepts `--dsh-version` and `--fork-ref` so CI can
   validate the resolved artifact instead of the local `runtime.json` pin.
 - Runtime caches are keyed by the resolved fork commit, not the configured
