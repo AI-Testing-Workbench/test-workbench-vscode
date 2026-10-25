@@ -9,6 +9,26 @@ on:
         required: false
         default: 'dev'
         type: string
+      dsh_fork_repository:
+        description: 'dsh fork repository (owner/name)'
+        required: false
+        default: 'AI-Testing-Workbench/testagent-dsh'
+        type: string
+      dsh_fork_ref:
+        description: 'dsh fork branch used to find the latest artifact (ignored when dsh_fork_run_id is set)'
+        required: false
+        default: 'dev'
+        type: string
+      dsh_fork_run_id:
+        description: 'Specific dsh fork workflow run id (optional)'
+        required: false
+        default: ''
+        type: string
+      dsh_version:
+        description: 'Expected dsh version (optional)'
+        required: false
+        default: ''
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,11 +39,198 @@ permissions:
 
 env:
   VSCODE_QUALITY: stable
-  DSH_AGENT_VERSION: 0.2.0-rc.2 # test-workbench_change
+  # test-workbench_change start
+  DSH_AGENT_VERSION: ${{ github.event.inputs.dsh_version || '' }}
+  DSH_AGENT_FORK_REPOSITORY: ${{ github.event.inputs.dsh_fork_repository || 'AI-Testing-Workbench/testagent-dsh' }}
+  DSH_AGENT_FORK_REF: ${{ github.event.inputs.dsh_fork_ref || 'dev' }}
+  DSH_AGENT_FORK_RUN_ID: ${{ github.event.inputs.dsh_fork_run_id || '' }}
+  # test-workbench_change end
 
 jobs:
+  dsh-runtime: # test-workbench_change - pull or build the dsh fork once per workflow run
+    name: Resolve dsh fork runtime
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.source.outputs.version }}
+      ref: ${{ steps.source.outputs.ref }}
+      repository: ${{ steps.source.outputs.repository }}
+    steps:
+      - name: Resolve dsh fork artifact
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.DSH_FORK_TOKEN }}
+        run: |
+          set -euo pipefail
+          repo="$DSH_AGENT_FORK_REPOSITORY"
+          run_id="$DSH_AGENT_FORK_RUN_ID"
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::DSH_FORK_TOKEN is not configured; building dsh from source"
+            exit 0
+          fi
+          if [ -z "$run_id" ]; then
+            run_id=$(gh api -X GET "repos/$repo/actions/workflows/tscode-runtime.yml/runs" \
+              -f branch="$DSH_AGENT_FORK_REF" -f status=success -f per_page=1 \
+              --jq '.workflow_runs[0].id // empty' 2>/dev/null || true)
+          fi
+          if [ -z "$run_id" ]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No successful tscode-runtime run for $repo@$DSH_AGENT_FORK_REF; building dsh from source"
+            exit 0
+          fi
+          artifact_id=$(gh api "repos/$repo/actions/runs/$run_id/artifacts" \
+            --jq '.artifacts[] | select(.name == "dsh-fork-tarballs") | .id' 2>/dev/null | head -n 1 || true)
+          if [ -z "$artifact_id" ]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Run $run_id has no dsh-fork-tarballs artifact; building dsh from source"
+            exit 0
+          fi
+          rm -rf dsh-fork/dist/tscode
+          mkdir -p dsh-fork/dist/tscode
+          if ! gh api "repos/$repo/actions/artifacts/$artifact_id/zip" > "$RUNNER_TEMP/dsh-fork-tarballs.zip"; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Could not download artifact $artifact_id; building dsh from source"
+            exit 0
+          fi
+          if ! unzip -q "$RUNNER_TEMP/dsh-fork-tarballs.zip" -d dsh-fork/dist/tscode; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Could not extract artifact $artifact_id; building dsh from source"
+            exit 0
+          fi
+          if [ -d dsh-fork/dist/tscode/tscode/dsh ] && [ ! -d dsh-fork/dist/tscode/dsh ]; then
+            mv dsh-fork/dist/tscode/tscode/* dsh-fork/dist/tscode/
+            rmdir dsh-fork/dist/tscode/tscode
+          fi
+          if [ ! -d dsh-fork/dist/tscode/dsh ]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Artifact $artifact_id has no dsh family; building dsh from source"
+            exit 0
+          fi
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.18.0'
+
+      - name: Checkout dsh fork (fallback)
+        if: steps.resolve.outputs.found != 'true'
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.DSH_AGENT_FORK_REPOSITORY }}
+          ref: ${{ env.DSH_AGENT_FORK_REF }}
+          token: ${{ secrets.DSH_FORK_TOKEN || github.token }}
+          path: dsh-fork-src
+          persist-credentials: false
+          clean: true
+
+      - name: Setup pnpm (fallback)
+        if: steps.resolve.outputs.found != 'true'
+        uses: pnpm/action-setup@v5
+        with:
+          version: '11.28.5'
+
+      - name: Install dsh fork dependencies (fallback)
+        if: steps.resolve.outputs.found != 'true'
+        working-directory: dsh-fork-src
+        run: pnpm install --frozen-lockfile
+
+      - name: Build dsh fork artifacts (fallback)
+        if: steps.resolve.outputs.found != 'true'
+        working-directory: dsh-fork-src
+        run: pnpm run build:official
+
+      - name: Pack dsh fork runtime (fallback)
+        if: steps.resolve.outputs.found != 'true'
+        working-directory: dsh-fork-src
+        run: |
+          set -e
+          pnpm run release:pack --family dsh --out dist/tscode/dsh --concurrency 8
+          pnpm run release:pack --family vendor --out dist/tscode/vendor --concurrency 8
+          pnpm --dir native/system run build:ts
+          pnpm --dir native/system/packages/entry pack --pack-destination "$PWD/dist/tscode/landlock"
+
+      - name: Write fallback tarball manifests
+        if: steps.resolve.outputs.found != 'true'
+        working-directory: dsh-fork-src
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          REF=$(git rev-parse HEAD)
+          export VERSION REF
+          node - <<'NODE'
+          const { createHash } = require('node:crypto');
+          const { readdirSync, readFileSync, writeFileSync } = require('node:fs');
+          const { join } = require('node:path');
+          for (const family of ['dsh', 'vendor', 'landlock']) {
+            const directory = join('dist/tscode', family);
+            const packages = readdirSync(directory).filter(name => name.endsWith('.tgz')).sort().map(name => ({
+              tarball: name,
+              sha256: createHash('sha256').update(readFileSync(join(directory, name))).digest('hex')
+            }));
+            writeFileSync(join(directory, 'manifest.json'), JSON.stringify({
+              schemaVersion: 1,
+              version: process.env.VERSION,
+              source: { repository: process.env.DSH_AGENT_FORK_REPOSITORY, ref: process.env.REF },
+              packages
+            }, null, 2) + '\n');
+          }
+          NODE
+          rm -rf "$GITHUB_WORKSPACE/dsh-fork/dist/tscode"
+          mkdir -p "$GITHUB_WORKSPACE/dsh-fork/dist"
+          cp -R dist/tscode "$GITHUB_WORKSPACE/dsh-fork/dist/"
+
+      - name: Resolve dsh artifact metadata
+        id: source
+        run: |
+          node - <<'NODE'
+          const { execFileSync } = require('node:child_process');
+          const { appendFileSync, readFileSync, readdirSync } = require('node:fs');
+          const { join } = require('node:path');
+          const directory = 'dsh-fork/dist/tscode/dsh';
+          const tarballs = readdirSync(directory).filter(name => /^deepseek-ai-dsh-\d/.test(name) && name.endsWith('.tgz'));
+          if (tarballs.length !== 1) {
+            throw new Error(`expected one @deepseek-ai/dsh tarball, found ${String(tarballs.length)}`);
+          }
+          const version = JSON.parse(execFileSync('tar', ['-xOzf', join(directory, tarballs[0]), 'package/package.json'], { encoding: 'utf8' })).version;
+          let manifest = {};
+          try {
+            manifest = JSON.parse(readFileSync(join(directory, 'manifest.json'), 'utf8'));
+          } catch {
+            // Older fork artifacts may not carry a manifest; the env pin is the fallback.
+          }
+          if (process.env.DSH_AGENT_VERSION && version !== process.env.DSH_AGENT_VERSION) {
+            throw new Error(`dsh ${version} does not match the requested version ${process.env.DSH_AGENT_VERSION}`);
+          }
+          const ref = manifest.source?.ref || process.env.DSH_AGENT_FORK_REF;
+          if (!ref) {
+            throw new Error('The dsh artifact does not record a source revision');
+          }
+          if (!/^[0-9a-f]{40}$/iu.test(ref)) {
+            console.log(`::warning::dsh artifact source ref is not a full commit: ${ref}`);
+          }
+          const repository = manifest.source?.repository || process.env.DSH_AGENT_FORK_REPOSITORY;
+          appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\nref=${ref}\nrepository=${repository}\n`);
+          NODE
+
+      - name: Verify dsh runtime artifact
+        run: |
+          test -d dsh-fork/dist/tscode/dsh
+          test -d dsh-fork/dist/tscode/vendor
+          test -d dsh-fork/dist/tscode/landlock
+          test -n "$(find dsh-fork/dist/tscode/dsh -name '*.tgz' -print -quit)"
+
+      - name: Upload dsh runtime tarballs
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-fork-tarballs
+          path: dsh-fork/dist/tscode
+          if-no-files-found: error
+          retention-days: 7
+
   build-darwin-x64:
     name: Build macOS Intel (x64)
+    needs: dsh-runtime # test-workbench_change
     # The staged Node and dsh native modules must be Intel-native; macos-latest is arm64.
     runs-on: macos-15-intel # test-workbench_change
     steps:
@@ -117,18 +324,25 @@ jobs:
         id: dsh-agent-runtime-cache
         with:
           path: .build/dsh-runtime
-          key: dsh-agent-runtime-darwin-x64-${{ env.DSH_AGENT_VERSION }}
+          key: dsh-agent-runtime-darwin-x64-${{ needs.dsh-runtime.outputs.ref }}
+
+      - name: Download dsh fork tarballs
+        if: steps.dsh-agent-runtime-cache.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: dsh-fork-tarballs
+          path: .build/dsh-tarballs
 
       - name: Install dsh Agent runtime
         if: steps.dsh-agent-runtime-cache.outputs.cache-hit != 'true'
-        run: npm install --prefix .build/dsh-runtime --no-save --no-package-lock "@deepseek-ai/dsh@${DSH_AGENT_VERSION}"
+        run: node scripts/dsh-agent/install-runtime-from-tarballs.mts --out .build/dsh-runtime --from .build/dsh-tarballs/dsh --from .build/dsh-tarballs/vendor --from .build/dsh-tarballs/landlock
         env:
           npm_config_arch: x64
 
       - name: Stage dsh Agent runtime
         run: |
-          node scripts/dsh-agent/prepare-runtime.mjs --dsh .build/dsh-runtime/node_modules/@deepseek-ai/dsh --node "$(which node)"
-          node scripts/dsh-agent/prepare-runtime.mjs --check
+          node scripts/dsh-agent/prepare-runtime.mjs --dsh .build/dsh-runtime/node_modules/@deepseek-ai/dsh --node "$(which node)" --dsh-version "${{ needs.dsh-runtime.outputs.version }}" --fork-ref "${{ needs.dsh-runtime.outputs.ref }}"
+          node scripts/dsh-agent/prepare-runtime.mjs --check --dsh-version "${{ needs.dsh-runtime.outputs.version }}" --fork-ref "${{ needs.dsh-runtime.outputs.ref }}"
 
       - name: Smoke dsh Agent runtime
         env:
@@ -145,7 +359,7 @@ jobs:
         run: |
           RUNTIME=$(find ../VSCode-darwin-x64 -path '*/Contents/Resources/app/resources/dsh-agent/VERSION' -print -quit)
           test -n "$RUNTIME"
-          node scripts/dsh-agent/prepare-runtime.mjs --check --out "$(dirname "$RUNTIME")"
+          node scripts/dsh-agent/prepare-runtime.mjs --check --out "$(dirname "$RUNTIME")" --dsh-version "${{ needs.dsh-runtime.outputs.version }}" --fork-ref "${{ needs.dsh-runtime.outputs.ref }}"
 
       - name: Create macOS x64 archive
         run: |

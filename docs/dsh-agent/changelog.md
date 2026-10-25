@@ -4,6 +4,49 @@ This file records changes to the dsh Agent integration. Code changes follow the
 repository's `test-workbench_change` marker convention; this file is the
 human-readable counterpart.
 
+## 2026-10-25 — Automatic fork → tscode integration builds
+
+- Fork: added `.github/workflows/tscode-runtime.yml`. A push to `dev` (or a
+  manual run on any branch) builds and packs the runtime, uploads the
+  `dsh-fork-tarballs` artifact, and dispatches tscode's release workflow with
+  the exact run id and commit.
+- Tscode: `release.yml` and `release-darwin-x64.yml` now expose
+  `dsh_fork_repository`, `dsh_fork_ref` (default `dev`), `dsh_fork_run_id`, and
+  `dsh_version` inputs.
+- The tscode `dsh-runtime` job resolves the artifact in this order: requested
+  run id → latest successful fork `tscode-runtime.yml` run on the selected
+  branch → source build fallback. It re-uploads the tarballs as a tscode
+  workflow artifact and passes the resolved version/commit to every platform
+  job.
+- `prepare-runtime.mjs` accepts `--dsh-version` and `--fork-ref` so CI can
+  validate the resolved artifact instead of the local `runtime.json` pin.
+- Runtime caches are keyed by the resolved fork commit, not the configured
+  branch.
+- Required secrets: fork `TSCODE_DISPATCH_TOKEN` (trigger tscode) and tscode
+  `DSH_FORK_TOKEN` (read fork artifacts). See `docs/dsh-agent/release.md`.
+
+## 2026-10-25 — Switch the runtime source to the dsh fork
+
+- `resources/dsh-agent/runtime.json` now pins dsh `0.2.1-rc.3` and the fork
+  revision (`AI-Testing-Workbench/testagent-dsh`). `prepare-runtime.mjs`
+  records the revision in `VERSION` and verifies it during `--check`.
+- Added `scripts/dsh-agent/install-runtime-from-tarballs.mts`:
+  - installs the dependency closure of `@deepseek-ai/dsh` from packed tarballs;
+  - verifies an optional `manifest.json` / `SHA256SUMS`;
+  - generates an npm 11 `allowScripts` policy (file tarballs need their exact
+    `file://` URL);
+  - does not omit optional dependencies, because `koffi` resolves its platform
+    binary through one.
+- `release.yml` and `release-darwin-x64.yml` now build the fork once per run,
+  pack the `dsh` / `vendor` / `landlock` families, share them as an artifact,
+  and install from those tarballs in each platform job. Runtime caches are keyed
+  by fork revision instead of the dsh version.
+- Verified on macOS arm64 with Node 24.18.0:
+  - fork `build:official` and all three `release:pack` runs succeed;
+  - the closure installer stages 322 dsh packages (640 packages total);
+  - `prepare-runtime` staging and `--check` pass;
+  - `e2e-smoke.mjs` passes against the staged runtime with the bundled Node.
+
 ## 2026-10-25 — Windows drive-letter module duplication (welcome notice save)
 
 - `src/vs/platform/dshAgent/node/dshAgentPaths.ts`: normalize the Windows drive

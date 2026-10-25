@@ -41,9 +41,16 @@ and native modules); see `docs/dsh-agent/adr-0002-node-runtime.md`.
 
 ## Staging
 
+The runtime is installed from tarballs packed by the dsh fork, not from the
+public registry. The fork build produces one tarball set per revision; each
+platform then resolves its own native dependencies while installing.
+
 ```bash
-# --dsh must be inside a dedicated npm prefix, not a global node_modules tree:
-npm install --prefix .build/dsh-runtime --no-save --no-package-lock @deepseek-ai/dsh@0.2.0-rc.2
+node scripts/dsh-agent/install-runtime-from-tarballs.mts \
+  --out .build/dsh-runtime \
+  --from .build/dsh-tarballs/dsh \
+  --from .build/dsh-tarballs/vendor \
+  --from .build/dsh-tarballs/landlock
 node scripts/dsh-agent/prepare-runtime.mjs \
   --dsh .build/dsh-runtime/node_modules/@deepseek-ai/dsh \
   --node "$(which node)" \
@@ -53,10 +60,29 @@ node scripts/dsh-agent/e2e-smoke.mjs
 node scripts/dsh-agent/size-report.mjs
 ```
 
+`runtime.json` pins both the dsh version and the fork revision:
+
+```json
+{
+  "dsh": "0.2.1-rc.3",
+  "node": "24.18.0",
+  "format": 1,
+  "fork": { "repository": "...", "ref": "<commit>" }
+}
+```
+
+`prepare-runtime` records the fork revision in `VERSION` and verifies it during
+`--check`. CI passes `--dsh-version` and `--fork-ref` from the resolved fork
+artifact; without those overrides the local `runtime.json` pin is used.
+
+Do not add `--omit=optional` to the install. Native packages such as `koffi`
+resolve their platform binary through optional dependencies; omitting them
+falls back to a source build that needs CMake.
+
 `--node` must point to Node 24.18.0 (the version in `.nvmrc`); the script fails
 before staging when it does not match `runtime.json`.
 
-`--keep-previous` snapshots the current `app/node`, `app/web`, and plugin
+`--keep-previous` snapshots the current `node/`, `app/`, `web/`, and plugin
 payload under `previous/`. `node scripts/dsh-agent/rollback-runtime.mjs` swaps
 them back. Normal release rollback also works by reinstalling the previous app
 build, because the runtime ships inside the application.

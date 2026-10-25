@@ -11,6 +11,7 @@
   "private": true,
   "scripts": {
     "test": "node -e \"console.error('Run a test script from the scripts folder, for example: ./scripts/test.sh --run <file>.'); process.exit(1)\"",
+    "dsh-agent:install-runtime": "node scripts/dsh-agent/install-runtime-from-tarballs.mts",
     "dsh-agent:prepare": "node scripts/dsh-agent/prepare-runtime.mjs",
     "dsh-agent:check": "node scripts/dsh-agent/prepare-runtime.mjs --check",
     "dsh-agent:smoke": "node scripts/dsh-agent/e2e-smoke.mjs",

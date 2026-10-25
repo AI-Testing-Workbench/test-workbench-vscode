@@ -17,32 +17,89 @@ after packaging.
 
 ## Required steps
 
-Every platform job must stage the runtime **before** the gulp packaging step:
+The runtime comes from tarballs packed by the dsh fork. The tscode
+`dsh-runtime` job resolves them in this order:
+
+1. the exact fork workflow run id (`dsh_fork_run_id`);
+2. the latest successful `tscode-runtime.yml` run on `dsh_fork_ref`
+   (default `dev`);
+3. a source build from `dsh_fork_ref` when no artifact is available.
+
+It then uploads the tarballs as a tscode workflow artifact, and every platform
+job downloads that artifact and resolves its own native dependencies while
+installing.
 
 ```bash
-npm install --prefix .build/dsh-runtime --no-save --no-package-lock \
-  "@deepseek-ai/dsh@${DSH_AGENT_VERSION}"
+node scripts/dsh-agent/install-runtime-from-tarballs.mts \
+  --out .build/dsh-runtime \
+  --from .build/dsh-tarballs/dsh \
+  --from .build/dsh-tarballs/vendor \
+  --from .build/dsh-tarballs/landlock
 node scripts/dsh-agent/prepare-runtime.mjs \
   --dsh .build/dsh-runtime/node_modules/@deepseek-ai/dsh \
-  --node "$(which node)"
-node scripts/dsh-agent/prepare-runtime.mjs --check
+  --node "$(which node)" \
+  --dsh-version <artifact version> \
+  --fork-ref <artifact commit>
+node scripts/dsh-agent/prepare-runtime.mjs --check \
+  --dsh-version <artifact version> \
+  --fork-ref <artifact commit>
 node scripts/dsh-agent/e2e-smoke.mjs
 ```
 
-The version is pinned twice and both must match:
+`--dsh-version` / `--fork-ref` let CI validate the artifact that was actually
+resolved. Without them, `prepare-runtime` falls back to the local pin in
+`resources/dsh-agent/runtime.json`.
 
-- `.github/workflows/release*.yml`: `DSH_AGENT_VERSION`
-- `resources/dsh-agent/runtime.json`: `{ "dsh": "...", "node": "..." }`
+### Manual tscode builds
 
-`prepare-runtime` rejects a mismatch, so a dsh upgrade now requires an explicit
-commit to the pin and a green smoke run.
+`release.yml` and `release-darwin-x64.yml` expose these `workflow_dispatch`
+inputs:
+
+| Input | Default | Purpose |
+| --- | --- | --- |
+| `dsh_fork_repository` | `AI-Testing-Workbench/testagent-dsh` | fork repository |
+| `dsh_fork_ref` | `dev` | fork branch used to find the latest artifact |
+| `dsh_fork_run_id` | empty | exact fork workflow run; overrides the branch lookup |
+| `dsh_version` | empty | optional expected version check |
+
+### Automatic fork trigger
+
+The fork's `.github/workflows/tscode-runtime.yml` runs on every push to `dev`
+(and manually for any branch). It builds and packs the runtime, uploads the
+`dsh-fork-tarballs` artifact, then dispatches `release.yml` on the tscode
+`main` branch with the exact run id and commit. The tscode workflow file and
+its `dsh_fork_*` inputs must already be on `main`, because `gh workflow run`
+resolves the workflow from that ref.
+
+Required secrets:
+
+- fork repository: `TSCODE_DISPATCH_TOKEN`, a token that may run workflows in
+  the tscode repository (fine-grained: Actions write; classic: `repo` +
+  `workflow`);
+- tscode repository: `DSH_FORK_TOKEN`, a token that may read fork Actions
+  artifacts (fine-grained: Actions read; classic: `repo`).
+
+Both secrets may point at the same token if it has both sets of permissions.
+If `DSH_FORK_TOKEN` is missing, tscode falls back to a source build of
+`dsh_fork_ref`.
+
+### Integration builds for a feature branch
+
+1. Push the fork branch.
+2. Run **tscode runtime** (`tscode-runtime.yml`) manually on that branch.
+3. The dispatch step triggers tscode with the branch commit and run id.
+
+Alternatively, run the tscode workflow manually with
+`dsh_fork_ref=<fork branch>` after that branch has a successful
+`tscode-runtime.yml` run.
 
 After packaging, verify the runtime survived the gulp/Electron copy:
 
 ```bash
 RUNTIME=$(find ../VSCode-darwin-arm64 \
   -path '*/Contents/Resources/app/resources/dsh-agent/VERSION' -print -quit)
-node scripts/dsh-agent/prepare-runtime.mjs --check --out "$(dirname "$RUNTIME")"
+node scripts/dsh-agent/prepare-runtime.mjs --check --out "$(dirname "$RUNTIME")" \
+  --dsh-version <artifact version> --fork-ref <artifact commit>
 ```
 
 Windows uses `Get-ChildItem -Recurse -Filter VERSION` because the app folder is
@@ -50,11 +107,20 @@ under `resources/app`.
 
 ## Current workflow changes
 
-- `release.yml`: Windows x64, macOS arm64, and Linux x64 jobs install, stage,
-  smoke, and verify the runtime.
-- `release-darwin-x64.yml`: same for macOS x64 with `npm_config_arch=x64`.
-- `.build/dsh-runtime` is cached by platform/arch + dsh version. The first run
-  downloads the dsh dependency tree (~500 MB); later runs restore it.
+- `release.yml` and `release-darwin-x64.yml` start with a `dsh-runtime` job that
+  downloads the fork artifact (exact run id, or the latest `tscode-runtime.yml`
+  run on `dsh_fork_ref`) and falls back to `build:official` + packing when no
+  artifact is available.
+- Windows x64, macOS arm64/x64, and Linux x64 jobs download that artifact,
+  install the runtime from the tarballs, stage, smoke, and verify it.
+- `.build/dsh-runtime` is cached by platform/arch + fork revision. The first run
+  installs the dependency tree (~900 MB); later runs restore it.
+- The install must not use `--omit=optional`: `koffi` resolves its platform
+  binary through an optional dependency, and omitting it falls back to a source
+  build that needs CMake.
+- npm 11.16 treats install scripts as opt-in. The installer generates an
+  `allowScripts` policy for `koffi`, `node-pty`, and the packed dsh packages
+  that need one, so the profile postinstall still runs.
 - `gulpfile.vscode.ts` copies `resources/dsh-agent/**` (without `previous/`)
   into the app root and preserves the executable bit on Node.
 - On Windows, `patchWin32DependenciesTask` skips `*/resources/dsh-agent/**`:
@@ -75,14 +141,19 @@ under `resources/app`.
   `Contents/Resources/app/resources/dsh-agent`).
 - Windows code signing should cover `node.exe` and native `.node` files if the
   installer is signed per-file.
-- The runtime adds roughly 500 MB installed (dsh dependencies + Node) and is
+- The runtime adds roughly 1 GB installed (dsh dependencies + Node) and is
   outside `node_modules.asar`. `npm run dsh-agent:size` reports the staged
   payload. Platform/arch trimming is a follow-up (plan E8).
 
 ## Caveats
 
-- The public npm registry must be reachable from the runner. If an internal
-  mirror is required, add `--registry=...` to the `npm install` step.
+- The dsh fork repository must be readable by the release runner. It is public
+  today; if it becomes private, add a read token to the checkout step.
+- External runtime dependencies still come from the public npm registry. If an
+  internal mirror is required, set `npm_config_registry` for the installer.
+- If the fork changes `native/system`, its platform tarballs must be built and
+  added to the `landlock` pack output. Otherwise `@deepseek-ai/node-addon-system`
+  is resolved from the registry like any other external dependency.
 - The macOS x64 workflow runs on an Intel runner (`macos-15-intel`). A staged
   Node binary and dsh native modules for x64 cannot be executed on an arm64
   runner without Rosetta, and the smoke/`--check` steps run them. If that label
@@ -90,10 +161,9 @@ under `resources/app`.
   artifact to the packaging job instead of cross-staging on arm64.
 - Set `npm_config_arch` explicitly on cross-arch builds so optional native
   dependencies match the target.
-- Node 24.18.0 ships npm 11, which may print `allow-scripts` warnings for dsh's
-  native packages. The runtime uses bundled N-API prebuilds, so the staged
-  smoke and `node-pty` still work (verified 2026-10-24). If a future dependency
-  needs a postinstall build, approve that script explicitly in the install step.
+- Node 24.18.0 ships npm 11.16, which treats install scripts as opt-in. The
+  installer writes the `allowScripts` policy into the generated manifest; do not
+  replace it with `--dangerously-allow-all-scripts`.
 - Linux is beta. The bundled Node 24.18.0 binary tops out at `GLIBC_2.28`, but
   dsh's speech dependency `sherpa-onnx-linux-x64` (1.13.8) requires
   `GLIBC_2.32` / `GLIBCXX_3.4.29`. The VS Code glibc gate therefore skips

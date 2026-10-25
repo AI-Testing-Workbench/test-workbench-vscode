@@ -41,7 +41,13 @@ Command Palette.
 To use the packaging path instead of PATH:
 
 ```bash
-node scripts/dsh-agent/prepare-runtime.mjs --dsh <path-to-@deepseek-ai/dsh> --node <node-24.18.0>
+node scripts/dsh-agent/install-runtime-from-tarballs.mts \
+  --from <fork-packed-dir>/dsh \
+  --from <fork-packed-dir>/vendor \
+  --from <fork-packed-dir>/landlock
+node scripts/dsh-agent/prepare-runtime.mjs \
+  --dsh .build/dsh-runtime/node_modules/@deepseek-ai/dsh \
+  --node "$(which node)"
 node scripts/dsh-agent/prepare-runtime.mjs --check
 ```
 

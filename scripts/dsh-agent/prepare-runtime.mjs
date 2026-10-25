@@ -24,6 +24,9 @@ const keepPrevious = args.includes('--keep-previous');
 const out = resolve(valueOf('--out') ?? join(root, 'resources', 'dsh-agent'));
 const dshDir = resolve(valueOf('--dsh') ?? process.env.TSCODE_DSH_AGENT_PACKAGE ?? '');
 const nodeExe = resolve(valueOf('--node') ?? process.env.TSCODE_DSH_AGENT_NODE ?? process.execPath);
+// CI overrides the pin with the fork artifact's actual version/revision.
+const expectedDshOption = valueOf('--dsh-version');
+const expectedForkRef = valueOf('--fork-ref');
 
 function valueOf(flag) {
 	const index = args.indexOf(flag);
@@ -130,6 +133,8 @@ async function readVersion(packageDir) {
 async function checkRuntime() {
 	const problems = [];
 	const pin = await readPin();
+	const expectedDshVersion = expectedDshOption ?? pin?.dsh;
+	const expectedForkRevision = expectedForkRef ?? pin?.fork?.ref;
 	const pinProblem = await nodePinMismatch(pin);
 	if (pinProblem) {
 		problems.push(pinProblem);
@@ -146,8 +151,8 @@ async function checkRuntime() {
 	const dshManifest = join(out, 'app', 'node_modules', '@deepseek-ai', 'dsh', 'package.json');
 	if (await exists(dshManifest)) {
 		const stagedDsh = JSON.parse(await readFile(dshManifest, 'utf8')).version;
-		if (pin?.dsh && stagedDsh !== pin.dsh) {
-			problems.push(`dsh ${stagedDsh} (expected ${pin.dsh})`);
+		if (expectedDshVersion && stagedDsh !== expectedDshVersion) {
+			problems.push(`dsh ${stagedDsh} (expected ${expectedDshVersion})`);
 		}
 	}
 	if (!await exists(join(out, 'plugin', 'dsh-client-tscode', 'package.json'))) {
@@ -170,6 +175,11 @@ async function checkRuntime() {
 	}
 	if (!await exists(join(out, 'VERSION'))) {
 		problems.push('missing VERSION');
+	} else if (expectedForkRevision) {
+		const version = await readFile(join(out, 'VERSION'), 'utf8');
+		if (!version.includes(`fork ${expectedForkRevision}`)) {
+			problems.push(`fork ${expectedForkRevision} (VERSION does not record the fork revision)`);
+		}
 	}
 	if (problems.length > 0) {
 		console.error(`[dsh-agent] runtime check failed at ${out}: ${problems.join(', ')}`);
@@ -187,11 +197,13 @@ async function prepare() {
 	const dshVersion = await readVersion(dshDir);
 	const nodeVersion = execFileSync(nodeExe, ['--version'], { encoding: 'utf8' }).trim().replace(/^v/, '');
 	const pin = await readPin();
+	const expectedDshVersion = expectedDshOption ?? pin?.dsh;
+	const expectedForkRevision = expectedForkRef ?? pin?.fork?.ref;
 	const pinProblem = await nodePinMismatch(pin);
 	if (pinProblem) {
 		throw new Error(pinProblem);
 	}
-	if (pin?.dsh && dshVersion !== pin.dsh) {
+	if (expectedDshVersion && dshVersion !== expectedDshVersion) {
 		throw new Error(`dsh ${dshVersion} does not match the pinned runtime ${pin.dsh}`);
 	}
 	if (pin?.node ? nodeVersion !== pin.node : !/^24\.18\./.test(nodeVersion)) {
@@ -269,8 +281,9 @@ async function prepare() {
 		...licenseRows
 	].join('\n');
 	await writeFile(join(out, 'THIRD_PARTY_NOTICES'), notices + '\n');
-	await writeFile(join(out, 'VERSION'), `dsh ${dshVersion} / node v${nodeVersion} / format 1 / ${new Date().toISOString()}\n`);
-	console.log(`[dsh-agent] staged dsh ${dshVersion} and Node ${nodeVersion} at ${out}`);
+	const fork = expectedForkRevision ? ` / fork ${expectedForkRevision}` : '';
+	await writeFile(join(out, 'VERSION'), `dsh ${dshVersion} / node v${nodeVersion}${fork} / format 1 / ${new Date().toISOString()}\n`);
+	console.log(`[dsh-agent] staged dsh ${dshVersion} and Node ${nodeVersion}${fork} at ${out}`);
 }
 
 if (check) {
