@@ -21,6 +21,13 @@ human-readable counterpart.
   `settings/mutate` return `ok` and the preview notice stays dismissed after a
   reload.
 - Added unit coverage in `src/vs/platform/dshAgent/test/node/dshAgentPaths.test.ts`.
+- `src/vs/platform/dshAgent/electron-main/dshAgentWindow.ts`: forward renderer
+  `console-message` output to the main log as `[dshAgent:renderer]` (errors and
+  warnings at their levels, other chatter at trace), inject an
+  `unhandledrejection` listener on every document load, and log structured
+  `settings/mutate|update|replace` failures (`{ result: { ok: false } }`) that
+  dsh otherwise only renders as a generic message. This makes swallowed UI
+  failures visible without attaching DevTools.
 
 ## 2026-10-24 — Package dsh dotfiles (pi-ai import fix)
 

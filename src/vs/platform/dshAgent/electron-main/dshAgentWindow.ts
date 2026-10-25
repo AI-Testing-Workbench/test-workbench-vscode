@@ -9,7 +9,7 @@ import { BrowserWindow, nativeTheme, Session, shell } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { DSH_AGENT_ORIGIN, IDshAgentContext } from '../common/dshAgent.js';
+import { DSH_AGENT_ORIGIN, IDshAgentContext, redactDshAgentLog } from '../common/dshAgent.js';
 
 /** Options for the dedicated Agent window. */
 export interface IDshAgentWindowOptions {
@@ -82,6 +82,7 @@ export class DshAgentWindow extends Disposable {
 		});
 
 		const webContents = this.browserWindow.webContents;
+		this.installRendererDiagnostics(webContents);
 		this.browserWindow.on('close', event => {
 			if (!options.isQuitting() && !this.browserWindow.isDestroyed()) {
 				event.preventDefault();
@@ -121,6 +122,84 @@ export class DshAgentWindow extends Disposable {
 				return;
 			}
 			options.logService.error(`[dshAgent] window failed to load ${validatedURL}: ${errorDescription} (${errorCode})`);
+		});
+	}
+
+	/**
+	 * Forward renderer diagnostics to the main log. The dsh UI catches most
+	 * failures and renders a generic message, so the real exception would
+	 * otherwise only be visible with DevTools attached.
+	 */
+	private installRendererDiagnostics(webContents: Electron.WebContents): void {
+		webContents.on('console-message', event => {
+			if (typeof event.message !== 'string' || event.message.length === 0) {
+				return;
+			}
+			const message = redactDshAgentLog(event.message);
+			if (message.trim().length === 0) {
+				return;
+			}
+			const line = `[dshAgent:renderer] ${message}`;
+			// Electron 43 names levels (`error`, `warning`, ...); older typings
+			// exposed the numeric Chromium levels.
+			const level = String(event.level);
+			if (level === 'error' || level === '3') {
+				this.options.logService.error(line);
+			} else if (level === 'warning' || level === '2') {
+				this.options.logService.warn(line);
+			} else {
+				// Console chatter is only persisted when trace logging is enabled.
+				this.options.logService.trace(line);
+			}
+		});
+
+		// Injecting on every document load also covers reloads and Host restarts.
+		webContents.on('did-finish-load', () => {
+			void webContents.executeJavaScript(`(() => {
+				if (window.__tscodeDshUnhandledRejectionHook) {
+					return;
+				}
+				Object.defineProperty(window, '__tscodeDshUnhandledRejectionHook', { value: true });
+				window.addEventListener('unhandledrejection', event => {
+					try {
+						const reason = event.reason;
+						const message = reason && (reason.stack || reason.message) || String(reason);
+						console.error('[dsh-renderer-unhandledrejection] ' + message);
+					} catch (error) {
+						console.error('[dsh-renderer-unhandledrejection] <unprintable>');
+					}
+				});
+
+				// dsh reports settings rejections as { result: { ok: false } }
+				// instead of throwing, so the rejection listener never sees them.
+				if (!window.__tscodeDshSettingsFetchHook) {
+					Object.defineProperty(window, '__tscodeDshSettingsFetchHook', { value: true });
+					const originalFetch = window.fetch;
+					window.fetch = async function (...args) {
+						const response = await originalFetch.apply(this, args);
+						try {
+							const url = String(args[0]);
+							if (url.includes('/settings/mutate') || url.includes('/settings/update') || url.includes('/settings/replace')) {
+								if (!response.ok) {
+									console.error('[dsh-renderer-settings] HTTP ' + response.status + ' for ' + url);
+								} else {
+									const text = await response.clone().text();
+									const parsed = JSON.parse(text);
+									if (parsed && parsed.result && parsed.result.ok === false) {
+										console.error('[dsh-renderer-settings] ' + JSON.stringify(parsed.result.error));
+									}
+								}
+							}
+						} catch (error) {
+							// Diagnostics must never change request behavior.
+						}
+						return response;
+					};
+				}
+			})()`, true).catch(error => {
+				const message = error instanceof Error ? error.message : String(error);
+				this.options.logService.trace(`[dshAgent] could not install renderer diagnostic hooks: ${message}`);
+			});
 		});
 	}
 

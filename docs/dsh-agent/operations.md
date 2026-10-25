@@ -5,6 +5,7 @@
 | Artifact | Location |
 | --- | --- |
 | Host stdout/stderr (redacted) | tscode main log, `[dshAgent:host]` |
+| Renderer console / unhandled rejections | tscode main log, `[dshAgent:renderer]` |
 | Host crash reports | `<userData>/logs/dsh-agent/crash-*.json` (max 10) |
 | Profile facts | `~/.tscode-dsh/tscode-agent-profile.json` |
 | Managed dsh patch | `~/.tscode-dsh/cordis.patch.yml` |
@@ -14,6 +15,12 @@ Crash reports contain versions, exit code/signal, stderr tail, profile hash, and
 the workspace path. They never contain prompts, code, or file contents.
 `redactDshAgentLog` strips tokens, cookies, bearer headers, and `*_key=` values
 before anything is logged or persisted.
+
+The Agent window forwards renderer console messages, unhandled promise
+rejections, and structured `settings/mutate|update|replace` failures to the same
+main log under `[dshAgent:renderer]`. `console.error` and `console.warn` keep
+their levels; other console chatter is written at trace, so switch the log
+level to Trace when diagnosing a swallowed UI failure.
 
 ## Runtime pin
 
@@ -48,13 +55,16 @@ continues. Quitting the app joins Host shutdown through
 3. Reproduce with the smoke script:
    `node scripts/dsh-agent/e2e-smoke.mjs --keep`. It prints the temporary
    `DSH_HOME`; inspect `profiles/web/package.json` and `cordis.patch.yml`.
-4. If the error started after a dsh upgrade, restore the previous runtime
+4. Search the main log for `[dshAgent:renderer]`. Entries prefixed
+   `[dsh-renderer-settings]` carry the Remote error code and message for a
+   settings write the dsh UI only renders as a generic failure.
+5. If the error started after a dsh upgrade, restore the previous runtime
    snapshot (`scripts/dsh-agent/rollback-runtime.mjs`) or reinstall the previous
    tscode build.
-5. If the window loads but tools fail, check the Host log for approval or
+6. If the window loads but tools fail, check the Host log for approval or
    plugin errors. The managed profile disables plugin installation/HMR; a plugin
    the user installed earlier may be skipped.
-6. A settings write rejected with `profile reload requires the root Include
+7. A settings write rejected with `profile reload requires the root Include
    entry` on Windows means the Host paths used two drive-letter cases (`c:` and
    `C:`), so Node loaded `@deepseek-ai/dsh-app-boot` twice. Confirm the build
    includes `normalizeDshAgentPath` in `node/dshAgentPaths.ts`; the fix applies
