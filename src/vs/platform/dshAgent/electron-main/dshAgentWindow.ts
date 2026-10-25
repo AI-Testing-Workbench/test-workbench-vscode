@@ -5,9 +5,11 @@
 
 // test-workbench_change - new file
 
-import { BrowserWindow, nativeTheme, Session, shell } from 'electron';
+import { BrowserWindow, clipboard, Menu, MenuItem, nativeTheme, Session, shell } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { DSH_AGENT_ORIGIN, IDshAgentContext, redactDshAgentLog } from '../common/dshAgent.js';
 
@@ -82,6 +84,8 @@ export class DshAgentWindow extends Disposable {
 		});
 
 		const webContents = this.browserWindow.webContents;
+		this.installEditShortcuts(webContents);
+		this.installContextMenu(webContents);
 		this.installRendererDiagnostics(webContents);
 		this.browserWindow.on('close', event => {
 			if (!options.isQuitting() && !this.browserWindow.isDestroyed()) {
@@ -122,6 +126,99 @@ export class DshAgentWindow extends Disposable {
 				return;
 			}
 			options.logService.error(`[dshAgent] window failed to load ${validatedURL}: ${errorDescription} (${errorCode})`);
+		});
+	}
+
+	/**
+	 * The dsh window is a plain BrowserWindow without a workbench renderer, so
+	 * the application Edit menu commands target the IDE and do nothing here.
+	 * Handle the standard clipboard shortcuts locally instead.
+	 */
+	private installEditShortcuts(webContents: Electron.WebContents): void {
+		webContents.on('before-input-event', (event, input) => {
+			if (input.type !== 'keyDown' || input.alt || input.isAutoRepeat) {
+				return;
+			}
+			const primary = isMacintosh ? input.meta : input.control;
+			if (!primary) {
+				return;
+			}
+			let handled = true;
+			switch (input.key.toLowerCase()) {
+				case 'c':
+					if (input.shift) {
+						handled = false;
+					} else {
+						webContents.copy();
+					}
+					break;
+				case 'x':
+					if (input.shift) {
+						handled = false;
+					} else {
+						webContents.cut();
+					}
+					break;
+				case 'v':
+					if (input.shift) {
+						webContents.pasteAndMatchStyle();
+					} else {
+						webContents.paste();
+					}
+					break;
+				case 'a':
+					if (input.shift) {
+						handled = false;
+					} else {
+						webContents.selectAll();
+					}
+					break;
+				default:
+					handled = false;
+			}
+			if (handled) {
+				// Prevent the (mis-targeted) application menu accelerator.
+				event.preventDefault();
+			}
+		});
+	}
+
+	/**
+	 * Provide the native editing context menu that Chromium does not show in
+	 * Electron windows by default.
+	 */
+	private installContextMenu(webContents: Electron.WebContents): void {
+		webContents.on('context-menu', (_event, params) => {
+			const menu = new Menu();
+			const hasSelection = params.selectionText.length > 0;
+
+			if (params.isEditable) {
+				menu.append(new MenuItem({ role: 'cut', enabled: params.editFlags.canCut }));
+			}
+			menu.append(new MenuItem({
+				role: 'copy',
+				enabled: params.isEditable ? params.editFlags.canCopy : hasSelection
+			}));
+			if (params.isEditable) {
+				menu.append(new MenuItem({ role: 'paste', enabled: params.editFlags.canPaste }));
+				menu.append(new MenuItem({ role: 'pasteAndMatchStyle', enabled: params.editFlags.canPaste }));
+			}
+			menu.append(new MenuItem({ type: 'separator' }));
+			menu.append(new MenuItem({ role: 'selectAll', enabled: params.isEditable ? params.editFlags.canSelectAll : true }));
+
+			if (params.linkURL) {
+				menu.append(new MenuItem({ type: 'separator' }));
+				menu.append(new MenuItem({
+					label: localize('dshAgent.contextMenu.openLink', "Open Link in Browser"),
+					click: () => this.openExternal(params.linkURL)
+				}));
+				menu.append(new MenuItem({
+					label: localize('dshAgent.contextMenu.copyLink', "Copy Link"),
+					click: () => clipboard.writeText(params.linkURL)
+				}));
+			}
+
+			menu.popup({ window: this.browserWindow });
 		});
 	}
 

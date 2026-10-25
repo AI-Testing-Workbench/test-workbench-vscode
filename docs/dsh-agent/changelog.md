@@ -4,6 +4,20 @@ This file records changes to the dsh Agent integration. Code changes follow the
 repository's `test-workbench_change` marker convention; this file is the
 human-readable counterpart.
 
+## 2026-10-25 — Fix clipboard and context menu in the dsh window
+
+- The dsh Agent window is a plain `BrowserWindow` without a workbench renderer,
+  so the application Edit menu commands were sent to the IDE renderer and did
+  nothing. `Cmd/Ctrl+C/X/V/A` are now handled in the window's
+  `before-input-event` hook.
+- Added a native `context-menu` handler with Cut/Copy/Paste/
+  Paste and Match Style/Select All, plus Open Link/Copy Link for links.
+- The menubar's Edit commands now fall back to the focused web contents when
+  the focused window has no workbench renderer, so menu clicks work too.
+- Verified in the dev app: pasting Chinese text into the dsh composer, selecting
+  all and copying back to the system clipboard, and right-clicking the composer
+  (menu contains cut/copy/paste/pasteAndMatchStyle/selectAll).
+
 ## 2026-10-25 — Fix the dsh “add workspace” no-op
 
 - `DshAgentIpcChannel.PickDirectory` now always opens the IDE's native folder

@@ -686,10 +686,16 @@ export class Menubar extends Disposable {
 		const label = this.mnemonicLabel(labelOpt);
 		const click = (menuItem: MenuItem & IMenuItemWithKeybinding, window: BaseWindow | undefined, event: KeyboardEvent) => {
 			const userSettingsLabel = menuItem ? menuItem.userSettingsLabel : null;
-			if (userSettingsLabel && event.triggeredByAccelerator) {
-				this.runActionInRenderer({ type: 'keybinding', userSettingsLabel });
-			} else {
-				this.runActionInRenderer({ type: 'commandId', commandId });
+			const handled = (userSettingsLabel && event.triggeredByAccelerator)
+				? this.runActionInRenderer({ type: 'keybinding', userSettingsLabel })
+				: this.runActionInRenderer({ type: 'commandId', commandId });
+			if (!handled) {
+				// test-workbench_change start
+				// Windows such as the dsh Agent window are plain BrowserWindows
+				// without a workbench renderer. Apply Edit commands to their
+				// focused web contents instead of dropping them.
+				this.runEditActionInFocusedWindow(commandId);
+				// test-workbench_change end
 			}
 		};
 		const enabled = typeof enabledOpt === 'boolean' ? enabledOpt : this.windowsMainService.getWindowCount() > 0;
@@ -817,6 +823,40 @@ export class Menubar extends Disposable {
 			return false;
 		}
 	}
+
+	// test-workbench_change start
+	/**
+	 * Apply a native editing command to the focused web contents when its
+	 * window is not a workbench window (for example the dsh Agent window).
+	 */
+	private runEditActionInFocusedWindow(commandId: string): boolean {
+		const webContents = BrowserWindow.getFocusedWindow()?.webContents;
+		if (!webContents || webContents.isDestroyed() || !webContents.isFocused() || webContents.isDevToolsFocused()) {
+			return false;
+		}
+		switch (commandId) {
+			case 'editor.action.clipboardCutAction':
+				webContents.cut();
+				return true;
+			case 'editor.action.clipboardCopyAction':
+				webContents.copy();
+				return true;
+			case 'editor.action.clipboardPasteAction':
+				webContents.paste();
+				return true;
+			case 'editor.action.selectAll':
+				webContents.selectAll();
+				return true;
+			case 'undo':
+				webContents.undo();
+				return true;
+			case 'redo':
+				webContents.redo();
+				return true;
+		}
+		return false;
+	}
+	// test-workbench_change end
 
 	private withKeybinding(commandId: string | undefined, options: MenuItemConstructorOptions & IMenuItemWithKeybinding): MenuItemConstructorOptions {
 		const binding = typeof commandId === 'string' ? this.keybindings[commandId] : undefined;
