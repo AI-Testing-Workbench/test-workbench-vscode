@@ -22,6 +22,21 @@ type WebViewDragEvent = {
 	readonly shiftKey: boolean;
 }
 
+// test-workbench_change - backport of microsoft/vscode#344153
+export interface WebviewWindowDragEvent {
+	readonly id: number;
+	readonly type: 'dragover' | 'dragleave' | 'drop';
+	readonly clientX: number;
+	readonly clientY: number;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly ctrlKey: boolean;
+	readonly metaKey: boolean;
+	readonly data: readonly (readonly [string, string])[];
+	readonly effectAllowed: DataTransfer['effectAllowed'];
+	readonly dropEffect: DataTransfer['dropEffect'];
+}
+
 export type FromWebviewMessage = {
 	'onmessage': { message: any; transfer?: ArrayBuffer[] };
 	'did-click-link': { uri: string };
@@ -42,6 +57,7 @@ export type FromWebviewMessage = {
 	'did-context-menu': { clientX: number; clientY: number; context: { [key: string]: unknown } };
 	'drag-start': void;
 	'drag': WebViewDragEvent;
+	'did-window-drag': { id: number; dropEffect: DataTransfer['dropEffect'] };
 	'updated-intrinsic-content-size': { width: number; height: number };
 };
 
@@ -59,6 +75,7 @@ interface UpdateContentEvent {
 }
 
 export type ToWebviewMessage = {
+	'window-drag': WebviewWindowDragEvent;
 	'focus': void;
 	'message': { message: any; transfer?: ArrayBuffer[] };
 	'execCommand': string;

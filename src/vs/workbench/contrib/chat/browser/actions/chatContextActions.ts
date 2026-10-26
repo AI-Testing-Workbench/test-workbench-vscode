@@ -27,6 +27,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IListService } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
@@ -60,6 +61,7 @@ export function registerChatContextActions(): DisposableStore {
 	const store = new DisposableStore();
 	store.add(registerAction2(AttachContextAction));
 	store.add(registerAction2(AttachFileToChatAction));
+	store.add(registerAction2(AttachFileToTestAgentAction));
 	store.add(registerAction2(AttachFolderToChatAction));
 	store.add(registerAction2(AttachSelectionToChatAction));
 	store.add(registerAction2(AttachSearchResultAction));
@@ -145,18 +147,7 @@ class AttachFileToChatAction extends AttachResourceAction {
 				order: 1,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, SearchContext.FileMatchOrMatchFocusKey, SearchContext.SearchResultHeaderFocused.negate()),
 			}, {
-				id: MenuId.ExplorerContext,
-				group: '5_chat',
-				order: 1,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.enabled,
-					ExplorerFolderContext.negate(),
-					ContextKeyExpr.or(
-						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
-						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
-					)
-				),
-			}, {
+				// test-workbench_change - Explorer menu is handled by AttachFileToTestAgentAction
 				id: MenuId.EditorTitleContext,
 				group: '2_chat',
 				order: 1,
@@ -205,6 +196,65 @@ class AttachFileToChatAction extends AttachResourceAction {
 			for (const file of files) {
 				widget.attachmentModel.addFile(file);
 			}
+		}
+	}
+}
+
+// test-workbench_change - route the Explorer "Add File to Chat" action to TestAgent
+class AttachFileToTestAgentAction extends AttachResourceAction {
+
+	static readonly ID = 'workbench.action.chat.attachFileToTestAgent';
+
+	constructor() {
+		super({
+			id: AttachFileToTestAgentAction.ID,
+			title: localize2('workbench.action.chat.attachFileToTestAgent.label', "Add File to Chat"),
+			category: CHAT_CATEGORY,
+			icon: Codicon.attach,
+			precondition: ChatContextKeys.enabled,
+			f1: false,
+			menu: {
+				id: MenuId.ExplorerContext,
+				group: '5_chat',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ExplorerFolderContext.negate(),
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)
+					)
+				)
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const files = this._getResources(accessor, ...args);
+		if (!files.length) {
+			return;
+		}
+
+		const labelService = accessor.get(ILabelService);
+		const commandService = accessor.get(ICommandService);
+		const text = files
+			.map(file => `@${labelService.getUriLabel(file, { relative: true, noPrefix: true }) || file.fsPath}`)
+			.join(' ') + ' ';
+		try {
+			await commandService.executeCommand('testagent.appendToPromptInput', text);
+		} catch {
+			await super.run(accessor, ...args);
+		}
+	}
+
+	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: unknown[]): Promise<void> {
+		const files = this._getResources(accessor, ...args);
+		if (!files.length) {
+			return;
+		}
+		widget.focusInput();
+		for (const file of files) {
+			widget.attachmentModel.addFile(file);
 		}
 	}
 }
