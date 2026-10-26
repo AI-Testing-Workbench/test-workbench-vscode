@@ -270,7 +270,16 @@ window.__ModuleLoader__.load({
      * @param ctx - the browser plugin context.
      */
     function createUi(ctx) {
-      const folderPicker = ctx.get('uiWorkspace');
+      /**
+       * Resolve the folder picker when a click happens, not while the plugin
+       * applies. DSH may start `uiWorkspace` after this plugin's fiber (the
+       * client half only injects `slots` in rc.3), so a value captured here
+       * would stay `undefined` for the page's lifetime.
+       */
+      function folderPicker() {
+        const workspace = ctx.get('uiWorkspace');
+        return workspace !== undefined && typeof workspace.pickDirectory === 'function' ? workspace : undefined;
+      }
 
       /** A translate function plus a locale subscription so mounted UI follows a language switch. */
       function useT() {
@@ -298,11 +307,12 @@ window.__ModuleLoader__.load({
           // artifacts folder and says so in the result line.
           let output;
           let pickedHere = false;
-          if (folderPicker !== undefined && typeof folderPicker.pickDirectory === 'function') {
+          const picker = folderPicker();
+          if (picker !== undefined) {
             setState({ status: 'picking' });
             let picked;
             try {
-              picked = await folderPicker.pickDirectory();
+              picked = await picker.pickDirectory();
             } catch (error) {
               setState({ status: 'error', message: `${t('pickerFailed')} ${error instanceof Error ? error.message : String(error)}` });
               return;
@@ -325,7 +335,7 @@ window.__ModuleLoader__.load({
           } catch (error) {
             setState({ status: 'error', message: error instanceof Error ? error.message : String(error) });
           }
-        }, [plugin, folderPicker, t]);
+        }, [plugin, t]);
         const busy = state.status === 'busy' || state.status === 'picking';
         const result = state.status === 'done' ? state.result : undefined;
         const warningCount = typeof result?.warningCount === 'number' ? result.warningCount : (result?.warnings?.length ?? 0);
