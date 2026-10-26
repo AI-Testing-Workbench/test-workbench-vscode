@@ -294,6 +294,25 @@ execFileSync(npm, ['install', '--no-audit', '--no-fund', '--no-save', '--package
 	shell: process.platform === 'win32'
 });
 
+// test-workbench_change start
+// Windows MAX_PATH: the experimental inspector's Chrome DevTools issue
+// descriptions use file names up to 121 characters, which exceed 260 characters
+// once installed under a normal tscode install root. The inspector is an
+// optional bundle that the web profile never mounts, so drop the descriptions
+// from the installed closure before it is cached or staged.
+await rm(join(
+	out,
+	'node_modules',
+	'@deepseek-ai',
+	'dsh-experimental-inspector',
+	'lib',
+	'devtools',
+	'models',
+	'issues_manager',
+	'descriptions'
+), { recursive: true, force: true });
+// test-workbench_change end
+
 // The packed dsh package needs this postinstall to restore node-pty's helper
 // mode. Run it explicitly so the result does not depend on npm's allowScripts
 // identity matching for a file: dependency.

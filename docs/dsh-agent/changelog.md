@@ -4,6 +4,22 @@ This file records changes to the dsh Agent integration. Code changes follow the
 repository's `test-workbench_change` marker convention; this file is the
 human-readable counterpart.
 
+## 2026-10-26 — Fix Windows install failure from long runtime paths
+
+- Windows still enforces the 260-character `MAX_PATH` limit during setup. The
+  optional `@deepseek-ai/dsh-experimental-inspector` package ships Chrome
+  DevTools issue descriptions with file names up to 121 characters; under
+  `resources/dsh-agent/app/node_modules/...` those paths exceeded the limit and
+  broke installation.
+- `install-runtime-from-tarballs.mts` now removes the inspector's
+  `lib/devtools/models/issues_manager/descriptions` directory after `npm
+  install`, and `prepare-runtime.mjs` filters it out while staging.
+- `prepare-runtime.mjs --check` now rejects Windows runtimes with any path over
+  140 characters under `app/node_modules`, so a future dependency cannot
+  silently reintroduce the failure.
+- The inspector is an optional bundle that the `web` profile never mounts; only
+  its DevTools issue descriptions are unavailable.
+
 ## 2026-10-25 — Fix clipboard and context menu in the dsh window
 
 - The dsh Agent window is a plain `BrowserWindow` without a workbench renderer,

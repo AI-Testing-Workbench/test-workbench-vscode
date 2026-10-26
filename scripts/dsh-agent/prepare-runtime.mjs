@@ -14,7 +14,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { chmod, copyFile, cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -27,6 +27,14 @@ const nodeExe = resolve(valueOf('--node') ?? process.env.TSCODE_DSH_AGENT_NODE ?
 // CI overrides the pin with the fork artifact's actual version/revision.
 const expectedDshOption = valueOf('--dsh-version');
 const expectedForkRef = valueOf('--fork-ref');
+// test-workbench_change start
+// Windows limits a path to 260 characters unless long-path support is enabled
+// system-wide. The dsh runtime installs under a deep node_modules tree, so keep
+// every path below this budget. The experimental inspector's Chrome DevTools
+// issue descriptions are the only files in the runtime that exceed it.
+const WINDOWS_RUNTIME_PATH_BUDGET = 140;
+const INSPECTOR_DESCRIPTIONS = join('@deepseek-ai', 'dsh-experimental-inspector', 'lib', 'devtools', 'models', 'issues_manager', 'descriptions');
+// test-workbench_change end
 
 function valueOf(flag) {
 	const index = args.indexOf(flag);
@@ -41,6 +49,31 @@ async function exists(path) {
 		return false;
 	}
 }
+
+// test-workbench_change start
+/**
+ * Collect paths under `directory` whose path relative to it exceeds `budget`.
+ * The Windows installer combines this relative path with the user's install
+ * root, so an over-long entry here becomes an install failure there.
+ */
+async function findLongRuntimePaths(directory, budget) {
+	const offenders = [];
+	async function walk(current) {
+		for (const entry of await readdir(current, { withFileTypes: true })) {
+			const full = join(current, entry.name);
+			const path = relative(directory, full);
+			if (path.length > budget) {
+				offenders.push(path);
+			}
+			if (entry.isDirectory()) {
+				await walk(full);
+			}
+		}
+	}
+	await walk(directory);
+	return offenders;
+}
+// test-workbench_change end
 
 /**
  * Copy top-level license files from the staged dependency tree and return one
@@ -275,6 +308,21 @@ async function checkRuntime() {
 			problems.push(`fork ${expectedForkRevision} (VERSION does not record the fork revision)`);
 		}
 	}
+	// test-workbench_change start
+	if (await exists(join(out, 'app', 'node_modules', INSPECTOR_DESCRIPTIONS))) {
+		problems.push('inspector descriptions were not pruned');
+	}
+	if (process.platform === 'win32') {
+		const appModules = join(out, 'app', 'node_modules');
+		if (await exists(appModules)) {
+			const longPaths = await findLongRuntimePaths(appModules, WINDOWS_RUNTIME_PATH_BUDGET);
+			if (longPaths.length > 0) {
+				const sample = longPaths.slice(0, 3).join(', ');
+				problems.push(`paths exceed ${WINDOWS_RUNTIME_PATH_BUDGET} characters under app/node_modules (Windows MAX_PATH): ${sample}${longPaths.length > 3 ? `, +${longPaths.length - 3} more` : ''}`);
+			}
+		}
+	}
+	// test-workbench_change end
 	if (problems.length > 0) {
 		console.error(`[dsh-agent] runtime check failed at ${out}: ${problems.join(', ')}`);
 		process.exitCode = 1;
@@ -353,8 +401,15 @@ async function prepare() {
 	await cp(dshNodeModules, appRoot, {
 		recursive: true,
 		dereference: false,
-		filter: source => basename(source) !== '.bin'
+		filter: source => basename(source) !== '.bin' && !source.includes(INSPECTOR_DESCRIPTIONS)
 	});
+	// test-workbench_change start
+	// Drop the descriptions even when staging a runtime installed before this
+	// filter existed. The inspector is an optional bundle that the web profile
+	// never mounts, and these files are the only runtime paths that exceed the
+	// Windows budget.
+	await rm(join(appRoot, INSPECTOR_DESCRIPTIONS), { recursive: true, force: true });
+	// test-workbench_change end
 	if (!await exists(join(appRoot, '@deepseek-ai', 'dsh', 'lib', 'bin.js'))) {
 		throw new Error(`staged node_modules is missing @deepseek-ai/dsh: ${appRoot}`);
 	}
