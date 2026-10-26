@@ -113,10 +113,15 @@ node scripts/dsh-agent/sync-builtin-plugins.mjs --check
 更新插件时，请在同一个变更里更新 `builtin-plugins.json` 的 `version` 和
 `ref`；当内置源码版本与 pin 不一致时，`prepare-runtime.mjs --check` 会失败。
 
-内置的 `dsh-plugin-offline` 还携带了一个修复：等待可选的 `webServer` 服务就绪
-后再注册路由，而不是在 `apply` 期间直接读取。DSH 0.2.1-rc.3 会在这个插件之后
-才加载该服务，因此此前路由从未注册成功。请把同样的修改推送到上游、更新
-`ref`，然后重新执行同步，再以 pin 作为刷新依据。
+内置的 `dsh-plugin-offline` 还携带了两个 rc.3 兼容修复：
+
+- 等待可选的 `webServer` 服务就绪后再注册路由，而不是在 `apply` 期间直接读取；
+  DSH 0.2.1-rc.3 会在这个插件之后才加载该服务，因此此前路由从未注册成功。
+- `locale.bind()` 在命名空间/词条缺失时返回 key 本身，而不是 `undefined`。客户端现在
+  只在返回值与 key 不同时采用绑定结果，否则回退到内置的中英文案；否则界面会显示
+  `tabLabel`、`export` 这类占位符。
+
+请把同样的修改推送到上游、更新 `ref`，然后重新执行同步，再以 pin 作为刷新依据。
 
 ## 开发
 

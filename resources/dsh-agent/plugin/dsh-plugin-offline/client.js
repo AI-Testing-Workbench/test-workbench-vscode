@@ -75,8 +75,8 @@ window.__ModuleLoader__.load({
         tabLabel: '导入导出',
         title: '插件导入与导出',
         intro:
-          '把一个插件及其整棵依赖闭包打包成单个 tarball，可在无网络的隔离机器上直接安装，'
-          + '也可以导入在其他机器上生成的离线包。每次导出都会选择保存目录。',
+          '把一个插件及其整棵依赖闭包打包成单个压缩包，'
+          + '并支持导入离线包，实现无网环境下安装使用插件。',
         refresh: '刷新',
         loading: '正在读取已安装插件…',
         export: '导出离线包',
@@ -131,7 +131,12 @@ window.__ModuleLoader__.load({
     function translateStatic(ctx, key, vars) {
       const locale = ctx.get('locale');
       const bound = locale !== undefined && typeof locale.bind === 'function' ? locale.bind(NS) : undefined;
-      const text = (bound === undefined ? undefined : bound(key)) ?? MESSAGES[activeLocale(ctx)][key] ?? key;
+      const boundText = bound === undefined ? undefined : bound(key);
+      // rc.3 returns the key itself for a missing namespace/entry, so only use
+      // the bound result when it actually resolved something.
+      const text = boundText !== undefined && boundText !== key
+        ? boundText
+        : MESSAGES[activeLocale(ctx)][key] ?? key;
       return format(text, vars);
     }
 
@@ -505,9 +510,9 @@ window.__ModuleLoader__.load({
      */
     function apply(ctx) {
       const ui = createUi(ctx);
-      const locale = ctx.get('locale');
-      if (locale !== undefined && typeof locale.register === 'function') {
-        ctx.effect(() => {
+      ctx.inject(['locale'], (localeCtx) => {
+        localeCtx.effect(() => {
+          const locale = localeCtx.locale;
           const disposers = [locale.register(NS, 'en', MESSAGES.en), locale.register(NS, 'zh', MESSAGES.zh)];
           return () => {
             for (const dispose of disposers) {
@@ -519,7 +524,7 @@ window.__ModuleLoader__.load({
             }
           };
         }, 'dsh-plugin-offline: dictionaries');
-      }
+      });
 
       ctx.slots.inject('plugins.detail.actions', () => ctx.slots.register({
         name: 'plugins.detail.actions',
