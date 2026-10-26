@@ -285,6 +285,25 @@ class AttachFolderToChatAction extends AttachResourceAction {
 		});
 	}
 
+	// test-workbench_change - route the Explorer "Add Folder to Chat" action to TestAgent
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const folders = this._getResources(accessor, ...args);
+		if (!folders.length) {
+			return;
+		}
+
+		const labelService = accessor.get(ILabelService);
+		const commandService = accessor.get(ICommandService);
+		const text = folders
+			.map(folder => `@${labelService.getUriLabel(folder, { relative: true, noPrefix: true }) || folder.fsPath}`)
+			.join(' ') + ' ';
+		try {
+			await commandService.executeCommand('testagent.appendToPromptInput', text);
+		} catch {
+			await super.run(accessor, ...args);
+		}
+	}
+
 	override async runWithWidget(accessor: ServicesAccessor, widget: IChatWidget, ...args: unknown[]): Promise<void> {
 		const folders = this._getResources(accessor, ...args);
 		if (!folders.length) {
