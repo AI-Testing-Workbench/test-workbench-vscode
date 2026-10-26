@@ -423,6 +423,11 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._webview.value?.windowDidDragStart();
 	}
 
+	// test-workbench_change - backport of microsoft/vscode#344153
+	windowDidDrag(event: DragEvent) {
+		this._webview.value?.windowDidDrag(event);
+	}
+
 	windowDidDragEnd() {
 		this._webview.value?.windowDidDragEnd();
 	}
