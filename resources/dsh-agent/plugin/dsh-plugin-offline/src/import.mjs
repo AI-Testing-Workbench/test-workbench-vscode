@@ -5,10 +5,11 @@
  * no registry access because every dependency is bundled in the tarball.
  * @module dsh-plugin-offline/import
  */
-import { stat } from 'node:fs/promises';
-import { isAbsolute, resolve } from 'node:path';
-import { readTarGzTextEntry } from './tar.mjs';
-import { OfflineError, getRuntimeVersion } from './profile.mjs';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { extractTarGz, readTarGzTextEntry } from './tar.mjs';
+import { OfflineError, getRuntimeVersion, readJsonFile, resolveProfileDir } from './profile.mjs';
 
 /** Schema version this module understands. */
 const SUPPORTED_SCHEMA_VERSION = 1;
@@ -103,16 +104,39 @@ export async function importArtifact({ ctx, artifact, enabled }) {
   if (manager === undefined || manager === null) {
     throw new OfflineError('plugin-manager-unavailable', 'This profile has no pluginManager service, so the artifact cannot be installed.');
   }
+  const warnings = [...inspection.warnings];
+  if (inspection.metadata?.verification?.complete === false) {
+    warnings.push(
+      'The artifact\'s own completeness audit reported problems; some declared dependencies may be missing. '
+      + 'Run plugin_offline action "verify" for details.',
+    );
+  }
   let install;
   try {
     install = await manager.installBundle(inspection.artifact.file, enabled === undefined ? {} : { enabled: Boolean(enabled) });
   } catch (error) {
-    throw new OfflineError(
-      'install-failed',
-      `Offline install of ${JSON.stringify(inspection.metadata.plugin.name)} failed: ${String(error?.message ?? error)}. `
-      + 'The manager restored the profile manifest and lockfile; fix the reported cause and retry.',
-      { cause: error },
+    // A registry that the isolated network cannot reach must not block the
+    // import: the artifact already carries the whole closure, so fall back to
+    // materializing it without pnpm. Compatibility refusals and build-script
+    // blocks are never bypassed.
+    if (!isRegistryInstallFailure(error)) {
+      throw new OfflineError(
+        'install-failed',
+        `Offline install of ${JSON.stringify(inspection.metadata.plugin.name)} failed: ${String(error?.message ?? error)}. `
+        + 'The manager restored the profile manifest and lockfile; fix the reported cause and retry.',
+        { cause: error },
+      );
+    }
+    warnings.push(
+      `The profile package manager could not resolve packages (${firstLine(error)}); `
+      + 'the artifact was installed directly from its bundled files without pnpm. The profile lockfile is not updated by this fallback.',
     );
+    install = await installWithoutPnpm({
+      ctx,
+      artifact: inspection.artifact.file,
+      manifest: inspection.manifest,
+      enabled: enabled === undefined ? true : Boolean(enabled),
+    });
   }
   return {
     action: 'import',
@@ -121,9 +145,127 @@ export async function importArtifact({ ctx, artifact, enabled }) {
     target: inspection.metadata.target ?? {},
     source: inspection.metadata.source ?? {},
     packages: Array.isArray(inspection.metadata.packages) ? inspection.metadata.packages.length : undefined,
-    warnings: inspection.warnings,
+    warnings,
     install,
   };
+}
+
+/**
+ * Whether a manager installation failure is a registry/network problem that the
+ * pnpm-free fallback may bypass. Compatibility refusals and blocked build
+ * scripts stay authoritative and are never bypassed.
+ * @param error - the rejection from `pluginManager.installBundle`.
+ * @returns true for network, registry, authorization and offline kind failures.
+ */
+export function isRegistryInstallFailure(error) {
+  const message = String(error?.message ?? error);
+  if (/incompatible|version exemption|pendingBuild|blocked build|allowBuilds/i.test(message)) return false;
+  return /ERR_PNPM_(?:FETCH|META_FETCH|OFFLINE|NO_OFFLINE|FETCH_404)|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|socket hang up|fetch failed|network|registry|\b401\b|\b403\b|\b404\b/i.test(message);
+}
+
+/** First line of an error message, bounded for logs and warnings. */
+function firstLine(error) {
+  const text = String(error?.message ?? error).trim().split(/\r?\n/)[0];
+  return text.length > 240 ? `${text.slice(0, 237)}...` : text;
+}
+
+/**
+ * Install an artifact without the package manager: extract its `package/` tree
+ * into `<profile>/node_modules/<name>` (the bundled nested `node_modules` already
+ * holds the whole closure, so Node and DSH's runtime resolution find it), then
+ * record the dependency and select the bundle in the profile manifest. Used only
+ * when the package manager cannot reach a registry on an isolated machine.
+ * @param options.ctx - Host plugin context (profile facts).
+ * @param options.artifact - absolute artifact path.
+ * @param options.manifest - the artifact's package manifest.
+ * @param options.enabled - select the bundle layer (mirrors the manager option).
+ * @returns a manager-shaped activation result with `manual: true`.
+ */
+async function installWithoutPnpm({ ctx, artifact, manifest, enabled }) {
+  const profileDir = resolveProfileDir(ctx);
+  const name = manifest?.name;
+  if (typeof name !== 'string' || name === '') {
+    throw new OfflineError('invalid-artifact', 'The artifact package.json has no package name.');
+  }
+  const manifestPath = join(profileDir, 'package.json');
+  const originalManifest = await readFile(manifestPath, 'utf8');
+  const targetDir = join(profileDir, 'node_modules', name);
+  const staging = await mkdtemp(join(profileDir, '.dsh-offline-install-'));
+  const tree = join(staging, 'package');
+  let backup;
+  let installed = false;
+  let written = false;
+  try {
+    await extractTarGz({ file: artifact, destDir: tree });
+    const extracted = readJsonFile(join(tree, 'package.json'));
+    if (extracted?.name !== name) {
+      throw new OfflineError('invalid-artifact', `Extracted package.json names ${JSON.stringify(extracted?.name)} instead of ${JSON.stringify(name)}.`);
+    }
+    if (extracted?.dsh?.bundle?.patch === undefined) {
+      throw new OfflineError('not-a-bundle', `Extracted package ${JSON.stringify(name)} declares no dsh.bundle.patch.`);
+    }
+    await mkdir(dirname(targetDir), { recursive: true });
+    if (existsSync(targetDir)) {
+      backup = `${targetDir}.dsh-offline-backup-${Date.now()}`;
+      await rename(targetDir, backup);
+    }
+    await rename(tree, targetDir);
+    installed = true;
+    const profileManifest = readJsonFile(manifestPath);
+    profileManifest.dependencies = { ...(profileManifest.dependencies ?? {}), [name]: `file:${artifact}` };
+    if (enabled !== false) {
+      const dsh = { ...(profileManifest.dsh ?? {}) };
+      const profile = { ...(dsh.profile ?? {}) };
+      const bundles = Array.isArray(profile.bundles) ? profile.bundles.slice() : [];
+      if (!bundles.includes(name)) bundles.push(name);
+      profile.bundles = bundles;
+      dsh.profile = profile;
+      profileManifest.dsh = dsh;
+    }
+    await writeFileAtomic(manifestPath, `${JSON.stringify(profileManifest, undefined, 2)}\n`);
+    written = true;
+    if (backup !== undefined) {
+      try {
+        await rm(backup, { recursive: true, force: true });
+      } catch {
+        // A stale backup directory is harmless; the new install is in place.
+      }
+      backup = undefined;
+    }
+    return {
+      stage: 'enable',
+      target: name,
+      enabled: enabled !== false,
+      changed: true,
+      application: 'applied',
+      manual: true,
+      bundle: name,
+      ...(typeof manifest.version === 'string' ? { version: manifest.version } : {}),
+    };
+  } catch (error) {
+    if (installed) await rm(targetDir, { recursive: true, force: true }).catch(() => {});
+    if (backup !== undefined) await rename(backup, targetDir).catch(() => {});
+    if (!written) await writeFile(manifestPath, originalManifest, 'utf8').catch(() => {});
+    if (error instanceof OfflineError) throw error;
+    throw new OfflineError(
+      'install-failed',
+      `Direct installation without pnpm failed: ${String(error?.message ?? error)}. The profile files were restored.`,
+      { cause: error },
+    );
+  } finally {
+    await rm(staging, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/**
+ * Replace one profile file atomically (same-directory temp + rename).
+ * @param path - target file path.
+ * @param content - UTF-8 text to write.
+ */
+async function writeFileAtomic(path, content) {
+  const temp = join(dirname(path), `.${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.tmp`);
+  await writeFile(temp, content, { encoding: 'utf8', mode: 0o600 });
+  await rename(temp, path);
 }
 
 /**

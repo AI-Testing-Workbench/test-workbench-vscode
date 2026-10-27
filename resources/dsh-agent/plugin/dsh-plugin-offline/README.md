@@ -10,7 +10,8 @@ registry access**, as one tarball.
   plugin manager, so the dependency, the bundle selection, the lockfile and the live
   composition behave exactly like a normal `plugin_manager` install — offline.
 - `list` shows the profile's exportable bundles; `inspect` reads an artifact (target DSH
-  version, platform, bundled packages, inserted rows) without installing it.
+  version, platform, bundled packages, inserted rows) without installing it; `verify` audits an
+  artifact's dependency completeness.
 - **Web UI**: the built-in Plugins page gains an **Import & Export** tab that lists installed
   plugins with one export button per row (the folder is picked for each export) and an
   offline-import entry (pick a `.tgz`, confirm, upload); every installed plugin's detail page
@@ -76,6 +77,21 @@ Open **Plugins** in the sidebar:
     then offers **View plugin details**. Only `dsh-plugin-offline` artifacts are accepted; the
     file is first copied to `<DSH_HOME>/offline-artifacts/imports/` because the profile
     records that path as the dependency source (1 GB upload limit).
+
+**Why an import never needs the registry (and what changed for intranet profiles).**
+pnpm's `autoInstallPeers` is on by default outside this Desktop profile, so installing a
+plugin tarball used to make pnpm fetch every declared peer as a direct dependency of the
+profile — on an isolated Artifactory that failed with `ERR_PNPM_FETCH_404 ... @deepseek-ai/cordis`.
+Artifacts now mark every peer dependency `optional` in the staged manifest: the peers stay
+declared (DSH still checks `@deepseek-ai/dsh-*` ranges at load, and every peer that resolved on
+the source machine is already bundled), but pnpm no longer installs or fetches them. If pnpm
+still cannot reach a registry for another reason (for example the profile's own dependencies
+need resolution), `import` falls back to installing the artifact **without pnpm**: the bundled
+tree is materialized into `node_modules/<name>`, the profile manifest records the dependency
+and selects the bundle, and the result notes that the lockfile was not updated (restart DSH if
+the plugin does not appear). Compatibility refusals are never bypassed. Artifacts exported
+before this fix may still make pnpm try the old peer fetch once; the fallback then completes
+the install, or re-export on the connected machine for a clean artifact.
 - **Any installed plugin's detail page**: **Export offline** beside the enable switch and
   uninstall action; it asks for the folder the same way.
 
@@ -92,6 +108,7 @@ restart before the tab and button show up.
 
 ```
 plugin_offline { action: "inspect", artifact: "/media/usb/dshmarket-1.66.45-offline.tgz" }
+plugin_offline { action: "verify",  artifact: "/media/usb/dshmarket-1.66.45-offline.tgz" }
 plugin_offline { action: "import",  artifact: "/media/usb/dshmarket-1.66.45-offline.tgz" }
 ```
 
@@ -145,6 +162,43 @@ Node's resolution — and DSH's own runtime resolution — find those exact copi
 the profile root already has a different version. Native addons are copied prebuilt, no
 build scripts run during import.
 
+### Is everything bundled?
+
+Export walks the installed plugin's dependency graph recursively — `dependencies`,
+`optionalDependencies`, and every `peerDependencies` entry that resolves in the source
+profile — and copies each package's files, including nested copies created for version
+conflicts (`node_modules/<a>/node_modules/<b>`). On top of the package it copies, the
+artifact's manifest declares exactly what is physically present through
+`bundleDependencies` (pnpm only installs what that field names).
+
+Deliberately *not* bundled, with the reason recorded in `dsh-offline.json`:
+
+| Not bundled | Why it still works on the isolated machine |
+|---|---|
+| `@deepseek-ai/*` packages | supplied by that machine's own DSH installation at load time (listed under `runtimeProvided`) |
+| optional dependencies that were not installed on the source machine (e.g. other-platform native binaries) | they were not needed there either; listed under `notBundled` |
+| peers that did not resolve on the source machine | recorded as optional peers; the target runtime or another bundle provides them |
+| install-time lifecycle scripts (`preinstall`/`install`/`postinstall`) | prebuilt files are already in the artifact; pnpm must not run builds offline |
+| a plugin with `binding.gyp` (needs a native build at install time) | reported as a warning — such a plugin may need another distribution method |
+
+Export runs this audit on the staged tree before packing and reports `complete: true` plus
+any `auditErrors`/`auditWarnings`. Any artifact can be re-audited later, offline:
+
+```
+plugin_offline { action: "verify", artifact: "/path/to/x-offline.tgz" }
+```
+
+`verify` extracts the tarball to a temp directory and checks, from the plugin outward, that
+every declared dependency resolves **inside the artifact** (nested copies included) or is a
+runtime-provided `@deepseek-ai/*` package; that each `bundleDependencies` claim has files and
+that every physical nested bundle is claimed; that the bundle patch file and the
+`dsh-offline.json` marker agree with `package.json`. Real examples from this repo:
+
+- `dshmarket` artifact: `complete: true`, 4 packages (plugin + `js-yaml`, `undici`, `argparse`),
+  440 files / 7.7 MB unpacked, 3 runtime-provided peers.
+- `dsh-univer-office` artifact: `complete: true`, 35 packages, 2,781 files / 334 MB unpacked,
+  9 runtime-provided peers, 16 other-platform optional binaries listed as absent (expected).
+
 ## Limits worth knowing
 
 - **Platform-specific.** Native modules and prebuilt binaries are copied for the
@@ -167,14 +221,22 @@ build scripts run during import.
 
 ## Verification performed
 
-- Unit tests: `node --test test/*.test.mjs` — 42 passing (tar engine, closure/staging,
+- Unit tests: `node --test test/*.test.mjs` — 50 passing (tar engine, closure/staging,
   export→inspect→import pipeline with a synthetic profile, browser endpoint routes including
   chosen-folder export and uploaded-artifact import/refusals, plus a no-browser render smoke
-  test that applies the Client half and walks both Plugins-page seats).
+  test that applies the Client half and walks both Plugins-page seats, artifact peers marked
+  optional, the pnpm-free import fallback, and the completeness audit (clean artifact,
+  missing dependency, phantom bundle declaration, marker mismatch, optional absence)).
 - Offline integration: an artifact installed with
   `pnpm add --offline --store-dir <empty> --registry http://127.0.0.1:1/ <artifact>` in a
   fresh hoisted project, then loaded and resolved its bundled dependencies
-  (`test/integration/offline-install.test.mjs`).
+  (`test/integration/offline-install.test.mjs`). A second integration test reproduces the
+  intranet peer case: a plugin declaring `@deepseek-ai/cordis` as a peer installs with pnpm's
+  default `autoInstallPeers` behavior, an empty store and no registry, and no
+  `node_modules/@deepseek-ai` appears (`test/integration/peer-optional.test.mjs`).
+- Completeness audit: `plugin_offline verify` reported `complete: true` for both the
+  `dshmarket` and `dsh-univer-office` artifacts (numbers above); broken hand-made artifacts are
+  rejected with `missing-dependency` / `declared-bundle-missing` / `marker-mismatch` errors.
 - End-to-end on a live DSH Desktop profile: installed `examples/fixture-plugin` (a Host
   tool that imports `semver`), exported it, removed it, then imported the artifact with
   `plugin_offline`; the bundle row remounted live and `semver` resolved only from the
@@ -196,14 +258,14 @@ build scripts run during import.
 
 ```
 node --test test/*.test.mjs            # unit tests (no network)
-node --test test/integration/*.test.mjs  # pnpm offline install (needs pnpm, no network)
+node --test test/integration/*.test.mjs  # pnpm offline installs (needs pnpm, no network)
 ```
 
 Layout: `index.js` (bundle entry), `src/tool.mjs` (tool schema/approval), `src/http.mjs`
 (browser endpoints behind the Plugins page buttons), `client.js` (the browser half: the
 Import & Export tab with per-export folder picking and the import entry, plus the
 detail-page export button),
-`src/export.mjs`, `src/import.mjs`,
+`src/export.mjs`, `src/import.mjs`, `src/verify.mjs` (artifact completeness audit),
 `src/profile.mjs` (profile discovery, manager access), `src/closure.mjs` (dependency
 closure + bundled staging), `src/tar.mjs` (streaming gzip+tar), `examples/fixture-plugin`
 (the self-test bundle used for the live end-to-end run).

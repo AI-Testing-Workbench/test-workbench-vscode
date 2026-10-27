@@ -68,6 +68,7 @@ window.__ModuleLoader__.load({
         activationCancelled: 'Installed, but activation was cancelled.',
         uploading: 'Uploading',
         openPlugin: 'View plugin details',
+        manualInstall: 'Installed directly from the artifact because pnpm could not reach its registry. Restart DSH if the plugin does not appear.',
         importHint: 'Only dsh-plugin-offline artifacts are accepted here.',
         fileTooLarge: 'This file is larger than the 1 GB import limit.',
       },
@@ -106,6 +107,7 @@ window.__ModuleLoader__.load({
         activationCancelled: '已安装，但启用被取消。',
         uploading: '上传中',
         openPlugin: '查看插件详情',
+        manualInstall: 'pnpm 无法访问 registry，已直接按离线包内容安装。若插件未出现，请重启 DSH。',
         importHint: '这里只接受 dsh-plugin-offline 生成的产物。',
         fileTooLarge: '文件超过 1 GB 的导入上限。',
       },
@@ -455,6 +457,7 @@ window.__ModuleLoader__.load({
               if (notice === undefined) return null;
               return h('p', { className: notice.tone === 'error' ? 'dsh-offline-error' : 'dsh-offline-warn' }, notice.text);
             })(),
+            result.install?.manual === true ? h('p', { className: 'dsh-offline-warn' }, t('manualInstall')) : null,
             Array.isArray(result.warnings) && result.warnings.length > 0
               ? h('p', { className: 'dsh-offline-warn' }, result.warnings.join(' '))
               : null,

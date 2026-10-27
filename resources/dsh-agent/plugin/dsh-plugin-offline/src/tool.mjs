@@ -5,6 +5,7 @@
  */
 import { exportPlugin, defaultArtifactDir, resolveArtifactPath } from './export.mjs';
 import { importArtifact, inspectArtifact } from './import.mjs';
+import { verifyArtifact } from './verify.mjs';
 import { OfflineError, getRuntimeVersion, installAnchorOf, listInstalledBundles, resolveProfileDir } from './profile.mjs';
 
 /** Tool name registered on the Host tool registry. */
@@ -23,6 +24,7 @@ export function createOfflineTool(ctx) {
       + 'action "list" shows the current profile\'s installed bundles that can be exported. '
       + 'action "export" packs one installed bundle and its whole dependency closure into a single .tgz artifact that can be installed with no registry access (optionally copy it to a path with "output"; the default is <DSH_HOME>/offline-artifacts). '
       + 'action "inspect" reads an artifact\'s offline manifest, bundle rows, target DSH version and bundled packages without installing it. '
+      + 'action "verify" audits an artifact for completeness: every declared dependency must resolve inside the artifact or be supplied by the DSH runtime, and bundleDependencies must match the files present. '
       + 'action "import" installs an artifact into the current profile offline through the profile plugin manager, selecting the bundle like a normal install; it needs danger-full-access or approval because installed Host code runs outside the workspace sandbox and the change persists across sessions. '
       + 'The artifact remains the installed dependency\'s source path: keep it where it was imported from. '
       + 'Artifacts are platform/arch specific for native modules and carry the DSH runtime version they were built on.',
@@ -31,10 +33,11 @@ export function createOfflineTool(ctx) {
       properties: {
         action: {
           type: 'string',
-          enum: ['list', 'export', 'inspect', 'import'],
+          enum: ['list', 'export', 'inspect', 'verify', 'import'],
           description:
             'list = installed exportable bundles; export = pack one bundle into an offline artifact; '
-            + 'inspect = read an artifact without installing; import = install an artifact into this profile offline.',
+            + 'inspect = read an artifact without installing; verify = audit an artifact\'s dependency completeness; '
+            + 'import = install an artifact into this profile offline.',
         },
         plugin: {
           type: 'string',
@@ -48,7 +51,7 @@ export function createOfflineTool(ctx) {
         },
         artifact: {
           type: 'string',
-          description: 'For actions "inspect" and "import": the absolute path of a .tgz produced by action "export".',
+          description: 'For actions "inspect", "verify" and "import": the absolute path of a .tgz produced by action "export".',
         },
         enabled: {
           type: 'boolean',
@@ -73,6 +76,8 @@ export function createOfflineTool(ctx) {
           return { card: 'generic', title: `Import offline plugin ${args?.artifact ?? ''}`, kind: 'execute' };
         case 'inspect':
           return { card: 'generic', title: `Inspect offline artifact ${args?.artifact ?? ''}`, kind: 'read' };
+        case 'verify':
+          return { card: 'generic', title: `Verify offline artifact ${args?.artifact ?? ''}`, kind: 'read' };
         default:
           return { card: 'generic', title: 'List exportable plugins', kind: 'read' };
       }
@@ -124,6 +129,11 @@ async function dispatch(ctx, args, exec) {
               hint: 'This file is not a dsh-plugin-offline artifact. Install an ordinary plugin tarball with plugin_manager { action: "install_bundle", target: <absolute .tgz path> }.',
             }),
       });
+    }
+    case 'verify': {
+      if (args.artifact === undefined) throw new OfflineError('invalid-artifact', 'action "verify" requires "artifact" (an absolute .tgz path).');
+      const result = await verifyArtifact(args.artifact);
+      return JSON.stringify({ action: 'verify', ...result });
     }
     case 'import': {
       if (args.artifact === undefined) throw new OfflineError('invalid-artifact', 'action "import" requires "artifact" (an absolute .tgz path).');

@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { collectDependencyClosure, readManifest, resolvePackageDir, stageBundledPackage } from './closure.mjs';
 import { packDirectoryToTarGz } from './tar.mjs';
+import { auditPackageDir } from './verify.mjs';
 import {
   OfflineError,
   getRuntimeVersion,
@@ -162,20 +163,40 @@ export async function exportPlugin({ ctx, plugin, output }) {
   const stagingRoot = await mkdtemp(join(tmpdir(), 'dsh-plugin-offline-'));
   try {
     const removedLifecycleScripts = [];
+    const peersMadeOptional = [];
     const stage = await stageBundledPackage({
       closure,
       stagingDir: stagingRoot,
-      // pnpm 11 refuses an install whose dependency declares build scripts it may
-      // not run; on an isolated machine those scripts cannot run anyway and the
-      // artifact already carries prebuilt files. Strip them from the artifact so
-      // the offline install is deterministic.
-      packageJsonTransform: (stagedManifest) => stripLifecycleScripts(stagedManifest, removedLifecycleScripts),
+      // Two artifact-manifest adjustments make the tarball installable with no
+      // registry access:
+      //  - pnpm 11 refuses an install whose dependency declares build scripts it
+      //    may not run; those scripts cannot run offline and the artifact already
+      //    carries prebuilt files, so they are removed;
+      //  - pnpm's autoInstallPeers (pnpm's default, unlike the Desktop profile)
+      //    would fetch every peer dependency from the registry as a direct
+      //    dependency of the profile. On an isolated machine that is exactly the
+      //    `ERR_PNPM_FETCH_404 ... @deepseek-ai/cordis` failure. Marking peers
+      //    optional keeps them declared (DSH still checks @deepseek-ai/dsh-*
+      //    ranges at load) but stops pnpm from installing them; the runtime
+      //    supplies @deepseek-ai/* and resolvable peers are already bundled.
+      packageJsonTransform: (stagedManifest) => {
+        stripLifecycleScripts(stagedManifest, removedLifecycleScripts);
+        peersMadeOptional.push(...markPeersOptional(stagedManifest));
+        return stagedManifest;
+      },
     });
     if (removedLifecycleScripts.length > 0) {
       metadata.scriptsRemoved = removedLifecycleScripts;
       metadata.warnings.push(
         `removed install-time lifecycle scripts ${removedLifecycleScripts.join(', ')} from the artifact manifest; `
         + 'the artifact carries prebuilt files and an offline install must not run build scripts.',
+      );
+    }
+    if (peersMadeOptional.length > 0) {
+      metadata.peersMadeOptional = peersMadeOptional;
+      metadata.warnings.push(
+        `marked peer dependencies ${peersMadeOptional.join(', ')} optional in the artifact manifest so pnpm does not fetch them on import; `
+        + 'DSH supplies @deepseek-ai/* packages at load time and resolvable peers are bundled.',
       );
     }
     if (existsSync(join(rootDir, 'binding.gyp'))) {
@@ -187,6 +208,23 @@ export async function exportPlugin({ ctx, plugin, output }) {
     metadata.packages = await withSizes(stage);
     metadata.notBundled = mergeNotBundled(metadata.notBundled, stage.removedDependencies);
     if (Array.isArray(stage.warnings)) metadata.warnings.push(...stage.warnings);
+
+    // Audit the staged package before it is packed: the artifact must be
+    // self-sufficient (every declaration resolves inside it or comes from the DSH
+    // runtime) and its bundleDependencies must match the files present.
+    const audit = await auditPackageDir(stage.packageDir);
+    metadata.verification = {
+      complete: audit.ok,
+      packageCount: audit.packageCount,
+      runtimeProvided: audit.runtimeProvided,
+      errors: audit.errors,
+    };
+    if (!audit.ok) {
+      metadata.warnings.push(
+        `artifact verification found ${audit.errors.length} completeness problem(s): `
+        + audit.errors.map((error) => error.message ?? error.kind).join(' '),
+      );
+    }
     metadata.warnings = [...new Set(metadata.warnings)];
     await writeArtifactManifest(stage.packageDir, metadata);
     await packDirectoryToTarGz({ sourceDir: stage.packageDir, outFile: artifact, prefix: 'package' });
@@ -200,7 +238,11 @@ export async function exportPlugin({ ctx, plugin, output }) {
       packages: metadata.packages.map(({ name, version, path, kind }) => ({ name, version, path, kind })),
       packageCount: metadata.packages.length,
       runtimeProvided: metadata.runtimeProvided.map((item) => item.name),
+      peersMadeOptional: (metadata.peersMadeOptional ?? []),
       notBundled: metadata.notBundled.map((item) => item.name),
+      complete: audit.ok,
+      auditErrors: audit.errors,
+      auditWarnings: audit.warnings.slice(0, 20),
       warningCount: metadata.warnings.length,
       warnings: metadata.warnings.slice(0, 20),
       installHint: `Copy the artifact to the isolated machine, then run plugin_offline { action: "import", artifact: ${JSON.stringify(artifact)} } there (or plugin_manager { action: "install_bundle", target: <artifact path> }).`,
@@ -357,4 +399,35 @@ function stripLifecycleScripts(manifest, removed) {
   }
   if (Object.keys(scripts).length === 0) delete manifest.scripts;
   return manifest;
+}
+
+/**
+ * Mark every peer dependency optional in the staged manifest.
+ *
+ * pnpm's `autoInstallPeers` (default on) otherwise tries to install each declared
+ * peer as a direct dependency of the profile, which requires registry access and
+ * fails on isolated machines (`ERR_PNPM_FETCH_404`). Optional peers stay declared
+ * for diagnostics and DSH's runtime peer-range check; the artifact already bundles
+ * every peer that resolved in the source profile, and the DSH installation supplies
+ * the `@deepseek-ai/*` ones at load time.
+ * @param manifest - staged package manifest (mutated copy).
+ * @returns the names newly marked optional.
+ */
+function markPeersOptional(manifest) {
+  if (manifest === null || typeof manifest !== 'object') return [];
+  const peers = manifest.peerDependencies;
+  if (peers === null || typeof peers !== 'object' || Array.isArray(peers)) return [];
+  const names = Object.keys(peers);
+  if (names.length === 0) return [];
+  const existing = manifest.peerDependenciesMeta;
+  const meta = existing !== null && typeof existing === 'object' && !Array.isArray(existing) ? { ...existing } : {};
+  const added = [];
+  for (const name of names) {
+    const current = meta[name];
+    if (current !== null && typeof current === 'object' && current.optional === true) continue;
+    meta[name] = { ...(current !== null && typeof current === 'object' && !Array.isArray(current) ? current : {}), optional: true };
+    added.push(name);
+  }
+  manifest.peerDependenciesMeta = meta;
+  return added;
 }

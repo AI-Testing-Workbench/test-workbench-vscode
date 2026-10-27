@@ -10,7 +10,7 @@ npm registry / 外网访问**的机器上离线安装。
   依赖写入、bundle 选择、lockfile、运行时热组合都和普通的 `plugin_manager` 安装一致，
   只是全程离线。
 - `list` 列出当前 profile 里可导出的 bundle；`inspect` 不安装、直接读出一个产物的目标
-  DSH 版本、平台、打包的依赖和插入的插件行。
+  DSH 版本、平台、打包的依赖和插入的插件行；`verify` 审计产物依赖是否完整。
 - **Web 界面**：内置「插件」页新增 **导入导出** 标签页，逐行列出已安装插件并各带一个
   导出按钮（每次导出时选择保存目录），并提供离线导入入口（选 .tgz → 确认 → 上传安装）；
   每个已安装插件的详情页也会在启用开关/卸载按钮旁出现 **导出离线包** 按钮。
@@ -72,6 +72,18 @@ plugin_offline { action: "export", plugin: "dshmarket", output: "/tmp/transfer" 
     dsh-plugin-offline 的产物；文件会先复制到
     `<DSH_HOME>/offline-artifacts/imports/`（profile 会把这个路径记为该依赖的来源），
     上传上限 1 GB。
+
+**为什么导入不应该再访问 registry（内网报错的原因与修复）**：Desktop 之外 pnpm 的
+`autoInstallPeers` 默认开启，安装插件 tarball 时 pnpm 会把 tarball 声明的每个 peer 都当成
+profile 的直接依赖去 registry 拉取——在内网 Artifactory 上就是
+`ERR_PNPM_FETCH_404 ... @deepseek-ai/cordis`。现在导出时会把所有 peer 在产物 manifest 里标成
+`optional`：peer 仍然保留声明（DSH 启动时照旧校验 `@deepseek-ai/dsh-*` 版本区间，且在源机器
+能解析到的 peer 已经打进产物），但 pnpm 不会再安装/下载它们。如果 pnpm 仍因其他原因无法访问
+registry（例如 profile 自身的依赖需要重新解析），`import` 会自动回退为**不使用 pnpm** 的安装：
+把产物里的整棵依赖树直接落盘到 `node_modules/<name>`、在 profile manifest 里记录依赖并选中
+bundle，结果里会提示 lockfile 未更新（若插件没出现请重启 DSH）。兼容性拒绝不会被绕过。
+在此修复之前导出的旧产物第一次仍可能触发旧的 peer 拉取；回退会接着完成安装，或在有外网的
+机器上重新导出一次。
 - **任意已安装插件的详情页**：启用开关、卸载按钮旁的 **导出离线包** 按钮，同样先选择目录。
 
 两个导出入口与 Agent 工具走同一条流程；导出接口会校验所选目录（必须是已存在的绝对路径
@@ -83,6 +95,7 @@ plugin_offline { action: "export", plugin: "dshmarket", output: "/tmp/transfer" 
 
 ```
 plugin_offline { action: "inspect", artifact: "/media/usb/dshmarket-1.66.45-offline.tgz" }
+plugin_offline { action: "verify",  artifact: "/media/usb/dshmarket-1.66.45-offline.tgz" }
 plugin_offline { action: "import",  artifact: "/media/usb/dshmarket-1.66.45-offline.tgz" }
 ```
 
@@ -125,6 +138,40 @@ pnpm 会把声明的 bundled 依赖树解包到**安装后插件包内部的 `no
 profile 根目录已经存在另一个版本，Node 解析（以及 DSH 的运行时解析）也会命中产物内的
 精确副本。原生模块以预编译文件复制，导入时不执行 build script。
 
+### 依赖是不是都打进去了？
+
+导出会递归遍历已安装插件的依赖图——`dependencies`、`optionalDependencies`，以及源 profile
+里能解析到的所有 `peerDependencies`——逐个复制包文件，版本冲突时还会生成嵌套副本
+（`node_modules/<a>/node_modules/<b>`）。除此之外，产物 manifest 会用 `bundleDependencies`
+精确声明物理上放了哪些包（pnpm 只安装这个字段列出的内容）。
+
+**有意不打包**的部分及原因（都会记录在 `dsh-offline.json`）：
+
+| 不打包 | 隔离机器上为什么仍可用 |
+|---|---|
+| `@deepseek-ai/*` 包 | 由目标机器自己的 DSH 运行时提供（记录在 `runtimeProvided`） |
+| 源机器上本就没安装的可选依赖（如其他平台的原生二进制） | 源机器也不需要；记录在 `notBundled` |
+| 源机器上解析不到的 peer | 记为 optional peer，由目标运行时或其他 bundle 提供 |
+| 安装期生命周期脚本（`preinstall`/`install`/`postinstall`） | 产物里已是预编译文件，离线时不应执行构建 |
+| 声明了 `binding.gyp`（安装期需要原生构建）的插件 | 给出警告——这类插件可能需要其他分发方式 |
+
+导出会在打包前对 staged 目录跑一次审计，结果里给出 `complete: true` 以及
+`auditErrors`/`auditWarnings`。之后也可以随时离线复审任意产物：
+
+```
+plugin_offline { action: "verify", artifact: "/path/to/x-offline.tgz" }
+```
+
+`verify` 会把 tarball 解压到临时目录，从插件本身向外检查：每个声明的依赖要么能在产物
+内部解析到（含嵌套副本），要么是运行时提供的 `@deepseek-ai/*`；每个 `bundleDependencies`
+声明都有真实文件、所有物理嵌套包都有声明；bundle patch 与 `dsh-offline.json` 和
+`package.json` 一致。本仓库的真实结果：
+
+- `dshmarket` 产物：`complete: true`，4 个包（插件 + `js-yaml`/`undici`/`argparse`），
+  440 个文件 / 解包 7.7 MB，3 个运行时提供的 peer；
+- `dsh-univer-office` 产物：`complete: true`，35 个包，2,781 个文件 / 解包 334 MB，
+  9 个运行时提供的 peer，16 个其他平台可选二进制列为缺失（符合预期）。
+
 ## 需要注意的限制
 
 - **平台相关**：原生模块按导出机器的 `platform`/`arch` 复制（会记录并在导入时警告）。
@@ -144,12 +191,20 @@ profile 根目录已经存在另一个版本，Node 解析（以及 DSH 的运�
 
 ## 已完成的验证
 
-- 单元测试：`node --test test/*.test.mjs`，42 项通过（tar 读写、依赖闭包与打包布局、
+- 单元测试：`node --test test/*.test.mjs`，50 项通过（tar 读写、依赖闭包与打包布局、
   用合成 profile 跑通的 export→inspect→import 全链路、浏览器接口路由（含"导出到所选目录"
-  与"上传产物导入/拒绝"），以及一个无浏览器的 Client 渲染冒烟测试（两个插件页扩展位）。
+  与"上传产物导入/拒绝"）、一个无浏览器的 Client 渲染冒烟测试（两个插件页扩展位）、产物 peer
+  标 optional、无 pnpm 导入回退，以及完整性审计——干净产物、缺依赖、虚假 bundle 声明、
+  marker 不匹配、可选依赖缺失）。
 - 离线集成测试：在全新 hoisted 工程里用
   `pnpm add --offline --store-dir <空目录> --registry http://127.0.0.1:1/ <产物>` 安装，
-  再加载并解析产物内嵌套的依赖（`test/integration/offline-install.test.mjs`）。
+  再加载并解析产物内嵌套的依赖（`test/integration/offline-install.test.mjs`）。另有一个复现
+  内网 peer 场景的集成测试：声明 `@deepseek-ai/cordis` peer 的插件在 pnpm 默认
+  `autoInstallPeers`、空 store、无 registry 的条件下安装成功，且不会出现
+  `node_modules/@deepseek-ai`（`test/integration/peer-optional.test.mjs`）。
+- 完整性审计：`plugin_offline verify` 对 `dshmarket` 与 `dsh-univer-office` 两个真实产物
+  均返回 `complete: true`（数字见上）；手工构造的坏产物会以 `missing-dependency` /
+  `declared-bundle-missing` / `marker-mismatch` 报错。
 - 在真实 DSH Desktop profile 上端到端跑通：安装 `examples/fixture-plugin`（一个 import
   `semver` 的 Host 工具）→ 导出 → 移除 → 用 `plugin_offline` 导入，bundle 行在 live 组合里
   重新挂载，且 `semver` 只可能来自产物内嵌套的 `node_modules`。另外对 `dshmarket`
@@ -173,7 +228,8 @@ node --test test/integration/*.test.mjs  # pnpm 离线安装集成测试（需�
 代码结构：`index.js`（bundle 入口）、`src/tool.mjs`（工具 schema 与审批）、`src/http.mjs`
 （插件页按钮背后的浏览器接口）、`client.js`（浏览器半边：逐次选择导出目录、带导入入口的
 导入导出标签页 + 详情页导出按钮）、
-`src/export.mjs`、`src/import.mjs`、`src/profile.mjs`（profile 定位、管理器访问）、
+`src/export.mjs`、`src/import.mjs`、`src/verify.mjs`（产物完整性审计）、
+`src/profile.mjs`（profile 定位、管理器访问）、
 `src/closure.mjs`（依赖闭包与 bundled 布局）、`src/tar.mjs`（流式 gzip+tar）、
 `examples/fixture-plugin`（端到端自测用的 fixture bundle）。
 

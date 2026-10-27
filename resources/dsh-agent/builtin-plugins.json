@@ -5,8 +5,8 @@
 			"name": "dsh-plugin-offline",
 			"version": "0.1.0",
 			"repository": "https://github.com/AI-Testing-Workbench/dsh-plugin-offilne.git",
-			"ref": "d90ea78c7714f59c60a11b9cadfc3198911cf2b5",
-			"note": "The vendored copy carries the rc.3 fixes: wait for the optional webServer service before registering routes, fall back to bundled messages when locale.bind returns the key for a missing entry, and resolve uiWorkspace lazily when export is clicked because it starts after this plugin's fiber. Push those fixes, bump ref, and re-run sync-builtin-plugins.mjs."
+			"ref": "9835f1ca59fd3bf8999096ff282cbd5db26a236c",
+			"note": "The vendored copy carries the rc.3 fixes: wait for the optional webServer service before registering routes, fall back to bundled messages when locale.bind returns the key for a missing entry, and resolve uiWorkspace lazily when export is clicked because it starts after this plugin's fiber. It also verifies peer and optional dependencies while building the offline closure. Push those fixes, bump ref, and re-run sync-builtin-plugins.mjs."
 		}
 	]
 }
