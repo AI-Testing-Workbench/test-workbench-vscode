@@ -405,7 +405,12 @@ jobs:
   build-win32-arm64:
     name: Build Windows arm64
     needs: dsh-runtime # test-workbench_change
-    runs-on: windows-11-arm
+    # test-workbench_change start
+    # windows-11-arm now ships Visual Studio 2026, which `build/npm/preinstall.ts`
+    # and node-gyp 11 do not recognize. Cross-compile on the x64 image instead,
+    # matching the upstream arm64 pipeline.
+    runs-on: windows-2022
+    # test-workbench_change end
     if: >-
       (github.event_name == 'workflow_dispatch' && (contains('win32-arm64,all', github.event.inputs.platforms) || github.event.inputs.platforms == '')) ||
       (github.event_name == 'push' && !startsWith(github.ref, 'refs/heads/dependabot/'))
@@ -528,7 +533,11 @@ jobs:
         shell: pwsh
         run: node scripts/dsh-agent/install-runtime-from-tarballs.mts --out .build/dsh-runtime --from .build/dsh-tarballs/dsh --from .build/dsh-tarballs/vendor --from .build/dsh-tarballs/landlock
         env:
-          npm_config_arch: arm64
+          # test-workbench_change start
+          # The packaged dsh runtime stays x64 on this cross-build so it can be
+          # smoke-tested here; Windows on Arm runs it through x64 emulation.
+          npm_config_arch: x64
+          # test-workbench_change end
 
       - name: Stage dsh Agent runtime
         shell: pwsh
