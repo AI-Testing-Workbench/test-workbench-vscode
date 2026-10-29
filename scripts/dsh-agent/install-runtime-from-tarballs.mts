@@ -52,6 +52,7 @@ interface RuntimeManifest {
 
 interface RuntimePin {
 	readonly pnpm?: string;
+	readonly dedupe?: readonly string[];
 }
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -194,6 +195,34 @@ if (pnpmVersion === undefined) {
 	throw new Error('resources/dsh-agent/runtime.json must pin pnpm for the embedded plugin manager');
 }
 
+// test-workbench_change start
+// Collapse exact-pinned duplicates. When packed packages all pin the same exact
+// version but a transitive caret range resolves higher, npm keeps the higher
+// version at the root and clones the exact one under every dependent (zod was
+// copied 55 times, ~350 MB). An override keeps a single copy. The names come
+// from an explicit list in runtime.json so an unrelated transitive consumer is
+// never silently forced onto a different major.
+const overrides: Record<string, string> = {};
+for (const name of pin?.dedupe ?? []) {
+	const versions = new Set<string>();
+	for (const pkg of packed.values()) {
+		for (const value of [pkg.manifest.dependencies?.[name], pkg.manifest.optionalDependencies?.[name]]) {
+			if (typeof value === 'string' && /^\d+\.\d+\.\d+$/u.test(value)) {
+				versions.add(value);
+			}
+		}
+	}
+	if (versions.size === 1) {
+		overrides[name] = [...versions][0];
+	} else {
+		console.warn(`[dsh-agent] not deduping ${name}: packed exact pins disagree (${[...versions].join(', ') || 'none'})`);
+	}
+}
+if (Object.keys(overrides).length > 0) {
+	console.log(`[dsh-agent] dedupe overrides: ${JSON.stringify(overrides)}`);
+}
+// test-workbench_change end
+
 // Follow install and peer dependencies through the packed set. External
 // dependencies are left to npm, which resolves the platform-specific native
 // packages for the machine running this script.
@@ -282,6 +311,9 @@ await writeFile(join(out, 'package.json'), JSON.stringify({
 	private: true,
 	dependencies,
 	...(Object.keys(optionalDependencies).length > 0 ? { optionalDependencies } : {}),
+	// test-workbench_change start
+	...(Object.keys(overrides).length > 0 ? { overrides } : {}),
+	// test-workbench_change end
 	allowScripts
 }, null, 2) + '\n');
 await writeFile(join(out, 'TARBALL_SHA256SUMS'), `${digestRows.sort().join('\n')}\n`);

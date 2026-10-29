@@ -4,6 +4,20 @@ This file records changes to the dsh Agent integration. Code changes follow the
 repository's `test-workbench_change` marker convention; this file is the
 human-readable counterpart.
 
+## 2026-10-29 — Deduplicate the runtime dependency tree
+
+- 63 dsh packages pin `zod` exactly to `4.4.3`, while a few transitive caret
+  ranges resolved `4.6.7` at the install root. npm could not hoist the exact
+  pin, so every dependent received its own copy: 55 extra copies, ~352 MB and
+  40,330 files in the shipped runtime (62% of all files).
+- `runtime.json` now has a `dedupe` list. `install-runtime-from-tarballs.mts`
+  turns it into npm `overrides`, but only when every packed exact pin agrees on
+  one version; disagreeing pins log a warning and keep npm's default layout.
+- Reinstalled from the same fork tarballs on macOS arm64: `node_modules`
+  906 MB → 569 MB, files 65,186 → 30,088, `@deepseek-ai` 601 MB → 267 MB, one
+  zod copy (4.4.3). `e2e-smoke.mjs` passes against the deduplicated runtime
+  (Host ready 829 ms, plugin bundle, WS mux, session preset, traversal, profile).
+
 ## 2026-10-26 — Fix Windows install failure from long runtime paths
 
 - Windows still enforces the 260-character `MAX_PATH` limit during setup. The

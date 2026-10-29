@@ -69,10 +69,17 @@ node scripts/dsh-agent/size-report.mjs
   "dsh": "0.2.1-rc.3",
   "node": "24.18.0",
   "pnpm": "11.28.8",
+  "dedupe": ["zod"],
   "format": 1,
   "fork": { "repository": "...", "ref": "<commit>" }
 }
 ```
+
+`dedupe` 列出的依赖会在安装时生成 npm `overrides`：当所有 dsh 包都把同一个
+依赖精确 pin 到同一版本、而根上又被 caret 范围解析到更高版本时，npm 会在每个
+包下各克隆一份。zod 曾因此被复制 55 份（约 350MB、4 万个文件）；改为单一版本后
+运行时从约 906MB 降到约 569MB。只有当所有精确 pin 一致时才会生成 override，
+否则打印 warning 并保留 npm 默认行为。
 
 `install-runtime-from-tarballs.mts` 会把锁定版本的 pnpm 安装到运行时前缀中，
 `prepare-runtime` 则在打包的 Node 旁边提供 `pnpm` shim。Host 启动子进程时会把
