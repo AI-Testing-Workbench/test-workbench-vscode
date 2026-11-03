@@ -96,7 +96,7 @@ import { UnsupportedExtensionsMigrationContrib } from './unsupportedExtensionsMi
 
 // test-workbench_change start
 const EXTENSION_UPLOAD_API_URL = `${decodeProductUrl('aHR0cHM6Ly90c2NvZGUtdnN4LXJlZ2lzdHJ5LnBhYXN1YXQuY21iY2hpbmEuY24v')}api/-/extension/upload`;
-const INTERNAL_EXTENSION_ALLOWED_PUBLISHERS = ['test-infra', 'test-manage', 'test-tech', 'test-retail', 'test-env', 'test-sale', 'test-data'];
+const INTERNAL_EXTENSION_ALLOWED_PUBLISHERS = ['test-infra', 'test-manage', 'test-tech', 'test-retail', 'test-env', 'test-sale', 'test-data', 'test-cc', 'other'];
 // test-workbench_change end
 
 // Singletons
