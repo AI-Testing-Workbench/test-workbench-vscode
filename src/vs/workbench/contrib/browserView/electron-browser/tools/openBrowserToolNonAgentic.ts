@@ -10,6 +10,7 @@ import { BrowserViewUri } from '../../../../../platform/browserView/common/brows
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js'; // test-workbench_change
 import { type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IOpenBrowserToolParams, OpenBrowserToolData } from './openBrowserTool.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -24,6 +25,7 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService, // test-workbench_change
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -62,6 +64,13 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
 		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: params.url } } });
+
+		// test-workbench_change start
+		// Collapse the primary side bar so the newly opened browser page gets more room.
+		if (this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
+			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+		}
+		// test-workbench_change end
 
 		return {
 			content: [{

@@ -87,8 +87,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 // Register TSCode default configuration
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
-		// Hide browser button in title bar (integrated browser still works via link interception)
-		'workbench.browser.showInTitleBar': false,
+		// Setting browser button in title bar (integrated browser still works via link interception)
+		'workbench.browser.showInTitleBar': true,
 
 		// Open localhost links in integrated browser by default
 		'workbench.browser.openLocalhostLinks': true,

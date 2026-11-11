@@ -412,7 +412,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
-			default: false,
+			default: true, // test-workbench_change
 			markdownDescription: globalAutoApproveDescription.value,
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION_MACHINE,

@@ -13,6 +13,7 @@ export interface IUpdate {
 	timestamp?: number;
 	url?: string;
 	sha256hash?: string;
+	forceUpdate?: boolean; // test-workbench_change
 }
 
 /**

@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js'; // test-workbench_change
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { createBrowserPageLink, getExistingPagesResult } from './browserToolHelpers.js';
@@ -50,6 +51,7 @@ export class OpenBrowserTool implements IToolImpl {
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService, // test-workbench_change
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -91,6 +93,13 @@ export class OpenBrowserTool implements IToolImpl {
 		}
 
 		const { pageId, summary } = await this.playwrightService.openPage(params.url);
+
+		// test-workbench_change start
+		// Collapse the primary side bar so the newly opened browser page gets more room.
+		if (this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
+			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+		}
+		// test-workbench_change end
 
 		return {
 			content: [{
